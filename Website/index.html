@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" translate="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="google" content="notranslate" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Daryeel — Caafimaadkaaga, Gacantaada</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="notranslate">
+    <div id="root"></div>
+    <script>
+      (function () {
+        var insertBefore = Node.prototype.insertBefore
+        Node.prototype.insertBefore = function (node, ref) {
+          if (ref && ref.parentNode !== this) return this.appendChild(node)
+          return insertBefore.call(this, node, ref)
+        }
+        var removeChild = Node.prototype.removeChild
+        Node.prototype.removeChild = function (node) {
+          if (node.parentNode !== this) return node
+          return removeChild.call(this, node)
+        }
+      })()
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

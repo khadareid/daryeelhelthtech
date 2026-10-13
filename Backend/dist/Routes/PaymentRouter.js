@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const PaymentController_1 = require("../Controllers/PaymentController");
+const Jwt_1 = require("../helpers/secure/Jwt");
+const router = (0, express_1.Router)();
+router.post('/create', Jwt_1.decodeToken, PaymentController_1.createPayment);
+router.get('/all', Jwt_1.decodeToken, PaymentController_1.getAllPayments);
+router.get('/one/:id', Jwt_1.decodeToken, PaymentController_1.getPaymentById);
+router.put('/update/:id', Jwt_1.decodeToken, PaymentController_1.updatePayment);
+router.delete('/delete/:id', Jwt_1.decodeToken, PaymentController_1.deletePayment);
+exports.default = router;

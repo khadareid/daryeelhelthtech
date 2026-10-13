@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const StudentController_1 = require("../Controllers/StudentController");
+const Jwt_1 = require("../helpers/secure/Jwt");
+const router = (0, express_1.Router)();
+router.post('/create', Jwt_1.decodeToken, StudentController_1.createStudent);
+router.get('/all', StudentController_1.getAllStudents);
+router.get('/one/:id', Jwt_1.decodeToken, StudentController_1.getStudentById);
+router.put('/update/:id', Jwt_1.decodeToken, StudentController_1.updateStudent);
+router.delete('/delete/:id', Jwt_1.decodeToken, StudentController_1.deleteStudent);
+exports.default = router;

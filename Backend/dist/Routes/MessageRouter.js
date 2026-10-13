@@ -1,0 +1,20 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const MessageController_1 = require("../Controllers/MessageController");
+const router = (0, express_1.Router)();
+const handle = (fn) => (req, res, next) => {
+    Promise.resolve(fn(req, res)).catch(next);
+};
+router.use(VerifyToken_1.decodeToken);
+router.post("/", handle(MessageController_1.createMessage));
+router.get("/", handle(MessageController_1.listMessages));
+router.get("/inbox", handle(MessageController_1.listInbox));
+router.get("/sent", handle(MessageController_1.listSent));
+router.get("/unread-count", handle(MessageController_1.unreadCount));
+router.get("/thread/:peerId", handle(MessageController_1.getThread));
+router.get("/:id", handle(MessageController_1.getOneMessage));
+router.patch("/:id/read", handle(MessageController_1.markRead));
+router.delete("/:id", handle(MessageController_1.deleteMessage));
+exports.default = router;

@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 30% 97%;
+    --foreground: 215 25% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 17%;
+    --primary: 219 97% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 100% 96%;
+    --secondary-foreground: 219 87% 31%;
+    --muted: 216 100% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 216 100% 96%;
+    --accent-foreground: 219 87% 31%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 219 97% 53%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-brand-bg text-brand-text antialiased;
+    font-family: Inter, system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: Poppins, Inter, sans-serif;
+    @apply text-brand-dark;
+  }
+  .dark {
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer utilities {
+  /* Mobile-first page shell — tighten padding on phones, widen on lg */
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8;
+  }
+
+  /* Hide scrollbars on horizontal snap rows (hospitals, chips) */
+  .scroll-snap-x {
+    @apply flex snap-x snap-mandatory overflow-x-auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scroll-snap-x::-webkit-scrollbar {
+    display: none;
+  }
+}

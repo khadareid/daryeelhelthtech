@@ -1,0 +1,4 @@
+/* Theme tokens live in globals.css. Keep this file for future dark-mode overrides. */
+.dark {
+  color-scheme: dark;
+}
