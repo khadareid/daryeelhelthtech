@@ -12,6 +12,7 @@ router.post("/", handle(MessageController_1.createMessage));
 router.get("/", handle(MessageController_1.listMessages));
 router.get("/inbox", handle(MessageController_1.listInbox));
 router.get("/sent", handle(MessageController_1.listSent));
+router.get("/conversations", handle(MessageController_1.listConversations));
 router.get("/unread-count", handle(MessageController_1.unreadCount));
 router.get("/thread/:peerId", handle(MessageController_1.getThread));
 router.get("/:id", handle(MessageController_1.getOneMessage));

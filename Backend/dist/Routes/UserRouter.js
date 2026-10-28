@@ -8,6 +8,8 @@ const router = (0, express_1.Router)();
 router.post("/register", UserController_1.register);
 router.post("/login", UserController_1.login);
 router.get("/doctors", UserController_1.listPublicDoctors);
+router.get("/doctors/:idOrSlug", UserController_1.getPublicDoctor);
+router.get("/me/patient-id", VerifyToken_1.decodeToken, UserController_1.getMyPatientId);
 router.get("/profile/:userid", VerifyToken_1.decodeToken, UserController_1.getUserProfile);
 router.put("/profile/:userid", VerifyToken_1.decodeToken, UserController_1.updateUserProfile);
 router.put("/profile/:userid/password", VerifyToken_1.decodeToken, UserController_1.changePassword);

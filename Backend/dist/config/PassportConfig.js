@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -18,6 +51,7 @@ const passport_google_oauth20_1 = require("passport-google-oauth20");
 const client_1 = require("@prisma/client");
 const prisma_1 = require("../lib/prisma");
 const GenerateToken_1 = require("../helpers/GenerateToken");
+const healthId_service_1 = require("../services/healthId.service");
 dotenv_1.default.config();
 const clean = (value) => (value || "").replace(/"/g, "").trim();
 /**
@@ -48,6 +82,7 @@ passport_1.default.use(new passport_google_oauth20_1.Strategy({
         });
         // 2. First Google visit creates a USER account (sign up).
         if (!user) {
+            const healthId = yield (0, healthId_service_1.generateUniqueHealthId)();
             user = yield prisma_1.prisma.user.create({
                 data: {
                     email,
@@ -62,13 +97,15 @@ passport_1.default.use(new passport_google_oauth20_1.Strategy({
                     dateOfBirth: null,
                     lastLoginAt: new Date(),
                     lastLogin: new Date(),
+                    profile: { create: { healthId } },
+                    medicalProfile: { create: {} },
                 },
             });
-            yield prisma_1.prisma.userProfile
-                .create({ data: { userId: user.userid } })
-                .catch(() => {
-                /* profile may already exist */
-            });
+        }
+        else {
+            // Existing Google users: ensure permanent Patient/Health ID
+            const { ensureUserProfileWithHealthId } = yield Promise.resolve().then(() => __importStar(require("../services/healthId.service")));
+            yield ensureUserProfileWithHealthId(user.userid).catch(() => undefined);
         }
         // 3. Check account status
         if (user.isDeleted) {

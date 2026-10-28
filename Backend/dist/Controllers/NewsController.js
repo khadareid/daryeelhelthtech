@@ -34,6 +34,11 @@ const VERIFIED_ROLES = [
     client_1.Role.SUPER_ADMIN,
     client_1.Role.ADMIN,
 ];
+/** Only platform admins may create / edit / delete news posts.
+ *  USER, PATIENT, DOCTOR and other roles may only read + comment. */
+function canManageNews(role) {
+    return role === client_1.Role.SUPER_ADMIN || role === client_1.Role.ADMIN;
+}
 function authorBadge(userId) {
     return __awaiter(this, void 0, void 0, function* () {
         const [user, profile] = yield Promise.all([
@@ -209,13 +214,20 @@ const getNews = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.getNews = getNews;
-/** POST /news */
+/** POST /news — ADMIN / SUPER_ADMIN only */
 const createNews = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
         const { userId, role } = actor(req);
         if (!userId) {
             res.status(401).json({ isSuccess: false, message: "Sign in required" });
+            return;
+        }
+        if (!canManageNews(role)) {
+            res.status(403).json({
+                isSuccess: false,
+                message: "Only admins can publish news. You can read and comment.",
+            });
             return;
         }
         const allowed = yield (0, featureFlag_service_1.isFeatureAllowed)({
@@ -270,15 +282,17 @@ const updateNews = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             res.status(401).json({ isSuccess: false, message: "Sign in required" });
             return;
         }
+        if (!canManageNews(role)) {
+            res.status(403).json({
+                isSuccess: false,
+                message: "Only admins can edit news. You can read and comment.",
+            });
+            return;
+        }
         const id = String(req.params.id);
         const post = yield prisma_1.prisma.newsPost.findUnique({ where: { newspostid: id } });
         if (!post || post.deletedAt) {
             res.status(404).json({ isSuccess: false, message: "Post not found" });
-            return;
-        }
-        const isAdmin = role === client_1.Role.SUPER_ADMIN || role === client_1.Role.ADMIN;
-        if (post.authorId !== userId && !isAdmin) {
-            res.status(403).json({ isSuccess: false, message: "Not allowed" });
             return;
         }
         const { title, content, category, status, visibility, coverImageUrl } = (_a = req.body) !== null && _a !== void 0 ? _a : {};
@@ -311,7 +325,7 @@ const updateNews = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.updateNews = updateNews;
-/** DELETE /news/:id — soft delete */
+/** DELETE /news/:id — soft delete — ADMIN / SUPER_ADMIN only */
 const deleteNews = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { userId, role } = actor(req);
@@ -319,15 +333,17 @@ const deleteNews = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             res.status(401).json({ isSuccess: false, message: "Sign in required" });
             return;
         }
+        if (!canManageNews(role)) {
+            res.status(403).json({
+                isSuccess: false,
+                message: "Only admins can remove news. You can read and comment.",
+            });
+            return;
+        }
         const id = String(req.params.id);
         const post = yield prisma_1.prisma.newsPost.findUnique({ where: { newspostid: id } });
         if (!post) {
             res.status(404).json({ isSuccess: false, message: "Post not found" });
-            return;
-        }
-        const isAdmin = role === client_1.Role.SUPER_ADMIN || role === client_1.Role.ADMIN;
-        if (post.authorId !== userId && !isAdmin) {
-            res.status(403).json({ isSuccess: false, message: "Not allowed" });
             return;
         }
         yield prisma_1.prisma.newsPost.update({

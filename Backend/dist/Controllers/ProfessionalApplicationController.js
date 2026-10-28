@@ -14,6 +14,7 @@ const client_1 = require("@prisma/client");
 const prisma_1 = require("../lib/prisma");
 const audit_service_1 = require("../services/audit.service");
 const featureFlag_service_1 = require("../services/featureFlag.service");
+const healthId_service_1 = require("../services/healthId.service");
 const ELIGIBLE = [
     client_1.Role.DOCTOR,
     client_1.Role.NURSE,
@@ -30,7 +31,7 @@ function actor(req) {
 }
 /** POST /professional-applications */
 const submitApplication = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b, _c, _d;
     try {
         const { userId, role } = actor(req);
         if (!userId) {
@@ -77,16 +78,29 @@ const submitApplication = (req, res) => __awaiter(void 0, void 0, void 0, functi
             });
             return;
         }
+        const year = new Date().getFullYear();
+        const seq = Date.now().toString().slice(-6);
+        const applicationCode = `APP-${year}-${seq}`;
         const application = yield prisma_1.prisma.professionalApplication.create({
             data: {
                 userId,
+                applicationCode,
                 requestedRole,
                 licenseNumber: licenseNumber ? String(licenseNumber) : null,
                 qualifications: qualifications ? String(qualifications) : null,
                 specialization: specialization ? String(specialization) : null,
+                subSpecialty: ((_b = req.body) === null || _b === void 0 ? void 0 : _b.subSpecialty)
+                    ? String(req.body.subSpecialty)
+                    : null,
                 yearsOfExperience: Number(yearsOfExperience) > 0 ? Number(yearsOfExperience) : null,
+                languages: Array.isArray((_c = req.body) === null || _c === void 0 ? void 0 : _c.languages)
+                    ? req.body.languages.map(String)
+                    : [],
                 facilityName: facilityName ? String(facilityName) : null,
                 workplace: workplace ? String(workplace) : null,
+                professionalBio: ((_d = req.body) === null || _d === void 0 ? void 0 : _d.professionalBio)
+                    ? String(req.body.professionalBio)
+                    : null,
                 supportingDocs: supportingDocs !== null && supportingDocs !== void 0 ? supportingDocs : undefined,
                 notes: notes ? String(notes) : null,
                 status: client_1.ProfessionalApplicationStatus.PENDING,
@@ -153,6 +167,7 @@ const listApplications = (req, res) => __awaiter(void 0, void 0, void 0, functio
                         email: true,
                         phone: true,
                         role: true,
+                        profile: { select: { healthId: true } },
                     },
                 },
             },
@@ -218,7 +233,7 @@ const reviewApplication = (req, res) => __awaiter(void 0, void 0, void 0, functi
             return;
         }
         const result = yield prisma_1.prisma.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
-            var _a, _b, _c;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j;
             const updated = yield tx.professionalApplication.update({
                 where: { professionalapplicationid: id },
                 data: {
@@ -240,27 +255,44 @@ const reviewApplication = (req, res) => __awaiter(void 0, void 0, void 0, functi
                     where: { userid: app.userId },
                     data: { role: app.requestedRole },
                 });
+                const applicant = yield tx.user.findUnique({
+                    where: { userid: app.userId },
+                    select: { fullName: true },
+                });
+                const slugBase = (0, healthId_service_1.slugifyProfessionalName)((applicant === null || applicant === void 0 ? void 0 : applicant.fullName) || "professional", app.userId.slice(-4).toLowerCase());
                 yield tx.professionalProfile.upsert({
                     where: { userId: app.userId },
                     create: {
                         userId: app.userId,
                         professionalType: app.requestedRole,
+                        slug: slugBase,
                         licenseNumber: app.licenseNumber,
                         specialization: app.specialization,
+                        subSpecialty: app.subSpecialty,
                         yearsOfExperience: app.yearsOfExperience,
+                        languages: (_a = app.languages) !== null && _a !== void 0 ? _a : [],
+                        workplace: app.workplace,
+                        facilityName: app.facilityName,
                         qualifications: app.qualifications
                             ? { text: app.qualifications }
                             : undefined,
                         isVerified: true,
                         isActive: true,
                         isPubliclyVisible: true,
-                        publicBio: `${app.requestedRole.replace(/_/g, " ")} on Daryeel Health`,
+                        publicBio: app.professionalBio ||
+                            `${app.requestedRole.replace(/_/g, " ")} on Daryeel Health`,
                     },
                     update: {
                         professionalType: app.requestedRole,
-                        licenseNumber: (_a = app.licenseNumber) !== null && _a !== void 0 ? _a : undefined,
-                        specialization: (_b = app.specialization) !== null && _b !== void 0 ? _b : undefined,
-                        yearsOfExperience: (_c = app.yearsOfExperience) !== null && _c !== void 0 ? _c : undefined,
+                        slug: slugBase,
+                        licenseNumber: (_b = app.licenseNumber) !== null && _b !== void 0 ? _b : undefined,
+                        specialization: (_c = app.specialization) !== null && _c !== void 0 ? _c : undefined,
+                        subSpecialty: (_d = app.subSpecialty) !== null && _d !== void 0 ? _d : undefined,
+                        yearsOfExperience: (_e = app.yearsOfExperience) !== null && _e !== void 0 ? _e : undefined,
+                        languages: ((_f = app.languages) === null || _f === void 0 ? void 0 : _f.length) ? app.languages : undefined,
+                        workplace: (_g = app.workplace) !== null && _g !== void 0 ? _g : undefined,
+                        facilityName: (_h = app.facilityName) !== null && _h !== void 0 ? _h : undefined,
+                        publicBio: (_j = app.professionalBio) !== null && _j !== void 0 ? _j : undefined,
                         isVerified: true,
                         isActive: true,
                         deletedAt: null,

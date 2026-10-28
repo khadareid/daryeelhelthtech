@@ -43,7 +43,7 @@ const auditMiddleware = (req, res, next) => {
                 action: actionFromMethod(req.method),
                 entity,
                 entityId,
-                userId: user.userid,
+                userId: user.userId,
                 oldValue: undefined,
                 newValue: {
                     path: req.originalUrl,

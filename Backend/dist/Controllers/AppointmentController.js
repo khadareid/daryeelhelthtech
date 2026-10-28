@@ -29,7 +29,7 @@ function parseScheduledAt(value) {
 }
 /** POST /appointments — any signed-in user can book */
 const createAppointment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b, _c, _d;
     try {
         const userId = getUserId(req);
         if (!userId) {
@@ -54,9 +54,29 @@ const createAppointment = (req, res) => __awaiter(void 0, void 0, void 0, functi
         }
         const isVideo = String(visitType || "").toLowerCase().includes("video") ||
             String(visitType || "").toLowerCase() === "telehealth";
+        // Resolve professional account when doctorId is a ProfessionalProfile id or user id
+        let professionalUserId = typeof ((_b = req.body) === null || _b === void 0 ? void 0 : _b.professionalUserId) === "string"
+            ? req.body.professionalUserId
+            : null;
+        if (!professionalUserId && doctorId) {
+            const byProfile = yield prisma_1.prisma.professionalProfile.findFirst({
+                where: {
+                    OR: [
+                        { professionalprofileid: String(doctorId) },
+                        { slug: String(doctorId) },
+                        { userId: String(doctorId) },
+                    ],
+                },
+                select: { userId: true, professionalprofileid: true },
+            });
+            if (byProfile) {
+                professionalUserId = byProfile.userId;
+            }
+        }
         const appointment = yield prisma_1.prisma.appointment.create({
             data: {
                 userId,
+                professionalUserId,
                 appointmentCode: makeAppointmentCode(),
                 doctorId: doctorId ? String(doctorId) : null,
                 doctorName: doctorName ? String(doctorName) : "Clinician",
@@ -77,10 +97,38 @@ const createAppointment = (req, res) => __awaiter(void 0, void 0, void 0, functi
                 status: client_1.AppointmentStatus.SCHEDULED,
             },
         });
+        const patient = yield prisma_1.prisma.user.findUnique({
+            where: { userid: userId },
+            select: {
+                fullName: true,
+                phone: true,
+                email: true,
+                profile: { select: { healthId: true } },
+            },
+        });
+        if (professionalUserId) {
+            yield prisma_1.prisma.notification
+                .create({
+                data: {
+                    userId: professionalUserId,
+                    title: "New appointment booking",
+                    body: `${(patient === null || patient === void 0 ? void 0 : patient.fullName) || "A patient"} booked you for ${when.toLocaleString()}${reason ? ` · ${String(reason)}` : ""}.`,
+                    type: client_1.NotificationType.APPOINTMENT,
+                    channel: client_1.NotificationChannel.IN_APP,
+                    metadata: {
+                        appointmentId: appointment.appointmentid,
+                        patientUserId: userId,
+                        patientName: patient === null || patient === void 0 ? void 0 : patient.fullName,
+                        patientHealthId: (_c = patient === null || patient === void 0 ? void 0 : patient.profile) === null || _c === void 0 ? void 0 : _c.healthId,
+                    },
+                },
+            })
+                .catch(() => undefined);
+        }
         res.status(201).json({
             isSuccess: true,
             message: "Appointment booked",
-            result: appointment,
+            result: Object.assign(Object.assign({}, appointment), { patientName: patient === null || patient === void 0 ? void 0 : patient.fullName, patientHealthId: (_d = patient === null || patient === void 0 ? void 0 : patient.profile) === null || _d === void 0 ? void 0 : _d.healthId, patientPhone: patient === null || patient === void 0 ? void 0 : patient.phone, patientEmail: patient === null || patient === void 0 ? void 0 : patient.email }),
         });
     }
     catch (error) {
@@ -101,16 +149,64 @@ const listMyAppointments = (req, res) => __awaiter(void 0, void 0, void 0, funct
             return;
         }
         const status = typeof req.query.status === "string" ? req.query.status : "";
-        const where = { userId };
-        if (status && Object.values(client_1.AppointmentStatus).includes(status)) {
-            where.status = status;
-        }
+        const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
+        const statusFilter = status && Object.values(client_1.AppointmentStatus).includes(status)
+            ? status
+            : undefined;
+        // Patient bookings + appointments where this user is the professional
         const appointments = yield prisma_1.prisma.appointment.findMany({
-            where,
-            orderBy: { scheduledAt: "asc" },
+            where: Object.assign({ OR: [{ userId }, { professionalUserId: userId }] }, (statusFilter ? { status: statusFilter } : {})),
+            orderBy: { scheduledAt: "desc" },
             take: 100,
+            include: {
+                user: {
+                    select: {
+                        userid: true,
+                        fullName: true,
+                        phone: true,
+                        email: true,
+                        avatarUrl: true,
+                        picture: true,
+                        profile: { select: { healthId: true, city: true } },
+                    },
+                },
+                professional: {
+                    select: {
+                        userid: true,
+                        fullName: true,
+                        avatarUrl: true,
+                        picture: true,
+                    },
+                },
+            },
         });
-        res.status(200).json({ isSuccess: true, result: appointments });
+        const mapped = appointments.map((a) => {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+            return (Object.assign(Object.assign({}, a), { patientName: (_a = a.user) === null || _a === void 0 ? void 0 : _a.fullName, patientUserId: a.userId, patientHealthId: (_d = (_c = (_b = a.user) === null || _b === void 0 ? void 0 : _b.profile) === null || _c === void 0 ? void 0 : _c.healthId) !== null && _d !== void 0 ? _d : null, patientPhone: (_f = (_e = a.user) === null || _e === void 0 ? void 0 : _e.phone) !== null && _f !== void 0 ? _f : null, patientEmail: (_h = (_g = a.user) === null || _g === void 0 ? void 0 : _g.email) !== null && _h !== void 0 ? _h : null, professionalName: ((_j = a.professional) === null || _j === void 0 ? void 0 : _j.fullName) || a.doctorName, isMineAsPatient: a.userId === userId, isMineAsProfessional: a.professionalUserId === userId }));
+        });
+        const now = Date.now();
+        const closed = new Set([
+            client_1.AppointmentStatus.CANCELLED,
+            client_1.AppointmentStatus.COMPLETED,
+            client_1.AppointmentStatus.NO_SHOW,
+        ]);
+        const upcoming = mapped.filter((a) => new Date(a.scheduledAt).getTime() >= now && !closed.has(a.status));
+        const history = mapped.filter((a) => new Date(a.scheduledAt).getTime() < now || closed.has(a.status));
+        const filtered = scope === "upcoming"
+            ? upcoming
+            : scope === "past" || scope === "history"
+                ? history
+                : mapped;
+        res.status(200).json({
+            isSuccess: true,
+            result: filtered,
+            meta: {
+                upcomingCount: upcoming.length,
+                historyCount: history.length,
+                upcoming,
+                history,
+            },
+        });
     }
     catch (error) {
         console.error("listMyAppointments error:", error);

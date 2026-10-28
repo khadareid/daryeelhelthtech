@@ -62,7 +62,7 @@ export const auditMiddleware = (req: Request, res: Response, next: NextFunction)
 
         entityId,
 
-        userId: user.userid,
+        userId: user.userId,
 
         oldValue: undefined,
 

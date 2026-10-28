@@ -1,7 +1,7 @@
 // helpers/GenerateToken.ts
 
 import jwt from "jsonwebtoken";
-import { Role, User } from "@prisma/client";
+import { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 /* -------------------------------------------------------------
@@ -22,8 +22,12 @@ const REFRESH_DAYS = 7;      // 7 days
    Types
 ------------------------------------------------------------- */
 
-/** Full DB user record (matches Prisma's User model). */
-export type UserData = User;
+/** Auth context attached to requests by decodeToken (JWT payload fields). */
+export type UserData = {
+  userId: string;
+  email: string;
+  role: Role;
+};
 
 /** Minimal payload used to sign JWTs. */
 export interface TokenPayload {

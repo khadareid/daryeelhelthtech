@@ -90,7 +90,7 @@ exports.DEFAULT_FEATURE_FLAGS = [
     {
         key: "news_feed",
         label: "News Feed",
-        description: "Publish and read health news",
+        description: "Read health news (all roles). Create/update/delete is enforced for ADMIN/SUPER_ADMIN only in the API.",
         enabled: true,
         allowedRoles: [],
         actions: ["read", "create", "update", "delete"],
@@ -98,7 +98,7 @@ exports.DEFAULT_FEATURE_FLAGS = [
     {
         key: "news_comments",
         label: "News comments",
-        description: "Comment on posts",
+        description: "USER, PATIENT, DOCTOR and others may read and comment",
         enabled: true,
         allowedRoles: [],
         actions: ["read", "create", "update", "delete"],

@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const ConnectionController_1 = require("../Controllers/ConnectionController");
+const router = (0, express_1.Router)();
+router.use(VerifyToken_1.decodeToken);
+router.post("/", ConnectionController_1.requestConnection);
+router.get("/", ConnectionController_1.listConnections);
+router.get("/requests", ConnectionController_1.listConnectionRequests);
+router.patch("/:id/accept", ConnectionController_1.acceptConnection);
+router.patch("/:id/reject", ConnectionController_1.rejectConnection);
+router.patch("/:id/end", ConnectionController_1.endConnection);
+exports.default = router;

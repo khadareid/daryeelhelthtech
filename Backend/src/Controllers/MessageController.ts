@@ -306,7 +306,7 @@ export const listConversations = async (req: Request, res: Response) => {
     >();
 
     for (const msg of messages) {
-      const otherId =
+      const otherId: string =
         msg.senderId === userId ? msg.recipientId || "" : msg.senderId;
       if (!otherId || otherId === userId) continue;
       if (map.has(otherId)) continue;

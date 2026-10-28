@@ -1,0 +1,22 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.professionalSelfRouter = void 0;
+const express_1 = require("express");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const UserController_1 = require("../Controllers/UserController");
+const AvailabilityController_1 = require("../Controllers/AvailabilityController");
+const ProfessionalProfileController_1 = require("../Controllers/ProfessionalProfileController");
+const router = (0, express_1.Router)();
+/** Public directory — same data as GET /user/doctors (local DB) */
+router.get("/", UserController_1.listPublicDoctors);
+router.get("/:id/availability", AvailabilityController_1.listPublicAvailability);
+router.get("/:idOrSlug", UserController_1.getPublicDoctor);
+exports.default = router;
+exports.professionalSelfRouter = (0, express_1.Router)();
+exports.professionalSelfRouter.use(VerifyToken_1.decodeToken);
+exports.professionalSelfRouter.get("/profile", ProfessionalProfileController_1.getMyProfessionalProfile);
+exports.professionalSelfRouter.patch("/profile", ProfessionalProfileController_1.updateMyProfessionalProfile);
+exports.professionalSelfRouter.get("/availability", AvailabilityController_1.listMyAvailability);
+exports.professionalSelfRouter.post("/availability", AvailabilityController_1.createAvailability);
+exports.professionalSelfRouter.patch("/availability/:id", AvailabilityController_1.updateAvailability);
+exports.professionalSelfRouter.delete("/availability/:id", AvailabilityController_1.deleteAvailability);

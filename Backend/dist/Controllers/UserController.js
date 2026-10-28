@@ -57,12 +57,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listPublicDoctors = exports.changeRole = exports.changePassword = exports.updateUserProfile = exports.getUserProfile = exports.login = exports.register = void 0;
+exports.getMyPatientId = exports.getPublicDoctor = exports.listPublicDoctors = exports.changeRole = exports.changePassword = exports.updateUserProfile = exports.getUserProfile = exports.login = exports.register = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const client_1 = require("@prisma/client");
 const prisma_1 = require("../lib/prisma");
 const GenerateToken_1 = require("../helpers/GenerateToken");
 const audit_service_1 = require("../services/audit.service");
+const healthId_service_1 = require("../services/healthId.service");
 /* ==================================================================
    SHARED SELECTS
 ================================================================== */
@@ -173,8 +174,9 @@ const LOGIN_USER_SELECT = {
    POST /auth/register
 ================================================================== */
 const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d;
     try {
-        const { email, password, fullName, name, phone, role, gender, dateOfBirth } = req.body;
+        const { email, password, fullName, name, phone, gender, dateOfBirth } = req.body;
         // Accept either `fullName` or `name`
         const displayName = fullName !== null && fullName !== void 0 ? fullName : name;
         // Only these three are required
@@ -213,17 +215,23 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             }
         }
         const passwordHash = yield bcryptjs_1.default.hash(password, 12);
+        const healthId = yield (0, healthId_service_1.generateUniqueHealthId)();
+        // Never trust client role — professionals must apply and be approved
         const user = yield prisma_1.prisma.user.create({
             data: {
                 email,
                 passwordHash,
                 fullName: displayName,
-                // All optional — default to null
                 phone: phone !== null && phone !== void 0 ? phone : null,
                 gender: gender !== null && gender !== void 0 ? gender : null,
                 dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-                // Role defaults to USER if not provided
-                role: role !== null && role !== void 0 ? role : client_1.Role.USER,
+                role: client_1.Role.USER,
+                profile: {
+                    create: { healthId },
+                },
+                medicalProfile: {
+                    create: {},
+                },
             },
             select: {
                 userid: true,
@@ -232,13 +240,22 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 fullName: true,
                 role: true,
                 createdAt: true,
+                profile: { select: { healthId: true } },
             },
         });
-        /* Auto-create an empty UserProfile so update flows work later. */
-        yield prisma_1.prisma.userProfile
-            .create({ data: { userId: user.userid } })
-            .catch(() => {
-            /* ignore race: profile already exists */
+        yield (0, audit_service_1.createAuditLog)({
+            userId: user.userid,
+            action: "USER_REGISTERED",
+            entity: "User",
+            entityId: user.userid,
+            metadata: { healthId, email: user.email },
+        });
+        yield (0, audit_service_1.createAuditLog)({
+            userId: user.userid,
+            action: "PATIENT_ID_CREATED",
+            entity: "UserProfile",
+            entityId: user.userid,
+            metadata: { healthId },
         });
         const { accessToken, refreshToken } = yield (0, GenerateToken_1.generateTokens)({
             userId: user.userid,
@@ -248,7 +265,12 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         res.status(201).json({
             isSuccess: true,
             message: "User registered successfully",
-            result: { user, accessToken, refreshToken },
+            result: {
+                user: Object.assign(Object.assign({}, user), { healthId: (_b = (_a = user.profile) === null || _a === void 0 ? void 0 : _a.healthId) !== null && _b !== void 0 ? _b : healthId }),
+                healthId: (_d = (_c = user.profile) === null || _c === void 0 ? void 0 : _c.healthId) !== null && _d !== void 0 ? _d : healthId,
+                accessToken,
+                refreshToken,
+            },
         });
     }
     catch (error) {
@@ -364,6 +386,10 @@ const getUserProfile = (req, res) => __awaiter(void 0, void 0, void 0, function*
                 });
                 return;
             }
+        }
+        // Every account gets a permanent Patient/Health ID (owner path creates if missing)
+        if (isOwner) {
+            yield (0, healthId_service_1.ensureUserProfileWithHealthId)(userid).catch(() => undefined);
         }
         const user = yield prisma_1.prisma.user.findFirst({
             where: { userid, isDeleted: false },
@@ -910,69 +936,136 @@ exports.changeRole = changeRole;
 /* ==================================================================
    GET /doctors  (public care-team directory)
 ================================================================== */
-const listPublicDoctors = (_req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const doctors = yield prisma_1.prisma.professionalProfile.findMany({
-            where: {
-                isActive: true,
-                deletedAt: null,
-                isPubliclyVisible: true,
-                professionalType: { in: ["DOCTOR", "MIDWIFE", "NURSE"] },
-            },
-            orderBy: [{ rating: "desc" }, { totalReviews: "desc" }],
-            take: 40,
-            select: {
-                professionalprofileid: true,
-                professionalType: true,
-                specialization: true,
-                subSpecialty: true,
-                yearsOfExperience: true,
-                consultationFee: true,
-                currency: true,
-                rating: true,
-                totalReviews: true,
-                publicBio: true,
-                publicPhotoUrl: true,
-                isVerified: true,
-                user: {
-                    select: {
-                        userid: true,
-                        fullName: true,
-                        picture: true,
-                        avatarUrl: true,
-                        profile: {
-                            select: {
-                                city: true,
-                                region: true,
-                                country: true,
-                            },
-                        },
-                    },
+const PUBLIC_CLINICAL = [
+    client_1.Role.DOCTOR,
+    client_1.Role.NURSE,
+    client_1.Role.MIDWIFE,
+    client_1.Role.LAB_TECH,
+    client_1.Role.PHARMACIST,
+];
+function mapPublicProfessional(item) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    return {
+        id: item.professionalprofileid,
+        professionalProfileId: item.professionalprofileid,
+        slug: item.slug || item.professionalprofileid,
+        userId: item.user.userid,
+        name: item.user.fullName,
+        professionalType: item.professionalType,
+        specialty: item.specialization || item.professionalType,
+        specialization: item.specialization || item.professionalType,
+        subSpecialty: item.subSpecialty,
+        experienceYears: (_a = item.yearsOfExperience) !== null && _a !== void 0 ? _a : 0,
+        yearsOfExperience: (_b = item.yearsOfExperience) !== null && _b !== void 0 ? _b : 0,
+        fee: item.consultationFee != null ? Number(item.consultationFee) : 15,
+        currency: item.currency || "USD",
+        rating: (_c = item.rating) !== null && _c !== void 0 ? _c : 0,
+        reviews: (_d = item.totalReviews) !== null && _d !== void 0 ? _d : 0,
+        totalPatients: (_e = item.totalPatients) !== null && _e !== void 0 ? _e : 0,
+        bio: item.publicBio || "Trusted clinician on Daryeel Health.",
+        image: item.publicPhotoUrl || item.user.avatarUrl || item.user.picture,
+        languages: (_f = item.languages) !== null && _f !== void 0 ? _f : [],
+        workplace: item.workplace || item.facilityName,
+        facilityName: item.facilityName,
+        city: ((_g = item.user.profile) === null || _g === void 0 ? void 0 : _g.city) || ((_h = item.user.profile) === null || _h === void 0 ? void 0 : _h.region) || "Somaliland",
+        country: ((_j = item.user.profile) === null || _j === void 0 ? void 0 : _j.country) || "Somaliland",
+        verified: item.isVerified,
+        isVerified: item.isVerified,
+        availableToday: true,
+        // Patient ID of the professional (their own health identity) — not medical records
+        healthId: (_l = (_k = item.user.profile) === null || _k === void 0 ? void 0 : _k.healthId) !== null && _l !== void 0 ? _l : null,
+    };
+}
+const PROFESSIONAL_PUBLIC_SELECT = {
+    professionalprofileid: true,
+    slug: true,
+    professionalType: true,
+    specialization: true,
+    subSpecialty: true,
+    yearsOfExperience: true,
+    consultationFee: true,
+    currency: true,
+    rating: true,
+    totalReviews: true,
+    totalPatients: true,
+    publicBio: true,
+    publicPhotoUrl: true,
+    languages: true,
+    workplace: true,
+    facilityName: true,
+    isVerified: true,
+    user: {
+        select: {
+            userid: true,
+            fullName: true,
+            picture: true,
+            avatarUrl: true,
+            profile: {
+                select: {
+                    healthId: true,
+                    city: true,
+                    region: true,
+                    country: true,
                 },
             },
+        },
+    },
+};
+/** GET /user/doctors — public directory from local ProfessionalProfile (DB) */
+const listPublicDoctors = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+        const type = typeof req.query.type === "string"
+            ? req.query.type.toUpperCase()
+            : typeof req.query.professionalType === "string"
+                ? req.query.professionalType.toUpperCase()
+                : "";
+        const specialty = typeof req.query.specialty === "string" ? req.query.specialty.trim() : "";
+        const city = typeof req.query.city === "string" ? req.query.city.trim() : "";
+        const verifiedOnly = req.query.verified === "1" ||
+            req.query.verified === "true" ||
+            req.query.verified === "yes";
+        const limit = Math.min(Number(req.query.limit) || 40, 100);
+        const typeFilter = type && PUBLIC_CLINICAL.includes(type)
+            ? [type]
+            : PUBLIC_CLINICAL;
+        const doctors = yield prisma_1.prisma.professionalProfile.findMany({
+            where: Object.assign(Object.assign(Object.assign(Object.assign({ isActive: true, deletedAt: null, isPubliclyVisible: true, professionalType: { in: typeFilter } }, (verifiedOnly ? { isVerified: true } : {})), (specialty
+                ? {
+                    OR: [
+                        { specialization: { contains: specialty, mode: "insensitive" } },
+                        { subSpecialty: { contains: specialty, mode: "insensitive" } },
+                    ],
+                }
+                : {})), (city
+                ? {
+                    user: {
+                        profile: {
+                            OR: [
+                                { city: { contains: city, mode: "insensitive" } },
+                                { region: { contains: city, mode: "insensitive" } },
+                            ],
+                        },
+                    },
+                }
+                : {})), (q
+                ? {
+                    OR: [
+                        { specialization: { contains: q, mode: "insensitive" } },
+                        { subSpecialty: { contains: q, mode: "insensitive" } },
+                        { facilityName: { contains: q, mode: "insensitive" } },
+                        { workplace: { contains: q, mode: "insensitive" } },
+                        { user: { fullName: { contains: q, mode: "insensitive" } } },
+                    ],
+                }
+                : {})),
+            orderBy: [{ isVerified: "desc" }, { rating: "desc" }, { totalReviews: "desc" }],
+            take: limit,
+            select: PROFESSIONAL_PUBLIC_SELECT,
         });
         res.status(200).json({
             isSuccess: true,
-            result: doctors.map((item) => {
-                var _a, _b, _c, _d, _e;
-                return ({
-                    id: item.professionalprofileid,
-                    userId: item.user.userid,
-                    name: item.user.fullName,
-                    specialty: item.specialization || item.professionalType,
-                    subSpecialty: item.subSpecialty,
-                    experienceYears: (_a = item.yearsOfExperience) !== null && _a !== void 0 ? _a : 0,
-                    fee: item.consultationFee != null ? Number(item.consultationFee) : 15,
-                    currency: item.currency || "USD",
-                    rating: (_b = item.rating) !== null && _b !== void 0 ? _b : 0,
-                    reviews: (_c = item.totalReviews) !== null && _c !== void 0 ? _c : 0,
-                    bio: item.publicBio || "Trusted clinician on Daryeel Health.",
-                    image: item.publicPhotoUrl || item.user.avatarUrl || item.user.picture,
-                    city: ((_d = item.user.profile) === null || _d === void 0 ? void 0 : _d.city) || ((_e = item.user.profile) === null || _e === void 0 ? void 0 : _e.region) || "Somaliland",
-                    verified: item.isVerified,
-                    availableToday: true,
-                });
-            }),
+            result: doctors.map(mapPublicProfessional),
         });
     }
     catch (error) {
@@ -984,3 +1077,91 @@ const listPublicDoctors = (_req, res) => __awaiter(void 0, void 0, void 0, funct
     }
 });
 exports.listPublicDoctors = listPublicDoctors;
+/** GET /user/doctors/:idOrSlug — public professional detail from DB */
+const getPublicDoctor = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const idOrSlug = String(req.params.idOrSlug || "").trim();
+        if (!idOrSlug) {
+            res.status(400).json({ isSuccess: false, message: "Professional id required" });
+            return;
+        }
+        // Exact id/slug lookup first (so directory cards never 404 after listing)
+        let item = yield prisma_1.prisma.professionalProfile.findFirst({
+            where: {
+                deletedAt: null,
+                OR: [
+                    { professionalprofileid: idOrSlug },
+                    { slug: idOrSlug },
+                    { userId: idOrSlug },
+                ],
+            },
+            select: Object.assign(Object.assign({}, PROFESSIONAL_PUBLIC_SELECT), { isActive: true, isPubliclyVisible: true, deletedAt: true, publicCoverUrl: true, publicPhone: true, publicEmail: true, website: true, linkedin: true, twitter: true, facebook: true, qualifications: true, certifications: true, licenseNumber: true }),
+        });
+        // Directory-safe fallback: only expose active public profiles
+        if (!item) {
+            item = yield prisma_1.prisma.professionalProfile.findFirst({
+                where: {
+                    isActive: true,
+                    deletedAt: null,
+                    isPubliclyVisible: true,
+                    OR: [
+                        { professionalprofileid: idOrSlug },
+                        { slug: idOrSlug },
+                    ],
+                },
+                select: Object.assign(Object.assign({}, PROFESSIONAL_PUBLIC_SELECT), { isActive: true, isPubliclyVisible: true, deletedAt: true, publicCoverUrl: true, publicPhone: true, publicEmail: true, website: true, linkedin: true, twitter: true, facebook: true, qualifications: true, certifications: true, licenseNumber: true }),
+            });
+        }
+        if (!item || item.deletedAt) {
+            res.status(404).json({ isSuccess: false, message: "Professional not found" });
+            return;
+        }
+        const availability = yield prisma_1.prisma.professionalAvailability.findMany({
+            where: {
+                professionalUserId: item.user.userid,
+                isAvailable: true,
+            },
+            orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+        });
+        res.status(200).json({
+            isSuccess: true,
+            result: Object.assign(Object.assign({}, mapPublicProfessional(item)), { coverImage: item.publicCoverUrl, publicPhone: item.publicPhone, publicEmail: item.publicEmail, website: item.website, linkedin: item.linkedin, twitter: item.twitter, facebook: item.facebook, qualifications: item.qualifications, certifications: item.certifications, 
+                // License shown only as presence for verified badge context — not full number publicly if preferred
+                hasLicense: Boolean(item.licenseNumber), availability }),
+        });
+    }
+    catch (error) {
+        console.error("getPublicDoctor error:", error);
+        res.status(500).json({
+            isSuccess: false,
+            message: "Failed to load professional",
+        });
+    }
+});
+exports.getPublicDoctor = getPublicDoctor;
+/** GET /user/me/patient-id */
+const getMyPatientId = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    try {
+        const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) ||
+            ((_b = req.user) === null || _b === void 0 ? void 0 : _b.userid) ||
+            null;
+        if (!userId) {
+            res.status(401).json({ isSuccess: false, message: "Sign in required" });
+            return;
+        }
+        const { healthId } = yield (0, healthId_service_1.ensureUserProfileWithHealthId)(userId);
+        res.status(200).json({
+            isSuccess: true,
+            result: { healthId, patientId: healthId },
+        });
+    }
+    catch (error) {
+        console.error("getMyPatientId error:", error);
+        res.status(500).json({
+            isSuccess: false,
+            message: "Failed to load patient id",
+        });
+    }
+});
+exports.getMyPatientId = getMyPatientId;
