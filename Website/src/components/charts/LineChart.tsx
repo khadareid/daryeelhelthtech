@@ -4,7 +4,7 @@ interface Point {
   name: string;
   value: number;
 }
-
+// done
 export function LineChart({ data }: { data: Point[] }) {
   return (
     <div className="h-64 w-full">
