@@ -14,8 +14,12 @@ export default function ApplyProfessional() {
     useState<(typeof ROLES)[number]>('DOCTOR')
   const [licenseNumber, setLicenseNumber] = useState('')
   const [specialization, setSpecialization] = useState('')
-  const [yearsOfExperience, setYears] = useState('1')
+  const [subSpecialty, setSubSpecialty] = useState('')
+  const [yearsOfExperience, setYears] = useState('')
   const [facilityName, setFacility] = useState('')
+  const [workplace, setWorkplace] = useState('')
+  const [languages, setLanguages] = useState('')
+  const [professionalBio, setBio] = useState('')
   const [qualifications, setQualifications] = useState('')
   const [notes, setNotes] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -29,11 +33,19 @@ export default function ApplyProfessional() {
       await submit({
         requestedRole,
         licenseNumber,
-        specialization,
-        yearsOfExperience: Number(yearsOfExperience) || 0,
-        facilityName,
-        qualifications,
-        notes,
+        specialization: specialization || undefined,
+        subSpecialty: subSpecialty || undefined,
+        yearsOfExperience: yearsOfExperience
+          ? Number(yearsOfExperience)
+          : undefined,
+        facilityName: facilityName || undefined,
+        workplace: workplace || facilityName || undefined,
+        languages: languages
+          ? languages.split(',').map((s) => s.trim()).filter(Boolean)
+          : undefined,
+        professionalBio: professionalBio || undefined,
+        qualifications: qualifications || undefined,
+        notes: notes || undefined,
       }).unwrap()
       setMessage('Application submitted for Super Admin review.')
       refetch()
@@ -50,8 +62,8 @@ export default function ApplyProfessional() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           You will not receive clinical privileges until a Super Admin approves
-          your application. License verification is recorded as admin-reviewed,
-          not independently verified by a third party.
+          your application. Profile details besides license are optional — they
+          help reviewers and seed your public directory card.
         </p>
       </header>
 
@@ -76,35 +88,56 @@ export default function ApplyProfessional() {
           </select>
         </label>
         <Input
-          placeholder="License / registration number"
+          placeholder="License / registration number *"
           value={licenseNumber}
           onChange={(e) => setLicenseNumber(e.target.value)}
           required
         />
+        <p className="text-xs text-muted-foreground">Optional details</p>
         <Input
-          placeholder="Specialization"
+          placeholder="Specialization (optional)"
           value={specialization}
           onChange={(e) => setSpecialization(e.target.value)}
         />
         <Input
-          placeholder="Years of experience"
+          placeholder="Sub-specialty (optional)"
+          value={subSpecialty}
+          onChange={(e) => setSubSpecialty(e.target.value)}
+        />
+        <Input
+          placeholder="Years of experience (optional)"
           type="number"
           min={0}
           value={yearsOfExperience}
           onChange={(e) => setYears(e.target.value)}
         />
         <Input
-          placeholder="Facility / workplace"
+          placeholder="Facility name (optional)"
           value={facilityName}
           onChange={(e) => setFacility(e.target.value)}
         />
+        <Input
+          placeholder="Workplace (optional)"
+          value={workplace}
+          onChange={(e) => setWorkplace(e.target.value)}
+        />
+        <Input
+          placeholder="Languages, comma separated (optional)"
+          value={languages}
+          onChange={(e) => setLanguages(e.target.value)}
+        />
         <Textarea
-          placeholder="Qualifications"
+          placeholder="Short professional bio (optional)"
+          value={professionalBio}
+          onChange={(e) => setBio(e.target.value)}
+        />
+        <Textarea
+          placeholder="Qualifications (optional)"
           value={qualifications}
           onChange={(e) => setQualifications(e.target.value)}
         />
         <Textarea
-          placeholder="Notes for reviewers"
+          placeholder="Notes for reviewers (optional)"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
         />

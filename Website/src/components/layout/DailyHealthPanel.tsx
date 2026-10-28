@@ -8,9 +8,11 @@ import {
   Flame,
   Footprints,
   Heart,
+  Link2,
   Moon,
   Plus,
   Smile,
+  Unlink,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -18,12 +20,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { RootState } from "@/Redex/store/store"
 import {
-  ActivityLevel,
   DailyHealthLog,
   DailyHealthLogInput,
   EnergyLevel,
   MoodLevel,
-  PainLevel,
   SleepQuality,
   StressLevel,
 } from "@/Redex/types/Types"
@@ -33,6 +33,7 @@ import {
   useGetTodayDailyHealthLogQuery,
   useUpdateDailyHealthLogMutation,
 } from "@/Redex/service/DailyHealthLog/DailyHealthLog"
+import { useWebHealthSync } from "@/hooks/useWebHealthSync"
 
 function todayKey() {
   const now = new Date()
@@ -87,8 +88,17 @@ const MOODS = Object.values(MoodLevel)
 const SLEEP = Object.values(SleepQuality)
 const STRESS = Object.values(StressLevel)
 const ENERGY = Object.values(EnergyLevel)
-const ACTIVITY = Object.values(ActivityLevel)
-const PAIN = Object.values(PainLevel)
+
+function AutoStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-emerald-100 bg-white px-3 py-2.5 text-center">
+      <p className="font-heading text-base font-bold text-brand-dark">{value}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+    </div>
+  )
+}
 
 export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
   const userId = useSelector((state: RootState) => state.userInfo.userId)
@@ -97,18 +107,15 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
   const [createLog, { isLoading: creating }] = useCreateDailyHealthLogMutation()
   const [updateLog, { isLoading: updating }] = useUpdateDailyHealthLogMutation()
 
+  const seedSteps = today?.steps ?? 0
+  const webHealth = useWebHealthSync(seedSteps)
+
   const [mood, setMood] = useState("")
   const [sleepQuality, setSleepQuality] = useState("")
   const [stressLevel, setStressLevel] = useState("")
   const [energyLevel, setEnergyLevel] = useState("")
-  const [activityLevel, setActivityLevel] = useState("")
-  const [painLevel, setPainLevel] = useState("")
-  const [steps, setSteps] = useState("")
   const [water, setWater] = useState("")
   const [sleepHours, setSleepHours] = useState("")
-  const [activeMinutes, setActiveMinutes] = useState("")
-  const [caloriesIntake, setCaloriesIntake] = useState("")
-  const [caloriesBurned, setCaloriesBurned] = useState("")
   const [weightKg, setWeightKg] = useState("")
   const [notes, setNotes] = useState("")
 
@@ -118,37 +125,90 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
     setSleepQuality(today.sleepQuality ?? "")
     setStressLevel(today.stressLevel ?? "")
     setEnergyLevel(today.energyLevel ?? "")
-    setActivityLevel(today.activityLevel ?? "")
-    setPainLevel(today.painLevel ?? "")
-    setSteps(today.steps ? String(today.steps) : "")
     setWater(today.waterIntakeMl ? String(today.waterIntakeMl) : "")
     setSleepHours(today.sleepHours ? String(today.sleepHours) : "")
-    setActiveMinutes(today.activeMinutes ? String(today.activeMinutes) : "")
-    setCaloriesIntake(today.caloriesIntake ? String(today.caloriesIntake) : "")
-    setCaloriesBurned(today.caloriesBurned ? String(today.caloriesBurned) : "")
     setWeightKg(today.weightKg ? String(today.weightKg) : "")
     setNotes(today.notes ?? "")
   }, [today])
+
+  // Auto-save steps / calories / active minutes — no manual form needed
+  useEffect(() => {
+    if (!webHealth.linked || webHealth.steps <= 0 || !userId) return
+
+    const date = todayKey()
+    const payload = {
+      steps: webHealth.steps,
+      caloriesBurned: webHealth.caloriesFromSteps,
+      activeMinutes: webHealth.activeMinutesFromSteps,
+      distanceMeters: Math.round(webHealth.steps * 0.75),
+      source: "HEALTH_APP" as const,
+    }
+
+    const t = window.setTimeout(async () => {
+      try {
+        if (today) {
+          await updateLog({ date, data: payload }).unwrap()
+        } else {
+          await createLog({ userId, date, ...payload } as DailyHealthLogInput).unwrap()
+        }
+        refetch()
+      } catch {
+        /* silent auto-sync */
+      }
+    }, 2500)
+    return () => window.clearTimeout(t)
+  }, [
+    webHealth.linked,
+    webHealth.steps,
+    webHealth.caloriesFromSteps,
+    webHealth.activeMinutesFromSteps,
+    today,
+    userId,
+    updateLog,
+    createLog,
+    refetch,
+  ])
+
+  const liveSteps = Math.max(webHealth.steps, today?.steps ?? 0)
+  const liveCalories = Math.max(
+    webHealth.caloriesFromSteps,
+    today?.caloriesBurned ?? 0,
+  )
+  const liveActive = Math.max(
+    webHealth.activeMinutesFromSteps,
+    today?.activeMinutes ?? 0,
+  )
+  const autoOn = webHealth.linked && webHealth.tracking
+
+  // Turn on automatic tracking as soon as Health Daily opens
+  useEffect(() => {
+    if (!webHealth.linked) {
+      void webHealth.connect()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect once on mount
+  }, [])
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     const date = todayKey()
     const fields = {
+      // Manual check-in only
       mood: (mood || undefined) as MoodLevel | undefined,
       sleepQuality: (sleepQuality || undefined) as SleepQuality | undefined,
       stressLevel: (stressLevel || undefined) as StressLevel | undefined,
       energyLevel: (energyLevel || undefined) as EnergyLevel | undefined,
-      activityLevel: (activityLevel || undefined) as ActivityLevel | undefined,
-      painLevel: (painLevel || undefined) as PainLevel | undefined,
-      steps: numberOrUndefined(steps),
       waterIntakeMl: numberOrUndefined(water),
       sleepHours: numberOrUndefined(sleepHours),
-      activeMinutes: numberOrUndefined(activeMinutes),
-      caloriesIntake: numberOrUndefined(caloriesIntake),
-      caloriesBurned: numberOrUndefined(caloriesBurned),
       weightKg: numberOrUndefined(weightKg),
       notes: notes.trim() || undefined,
-      source: "MANUAL" as const,
+      // Automatic activity — always taken from sensors / live sync
+      steps: liveSteps || undefined,
+      activeMinutes: liveActive || undefined,
+      caloriesBurned: liveCalories || undefined,
+      distanceMeters: liveSteps ? Math.round(liveSteps * 0.75) : undefined,
+      source: (autoOn || liveSteps > 0 ? "HEALTH_APP" : "MANUAL") as
+        | "HEALTH_APP"
+        | "MANUAL",
     }
 
     const payload = Object.fromEntries(
@@ -161,7 +221,7 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
       } else {
         await createLog({ userId, date, ...payload } as DailyHealthLogInput).unwrap()
       }
-      toast.success("Today's health log is saved")
+      toast.success("Saved — automatic activity kept in sync")
       refetch()
     } catch (error) {
       const status =
@@ -186,18 +246,19 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
   const activity = useMemo(() => {
     return {
       sample: false,
-      steps: today?.steps ?? 0,
+      steps: liveSteps,
       stepsGoal: today?.stepsGoal ?? 10000,
-      water: today?.waterIntakeMl ?? 0,
+      water: today?.waterIntakeMl ?? (Number(water) || 0),
       waterGoal: today?.waterGoalMl ?? 2000,
-      sleep: today?.sleepHours ?? 0,
+      sleep: today?.sleepHours ?? (Number(sleepHours) || 0),
       sleepGoal: today?.sleepGoalHours ?? 8,
-      activeMinutes: today?.activeMinutes ?? 0,
-      calories: today?.caloriesBurned ?? 0,
+      activeMinutes: liveActive,
+      calories: liveCalories,
       mood: today?.mood ? pretty(today.mood) : "—",
       heart: 0,
+      auto: autoOn,
     }
-  }, [today])
+  }, [today, liveSteps, liveActive, liveCalories, water, sleepHours, autoOn])
 
   if (soft) {
     return <SoftToday {...activity} />
@@ -207,13 +268,22 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
     <section className="space-y-4">
       <div>
         <h2 className="font-heading text-xl font-bold text-brand-dark">
-          Activity
+          Health Daily
         </h2>
         <p className="text-sm text-muted-foreground">
-          {dateLabel(todayKey())} · steps, water, sleep & vitals like Apple /
-          Google Health
+          {dateLabel(todayKey())} · Google Health–style activity rings with
+          automatic step sync
         </p>
       </div>
+
+      <GoogleHealthConnectCard
+        linked={webHealth.linked}
+        tracking={webHealth.tracking}
+        available={webHealth.available}
+        error={webHealth.error}
+        onConnect={() => void webHealth.connect()}
+        onDisconnect={() => webHealth.disconnect()}
+      />
 
       {isError && (
         <p className="text-sm text-muted-foreground">
@@ -221,17 +291,60 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
         </p>
       )}
 
+      <ActivityRings
+        steps={liveSteps}
+        stepsGoal={today?.stepsGoal ?? 10000}
+        activeMinutes={liveActive}
+        water={today?.waterIntakeMl ?? (Number(water) || 0)}
+        waterGoal={today?.waterGoalMl ?? 2000}
+      />
+
       <ActivityBoard {...activity} />
+
+      {/* Automatic metrics — not in the form */}
+      <Card className="border-emerald-100 bg-emerald-50/30 shadow-sm">
+        <CardContent className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-base font-semibold text-brand-dark">
+                Automatic (Google Health)
+              </h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Steps, active minutes & calories sync by themselves — no typing.
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wide ${
+                autoOn
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {autoOn ? "LIVE" : "STANDBY"}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <AutoStat label="Steps" value={liveSteps.toLocaleString()} />
+            <AutoStat label="Active min" value={String(liveActive)} />
+            <AutoStat label="Calories" value={String(liveCalories)} />
+            <AutoStat
+              label="Distance"
+              value={`${(liveSteps * 0.00075).toFixed(2)} km`}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {today && <LogDetails log={today} />}
 
       <Card className="border-blue-100 shadow-sm">
         <CardContent className="p-4 sm:p-5">
           <h3 className="text-base font-semibold text-brand-dark">
-            {today ? "Update today's log" : "Add today's log"}
+            Manual check-in (optional)
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Fill in what you know. Empty fields can stay blank.
+            Only how you feel, water, sleep & weight — activity numbers stay
+            automatic.
           </p>
           <form onSubmit={onSubmit} className="mt-5 space-y-6">
             <fieldset className="space-y-3">
@@ -243,57 +356,74 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
                   <Select value={mood} onChange={setMood} options={MOODS} />
                 </Field>
                 <Field label="Sleep quality">
-                  <Select value={sleepQuality} onChange={setSleepQuality} options={SLEEP} />
+                  <Select
+                    value={sleepQuality}
+                    onChange={setSleepQuality}
+                    options={SLEEP}
+                  />
                 </Field>
                 <Field label="Energy">
-                  <Select value={energyLevel} onChange={setEnergyLevel} options={ENERGY} />
+                  <Select
+                    value={energyLevel}
+                    onChange={setEnergyLevel}
+                    options={ENERGY}
+                  />
                 </Field>
                 <Field label="Stress">
-                  <Select value={stressLevel} onChange={setStressLevel} options={STRESS} />
-                </Field>
-                <Field label="Activity">
-                  <Select value={activityLevel} onChange={setActivityLevel} options={ACTIVITY} />
-                </Field>
-                <Field label="Pain">
-                  <Select value={painLevel} onChange={setPainLevel} options={PAIN} />
+                  <Select
+                    value={stressLevel}
+                    onChange={setStressLevel}
+                    options={STRESS}
+                  />
                 </Field>
               </div>
             </fieldset>
 
             <fieldset className="space-y-3">
               <legend className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Today's numbers
+                Optional numbers
               </legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Steps" hint="Example: 8000">
-                  <Input inputMode="numeric" value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="8000" />
+                <Field label="Water (ml)">
+                  <Input
+                    inputMode="numeric"
+                    value={water}
+                    onChange={(e) => setWater(e.target.value)}
+                    placeholder="2000"
+                  />
                 </Field>
-                <Field label="Water" hint="Millilitres, example: 2000">
-                  <Input inputMode="numeric" value={water} onChange={(e) => setWater(e.target.value)} placeholder="2000" />
+                <Field label="Sleep (hours)">
+                  <Input
+                    inputMode="decimal"
+                    value={sleepHours}
+                    onChange={(e) => setSleepHours(e.target.value)}
+                    placeholder="7.5"
+                  />
                 </Field>
-                <Field label="Sleep" hint="Hours, example: 7.5">
-                  <Input inputMode="decimal" value={sleepHours} onChange={(e) => setSleepHours(e.target.value)} placeholder="7.5" />
+                <Field label="Weight (kg)">
+                  <Input
+                    inputMode="decimal"
+                    value={weightKg}
+                    onChange={(e) => setWeightKg(e.target.value)}
+                    placeholder="70"
+                  />
                 </Field>
-                <Field label="Active minutes" hint="Example: 30">
-                  <Input inputMode="numeric" value={activeMinutes} onChange={(e) => setActiveMinutes(e.target.value)} placeholder="30" />
-                </Field>
-                <Field label="Calories eaten" hint="Example: 1800">
-                  <Input inputMode="numeric" value={caloriesIntake} onChange={(e) => setCaloriesIntake(e.target.value)} placeholder="1800" />
-                </Field>
-                <Field label="Calories burned" hint="Example: 400">
-                  <Input inputMode="numeric" value={caloriesBurned} onChange={(e) => setCaloriesBurned(e.target.value)} placeholder="400" />
-                </Field>
-                <Field label="Weight" hint="Kilograms, example: 70">
-                  <Input inputMode="decimal" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} placeholder="70" />
-                </Field>
-                <Field label="Notes" hint="Optional">
-                  <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="How the day felt" />
+                <Field label="Notes">
+                  <Input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="How the day felt"
+                  />
                 </Field>
               </div>
             </fieldset>
 
-            <Button type="submit" disabled={creating || updating} className="h-11 w-full sm:w-auto">
-              {creating || updating ? "Saving…" : today ? "Update log" : "Save log"}
+            <Button
+              type="submit"
+              disabled={creating || updating || isLoading}
+              className="h-11 w-full sm:w-auto"
+            >
+              {creating || updating ? "Saving…" : "Save check-in"}
             </Button>
           </form>
         </CardContent>
@@ -332,6 +462,166 @@ type ActivityProps = {
   calories: number
   mood: string
   heart: number
+  auto?: boolean
+}
+
+function GoogleHealthConnectCard({
+  linked,
+  tracking,
+  available,
+  error,
+  onConnect,
+  onDisconnect,
+}: {
+  linked: boolean
+  tracking: boolean
+  available: boolean | null
+  error: string | null
+  onConnect: () => void
+  onDisconnect: () => void
+}) {
+  return (
+    <Card
+      className={`border shadow-sm ${
+        linked ? "border-emerald-200 bg-emerald-50/40" : "border-blue-100"
+      }`}
+    >
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm">
+            {linked ? (
+              <Link2 className="h-5 w-5 text-emerald-600" />
+            ) : (
+              <Activity className="h-5 w-5 text-primary" />
+            )}
+          </div>
+          <div>
+            <p className="font-heading text-sm font-semibold text-brand-dark">
+              {linked ? "Google Health linked" : "Link Google Health"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {linked
+                ? tracking
+                  ? "Auto-syncing steps from this device (Health Connect / Fit sensors)."
+                  : available === false
+                    ? "Sensors unavailable here — use the Daryeel mobile app for full auto sync."
+                    : "Connecting sensors…"
+                : "Connect once — steps, calories, and active minutes sync automatically like Google Health."}
+            </p>
+            {error ? (
+              <p className="mt-1 text-xs text-amber-700">{error}</p>
+            ) : null}
+          </div>
+        </div>
+        {linked ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={onDisconnect}
+          >
+            <Unlink className="mr-1.5 h-3.5 w-3.5" />
+            Unlink
+          </Button>
+        ) : (
+          <Button type="button" size="sm" className="shrink-0" onClick={onConnect}>
+            <Link2 className="mr-1.5 h-3.5 w-3.5" />
+            Connect automatically
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ActivityRings({
+  steps,
+  stepsGoal,
+  activeMinutes,
+  water,
+  waterGoal,
+}: {
+  steps: number
+  stepsGoal: number
+  activeMinutes: number
+  water: number
+  waterGoal: number
+}) {
+  const move = percent(steps, stepsGoal)
+  const exercise = percent(activeMinutes, 30)
+  const hydrate = percent(water, waterGoal)
+  return (
+    <Card className="border-blue-100 shadow-sm">
+      <CardContent className="p-4 sm:p-5">
+        <p className="font-heading text-sm font-semibold text-brand-dark">
+          Today’s activity rings
+        </p>
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          <Ring
+            label="Move"
+            value={steps.toLocaleString()}
+            unit="steps"
+            pct={move}
+            color="#EA4335"
+          />
+          <Ring
+            label="Exercise"
+            value={String(activeMinutes)}
+            unit="min"
+            pct={exercise}
+            color="#34A853"
+          />
+          <Ring
+            label="Hydration"
+            value={String(water)}
+            unit="ml"
+            pct={hydrate}
+            color="#4285F4"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function Ring({
+  label,
+  value,
+  unit,
+  pct,
+  color,
+}: {
+  label: string
+  value: string
+  unit: string
+  pct: number
+  color: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 text-center">
+      <div className="relative h-20 w-20 sm:h-24 sm:w-24">
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            background: `conic-gradient(${color} ${pct}%, #E8EEF7 0)`,
+            mask: "radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px))",
+            WebkitMask:
+              "radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px))",
+          }}
+        />
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-1">
+          <p className="font-heading text-sm font-bold text-brand-dark sm:text-base">
+            {value}
+          </p>
+          <p className="text-[10px] text-muted-foreground">{unit}</p>
+        </div>
+      </div>
+      <p className="text-xs font-semibold" style={{ color }}>
+        {label}
+      </p>
+    </div>
+  )
 }
 
 function SoftToday(props: ActivityProps) {
@@ -374,6 +664,7 @@ function ActivityBoard({
   calories,
   heart,
   mood,
+  auto,
   compact = false,
 }: ActivityProps & { compact?: boolean }) {
   const stepPct = percent(steps, stepsGoal)
@@ -390,6 +681,11 @@ function ActivityBoard({
         <div className="mb-4 flex items-center gap-2">
           <Footprints className="h-5 w-5" />
           <span className="font-heading font-semibold">Walk</span>
+          {auto ? (
+            <span className="ml-auto rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold tracking-wide">
+              LIVE
+            </span>
+          ) : null}
         </div>
         <div className="relative mx-auto h-36 w-36">
           <div
@@ -413,7 +709,9 @@ function ActivityBoard({
           Goal {stepsGoal.toLocaleString()} · {stepPct}%
         </p>
         <p className="mt-1 text-center text-[11px] text-white/70">
-          Phone auto-tracks steps in the mobile app
+          {auto
+            ? "Auto-synced from Google Health sensors"
+            : "Link Google Health above — or use the Daryeel app"}
         </p>
       </div>
 

@@ -1506,7 +1506,14 @@ export interface Message {
 
   createdAt: Date | string;
 
-  sender?: User;
+  sender?: Pick<User, 'userid' | 'fullName' | 'avatarUrl' | 'picture'> & {
+    userid?: string
+    fullName?: string
+  };
+  recipient?: Pick<User, 'userid' | 'fullName' | 'avatarUrl' | 'picture'> & {
+    userid?: string
+    fullName?: string
+  };
 }
 
 export interface MessageInput {

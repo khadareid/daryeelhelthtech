@@ -12,6 +12,7 @@ import { appointmentsApi } from '../service/appointments/AppointmentsApi';
 import { MessagesApi } from '../service/messages/MessagesApi';
 import { adminApi } from '../service/admin/AdminApi';
 import { newsApi } from '../service/news/NewsApi';
+import { professionalsApi } from '../service/professionals/ProfessionalsApi';
 
 export const store = configureStore({
   reducer: {
@@ -28,6 +29,7 @@ export const store = configureStore({
     [MessagesApi.reducerPath]: MessagesApi.reducer,
     [adminApi.reducerPath]: adminApi.reducer,
     [newsApi.reducerPath]: newsApi.reducer,
+    [professionalsApi.reducerPath]: professionalsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -42,6 +44,7 @@ export const store = configureStore({
       MessagesApi.middleware,
       adminApi.middleware,
       newsApi.middleware,
+      professionalsApi.middleware,
     ),
 });
 // done

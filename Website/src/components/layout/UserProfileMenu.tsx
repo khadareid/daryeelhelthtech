@@ -41,6 +41,9 @@ function initialsOf(name?: string) {
 }
 
 function prettyRole(role?: string) {
+  const upper = (role || "USER").toUpperCase()
+  if (upper === "USER" || upper === "PATIENT") return "Member"
+  if (upper === "RECEPTIONIST") return "Staff"
   return (role || "USER")
     .replace(/_/g, " ")
     .toLowerCase()

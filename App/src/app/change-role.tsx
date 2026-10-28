@@ -14,15 +14,13 @@ import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { changeRoleRequest } from '@/lib/api';
 
+/** USER / PATIENT / RECEPTIONIST hidden from the app role picker */
 const ROLES = [
-  'USER',
-  'PATIENT',
   'DOCTOR',
   'NURSE',
   'MIDWIFE',
   'LAB_TECH',
   'PHARMACIST',
-  'RECEPTIONIST',
 ] as const;
 
 const CLINICAL = new Set([
@@ -31,13 +29,14 @@ const CLINICAL = new Set([
   'MIDWIFE',
   'LAB_TECH',
   'PHARMACIST',
-  'RECEPTIONIST',
 ]);
 
 export default function ChangeRoleScreen() {
   const { accessToken, user, refreshProfile, isAuthenticated } = useAuth();
   const [role, setRole] = useState<(typeof ROLES)[number]>(
-    ((user?.role as (typeof ROLES)[number]) || 'USER'),
+    ROLES.includes(user?.role as (typeof ROLES)[number])
+      ? (user?.role as (typeof ROLES)[number])
+      : 'DOCTOR',
   );
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -91,8 +90,9 @@ export default function ChangeRoleScreen() {
     <Screen headerTitle="Change role">
       <Text style={styles.title}>Choose your role</Text>
       <Text style={styles.sub}>
-        Current: {(user?.role || 'USER').replace(/_/g, ' ')}. Patient/User
-        updates now. Doctor and staff roles need a reason + admin approval.
+        Current: {(user?.role || 'USER').replace(/_/g, ' ')}. Professional
+        roles need a reason and Super Admin approval. Patient identity stays
+        on your permanent Patient ID.
       </Text>
 
       <View style={styles.chips}>

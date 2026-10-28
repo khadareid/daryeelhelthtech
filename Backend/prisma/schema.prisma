@@ -109,6 +109,22 @@ enum NotificationType {
   PROFESSIONAL_APPLICATION
   NEWS_INTERACTION
   MODERATION
+  CONNECTION
+  MESSAGE
+  APPOINTMENT
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+  ENDED
+}
+
+enum ConnectionRequestedBy {
+  PATIENT
+  PROFESSIONAL
 }
 
 enum NotificationChannel {
@@ -290,6 +306,12 @@ model User {
 
   platformSubscriptions PlatformSubscription[] @relation("PlatformSubscriber")
   cmsUpdates            CmsContent[]           @relation("CmsUpdatedBy")
+
+  patientConnections      PatientProfessionalConnection[] @relation("PatientConnections")
+  professionalConnections PatientProfessionalConnection[] @relation("ProfessionalConnections")
+  professionalAvailability ProfessionalAvailability[]
+  messagesReceived         Message[]                      @relation("MessageRecipient")
+  appointmentsAsProfessional Appointment[]                @relation("ProfessionalAppointments")
 
   @@index([email])
   @@index([phone])
@@ -807,6 +829,9 @@ model Appointment {
   userId          String
   appointmentCode String @unique
 
+  /// Patient who booked (userId) — professionalUserId is the clinician account when known
+  professionalUserId String?
+
   facilityName String?
   facilityId   String?
   branchName   String?
@@ -833,9 +858,11 @@ model Appointment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  user         User  @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  professional User? @relation("ProfessionalAppointments", fields: [professionalUserId], references: [userid], onDelete: SetNull)
 
   @@index([userId, scheduledAt])
+  @@index([professionalUserId, scheduledAt])
   @@index([status])
   @@index([appointmentCode])
 }
@@ -1015,10 +1042,12 @@ model Message {
 
   createdAt DateTime @default(now())
 
-  sender User @relation("MessageSender", fields: [senderId], references: [userid], onDelete: Cascade)
+  sender    User  @relation("MessageSender", fields: [senderId], references: [userid], onDelete: Cascade)
+  recipient User? @relation("MessageRecipient", fields: [recipientId], references: [userid], onDelete: SetNull)
 
   @@index([senderId])
   @@index([recipientId])
+  @@index([senderId, recipientId, createdAt])
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1138,6 +1167,9 @@ model ProfessionalProfile {
 
   professionalType Role
 
+  /// Public URL slug e.g. dr-ahmed — never expose internal userid
+  slug String? @unique
+
   licenseNumber  String?   @unique
   licenseExpiry  DateTime?
   certifications Json?
@@ -1145,6 +1177,9 @@ model ProfessionalProfile {
   specialization String?
   subSpecialty   String?
   qualifications Json?
+
+  workplace    String?
+  facilityName String?
 
   isPubliclyVisible Boolean @default(false)
   publicBio         String?
@@ -1182,6 +1217,55 @@ model ProfessionalProfile {
   @@index([specialization])
   @@index([isPubliclyVisible])
   @@index([rating])
+  @@index([slug])
+}
+
+// ═══════════════════════════════════════════════════════════
+// PATIENT ↔ PROFESSIONAL CONNECTION (≠ medical consent)
+// ═══════════════════════════════════════════════════════════
+
+model PatientProfessionalConnection {
+  id                 String @id @default(cuid())
+  patientUserId      String
+  professionalUserId String
+
+  status      ConnectionStatus      @default(PENDING)
+  requestedBy ConnectionRequestedBy
+
+  reason String?
+
+  requestedAt DateTime  @default(now())
+  acceptedAt  DateTime?
+  rejectedAt  DateTime?
+  endedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient      User @relation("PatientConnections", fields: [patientUserId], references: [userid], onDelete: Cascade)
+  professional User @relation("ProfessionalConnections", fields: [professionalUserId], references: [userid], onDelete: Cascade)
+
+  @@unique([patientUserId, professionalUserId])
+  @@index([patientUserId, status])
+  @@index([professionalUserId, status])
+}
+
+model ProfessionalAvailability {
+  id                 String @id @default(cuid())
+  professionalUserId String
+
+  /// 0 = Sunday … 6 = Saturday
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  isAvailable Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  professional User @relation(fields: [professionalUserId], references: [userid], onDelete: Cascade)
+
+  @@index([professionalUserId, dayOfWeek])
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1248,14 +1332,21 @@ model ProfessionalApplication {
   professionalapplicationid String @id @default(cuid())
   userId                    String
 
+  /// Human-readable application code e.g. APP-2026-000123
+  applicationCode String? @unique
+
   requestedRole Role
 
   licenseNumber     String?
+  licenseExpiry     DateTime?
   qualifications    String?
   specialization    String?
+  subSpecialty      String?
   yearsOfExperience Int?
+  languages         String[] @default([])
   facilityName      String?
   workplace         String?
+  professionalBio   String?
   supportingDocs    Json?
   notes             String?
 

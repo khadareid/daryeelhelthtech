@@ -8,6 +8,8 @@ import {
   changePassword,
   changeRole,
   listPublicDoctors,
+  getPublicDoctor,
+  getMyPatientId,
 } from "../Controllers/UserController";
 import { decodeToken } from "../helpers/middleware/VerifyToken";
 
@@ -16,6 +18,8 @@ const router = Router();
 router.post("/register", register);
 router.post("/login", login);
 router.get("/doctors", listPublicDoctors);
+router.get("/doctors/:idOrSlug", getPublicDoctor);
+router.get("/me/patient-id", decodeToken, getMyPatientId);
 router.get("/profile/:userid", decodeToken, getUserProfile);
 router.put("/profile/:userid", decodeToken, updateUserProfile);
 router.put("/profile/:userid/password", decodeToken, changePassword);

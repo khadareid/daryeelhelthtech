@@ -55,7 +55,7 @@ const SERVICES = [
     title: 'Hospitals',
     desc: 'Find facilities',
     icon: MapPin,
-    to: '/hospitals',
+    to: '/dashboard?section=hospitals',
   },
   {
     title: 'Health',
@@ -75,10 +75,12 @@ export function CareHome({
   name,
   image,
   data,
+  healthId,
 }: {
   name: string
   image?: string
   data?: DashboardData
+  healthId?: string | null
 }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -138,6 +140,11 @@ export function CareHome({
               <p className="truncate text-sm text-muted-foreground">
                 Your care home · {siteConfig.appName}
               </p>
+              {healthId ? (
+                <p className="mt-1 font-mono text-xs font-semibold tracking-wide text-primary sm:text-sm">
+                  Patient ID · {healthId}
+                </p>
+              ) : null}
             </div>
           </div>
           <form onSubmit={onSearch} className="relative w-full sm:max-w-sm">
@@ -258,7 +265,7 @@ export function CareHome({
         <SectionHead
           title="Hospitals & clinics"
           action="See all"
-          onAction={() => navigate('/hospitals')}
+          onAction={() => navigate('/dashboard?section=hospitals')}
         />
         <div className="scroll-snap-x mt-3 -mx-1 gap-3 px-1 pb-1">
           {hospitalsLoading
@@ -271,7 +278,7 @@ export function CareHome({
             : hospitals.map((hospital) => (
                 <Link
                   key={hospital.tenantId}
-                  to={`/hospitals/${hospital.tenantId}`}
+                  to={`/dashboard?section=hospitals&hospital=${encodeURIComponent(hospital.tenantId)}`}
                   className="w-[min(72vw,240px)] shrink-0 snap-start overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:w-56"
                 >
                   <img

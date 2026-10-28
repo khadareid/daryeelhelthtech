@@ -67,11 +67,11 @@ export default function AppTabs() {
             <Text style={styles.fabLabel}>Actions</Text>
           </Pressable>
 
-          <TabTrigger name="health" href="/(tabs)/health" asChild>
+          <TabTrigger name="hospitals" href={'/(tabs)/hospitals' as Href} asChild>
             <TabButton
-              label="Health"
-              icon="heart-outline"
-              iconActive="heart"
+              label="Hospitals"
+              icon="business-outline"
+              iconActive="business"
             />
           </TabTrigger>
 
@@ -83,15 +83,15 @@ export default function AppTabs() {
             />
           </TabTrigger>
 
-          {/* Registered routes, visually hidden — must stay direct TabList children */}
+          {/* Registered routes, visually hidden */}
           <TabTrigger
-            name="appointments"
-            href="/(tabs)/appointments"
+            name="health"
+            href="/(tabs)/health"
             style={styles.hiddenTrigger}
           />
           <TabTrigger
-            name="hospitals"
-            href={'/(tabs)/hospitals' as Href}
+            name="appointments"
+            href="/(tabs)/appointments"
             style={styles.hiddenTrigger}
           />
         </TabList>

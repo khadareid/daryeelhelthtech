@@ -6,13 +6,14 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ProgressRing } from '@/components/health/progress-ring';
 import { Screen } from '@/components/screen';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
+import { useGoogleHealthLink } from '@/hooks/use-google-health';
+import { usePedometer } from '@/hooks/use-pedometer';
+import { getTodayHealthLog, upsertTodayHealthLog } from '@/lib/api';
 
 const DEFAULT_STEPS_GOAL = 10000;
 const DEFAULT_WATER_GOAL = 2000;
 const DEFAULT_SLEEP_GOAL = 8;
-import { useAuth } from '@/context/auth-context';
-import { usePedometer } from '@/hooks/use-pedometer';
-import { getTodayHealthLog, upsertTodayHealthLog } from '@/lib/api';
 
 type TodayLog = {
   mood?: string | null;
@@ -43,6 +44,8 @@ export default function HealthDailyScreen() {
   const { accessToken, profile, user, refreshProfile } = useAuth();
   const [todayLog, setTodayLog] = useState<TodayLog | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const { linked, ready, connect, disconnect, openHealthConnect } =
+    useGoogleHealthLink();
 
   const seedSteps = todayLog?.steps ?? 0;
   const {
@@ -52,6 +55,7 @@ export default function HealthDailyScreen() {
     caloriesFromSteps,
   } = usePedometer(seedSteps);
 
+  const autoOn = linked && tracking;
   const stepsGoal = todayLog?.stepsGoal ?? DEFAULT_STEPS_GOAL;
   const water = todayLog?.waterIntakeMl ?? 0;
   const waterGoal = todayLog?.waterGoalMl ?? DEFAULT_WATER_GOAL;
@@ -61,7 +65,9 @@ export default function HealthDailyScreen() {
   const activeMin =
     todayLog?.activeMinutes ?? Math.max(0, Math.round(liveSteps / 120));
   const calories =
-    todayLog?.caloriesBurned ?? caloriesFromSteps ?? Math.round(liveSteps * 0.04);
+    todayLog?.caloriesBurned ??
+    caloriesFromSteps ??
+    Math.round(liveSteps * 0.04);
 
   const firstName = useMemo(
     () => (user?.fullName || profile?.fullName || 'there').split(' ')[0],
@@ -79,25 +85,27 @@ export default function HealthDailyScreen() {
     load();
   }, [accessToken]);
 
-  // Auto-sync pedometer steps to API when signed in
+  // Auto-sync when Google Health link is on + pedometer tracking
   useEffect(() => {
-    if (!accessToken || !tracking || liveSteps <= 0) return;
+    if (!accessToken || !linked || !tracking || liveSteps <= 0) return;
     const t = setTimeout(async () => {
       setSyncing(true);
       try {
         await upsertTodayHealthLog(accessToken, {
           steps: liveSteps,
           caloriesBurned: Math.round(liveSteps * 0.04),
-          source: 'DEVICE',
+          activeMinutes: Math.max(0, Math.round(liveSteps / 120)),
+          distanceMeters: Math.round(liveSteps * 0.75),
+          source: 'HEALTH_APP',
         });
       } catch {
         /* offline / API optional */
       } finally {
         setSyncing(false);
       }
-    }, 2500);
+    }, 2000);
     return () => clearTimeout(t);
-  }, [accessToken, liveSteps, tracking]);
+  }, [accessToken, liveSteps, tracking, linked]);
 
   async function addWater(ml: number) {
     const next = water + ml;
@@ -113,15 +121,19 @@ export default function HealthDailyScreen() {
     }
   }
 
+  const movePct = ratio(liveSteps, stepsGoal);
+  const exercisePct = ratio(activeMin, 30);
+  const standPct = ratio(water, waterGoal);
+
   return (
-    <Screen onRefresh={load} headerTitle="Activity">
+    <Screen onRefresh={load} headerTitle="Health Daily">
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.greet}>
             {greeting()}, {firstName}
           </Text>
           <Text style={styles.sub}>
-            Track your daily activity & stay healthy.
+            Activity like Google Health — auto steps, rings & daily sync.
           </Text>
         </View>
         <View style={styles.avatar}>
@@ -131,34 +143,99 @@ export default function HealthDailyScreen() {
         </View>
       </View>
 
-      <View style={styles.autoRow}>
-        <Ionicons
-          name={tracking ? 'walk' : 'phone-portrait-outline'}
-          size={16}
-          color={Brand.primary}
-        />
-        <Text style={styles.autoText}>
-          {available === false
-            ? 'Auto steps unavailable — using saved log'
-            : tracking
-              ? 'Automatic step tracking on'
-              : 'Connecting motion sensors…'}
-          {syncing ? ' · syncing' : ''}
+      {ready ? (
+        <View style={[styles.linkCard, linked && styles.linkCardOn]}>
+          <View style={styles.linkTop}>
+            <View style={styles.linkIcon}>
+              <Ionicons
+                name={linked ? 'checkmark-circle' : 'logo-google'}
+                size={22}
+                color={linked ? Brand.success : Brand.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.linkTitle}>
+                {linked ? 'Google Health linked' : 'Link Google Health'}
+              </Text>
+              <Text style={styles.linkSub}>
+                {linked
+                  ? autoOn
+                    ? `Auto-syncing steps${syncing ? '…' : ''}`
+                    : available === false
+                      ? 'Sensors unavailable — saved log still syncs'
+                      : 'Waiting for motion sensors…'
+                  : 'Connect phone activity (Health Connect / Fit sensors)'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.linkActions}>
+            {linked ? (
+              <>
+                <Pressable
+                  onPress={() => void openHealthConnect()}
+                  style={styles.linkBtnGhost}>
+                  <Text style={styles.linkBtnGhostText}>Open Health app</Text>
+                </Pressable>
+                <Pressable onPress={() => void disconnect()} style={styles.linkBtnGhost}>
+                  <Text style={styles.linkBtnGhostText}>Unlink</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable onPress={() => void connect()} style={styles.linkBtn}>
+                <Text style={styles.linkBtnText}>Connect automatically</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      ) : null}
+
+      {/* Activity rings — Google Fit style */}
+      <View style={styles.ringsCard}>
+        <Text style={styles.ringsTitle}>Today’s activity</Text>
+        <View style={styles.ringsRow}>
+          <RingStat
+            label="Move"
+            value={liveSteps.toLocaleString()}
+            unit="steps"
+            progress={movePct}
+            color="#EA4335"
+          />
+          <RingStat
+            label="Exercise"
+            value={`${activeMin}`}
+            unit="min"
+            progress={exercisePct}
+            color="#34A853"
+          />
+          <RingStat
+            label="Hydration"
+            value={`${water}`}
+            unit="ml"
+            progress={standPct}
+            color="#4285F4"
+          />
+        </View>
+        <Text style={styles.ringsHint}>
+          Goals · {stepsGoal.toLocaleString()} steps · 30 min · {waterGoal} ml
         </Text>
       </View>
 
       <View style={styles.grid}>
-        {/* Walk — hero */}
         <Pressable
           onPress={() => router.push('/health/steps' as Href)}
           style={[styles.walkCard, styles.span2]}>
           <View style={styles.cardTop}>
             <Ionicons name="walk" size={22} color="#fff" />
-            <Text style={styles.walkTitle}>Walk</Text>
+            <Text style={styles.walkTitle}>Steps</Text>
+            {autoOn ? (
+              <View style={styles.livePill}>
+                <Text style={styles.livePillText}>LIVE</Text>
+              </View>
+            ) : null}
           </View>
           <ProgressRing
             size={148}
-            progress={ratio(liveSteps, stepsGoal)}
+            progress={movePct}
             value={liveSteps.toLocaleString()}
             label="Steps"
             icon={<Ionicons name="footsteps" size={20} color="#fff" />}
@@ -178,26 +255,18 @@ export default function HealthDailyScreen() {
         />
         <MetricCard
           title="Heart"
-          value={`${heart}`}
+          value={`${heart || '—'}`}
           unit="bpm"
           icon="heart"
-          accent="#EF4444"
+          accent="#EA4335"
           spark
-        />
-        <MetricCard
-          title="Exercise"
-          value={`${Math.max(1, Math.round(activeMin / 60)) || activeMin}`}
-          unit={activeMin >= 60 ? 'Hours' : 'Min'}
-          icon="bicycle"
-          accent="#3B82F6"
-          bars
         />
         <MetricCard
           title="Calories"
           value={`${Math.round(Number(calories))}`}
           unit="Kcal"
           icon="flame"
-          accent="#10B981"
+          accent="#FBBC05"
           ring={ratio(Number(calories), 500)}
         />
         <MetricCard
@@ -205,15 +274,8 @@ export default function HealthDailyScreen() {
           value={`${water}`}
           unit="ml"
           icon="water"
-          accent="#0EA5E9"
+          accent="#4285F4"
           ring={ratio(water, waterGoal)}
-        />
-        <MetricCard
-          title="Active"
-          value={`${activeMin}`}
-          unit="Minutes"
-          icon="fitness"
-          accent="#8B5CF6"
         />
       </View>
 
@@ -230,10 +292,41 @@ export default function HealthDailyScreen() {
           ))}
         </View>
         <Text style={styles.goalHint}>
-          Sleep goal {sleepGoal}h · Water goal {waterGoal} ml
+          Sleep goal {sleepGoal}h · Synced from Google Health sensors when linked
         </Text>
       </View>
     </Screen>
+  );
+}
+
+function RingStat({
+  label,
+  value,
+  unit,
+  progress,
+  color,
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  progress: number;
+  color: string;
+}) {
+  return (
+    <View style={styles.ringStat}>
+      <ProgressRing
+        size={88}
+        stroke={9}
+        progress={progress}
+        trackColor="#E8EEF7"
+        tintColor={color}
+        value={value}
+        label={unit}
+        valueColor={Brand.dark}
+        labelColor={Brand.muted}
+      />
+      <Text style={[styles.ringLabel, { color }]}>{label}</Text>
+    </View>
   );
 }
 
@@ -244,7 +337,6 @@ function MetricCard({
   icon,
   accent,
   spark,
-  bars,
   ring,
   onPress,
 }: {
@@ -254,7 +346,6 @@ function MetricCard({
   icon: React.ComponentProps<typeof Ionicons>['name'];
   accent: string;
   spark?: boolean;
-  bars?: boolean;
   ring?: number;
   onPress?: () => void;
 }) {
@@ -267,7 +358,6 @@ function MetricCard({
         <Text style={styles.cardTitle}>{title}</Text>
       </View>
       {spark ? <Sparkline color={accent} /> : null}
-      {bars ? <MiniBars color={accent} /> : null}
       {typeof ring === 'number' ? (
         <View style={{ alignItems: 'center', marginVertical: 6 }}>
           <ProgressRing
@@ -312,26 +402,6 @@ function Sparkline({ color }: { color: string }) {
   );
 }
 
-function MiniBars({ color }: { color: string }) {
-  const pts = [10, 16, 12, 20, 14, 18, 11];
-  return (
-    <View style={styles.spark}>
-      {pts.map((h, i) => (
-        <View
-          key={i}
-          style={{
-            width: 6,
-            height: h,
-            borderRadius: 3,
-            backgroundColor: color,
-            opacity: 0.45,
-          }}
-        />
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
@@ -362,27 +432,98 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 18,
   },
-  autoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-    marginBottom: 4,
+  linkCard: {
+    backgroundColor: Brand.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    padding: Spacing.three,
+    gap: 10,
   },
-  autoText: {
-    flex: 1,
-    fontFamily: Fonts.medium,
+  linkCardOn: {
+    borderColor: '#86EFAC',
+    backgroundColor: '#F0FDF4',
+  },
+  linkTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  linkIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Brand.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  linkTitle: {
+    fontFamily: Fonts.semibold,
+    fontSize: 15,
+    color: Brand.dark,
+  },
+  linkSub: {
+    fontFamily: Fonts.regular,
     fontSize: 12,
     color: Brand.muted,
+    marginTop: 2,
+  },
+  linkActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  linkBtn: {
+    backgroundColor: Brand.primary,
+    borderRadius: Radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  linkBtnText: {
+    color: '#fff',
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+  },
+  linkBtnGhost: {
+    borderWidth: 1,
+    borderColor: Brand.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: Brand.white,
+  },
+  linkBtnGhostText: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    color: Brand.dark,
+  },
+  ringsCard: {
+    backgroundColor: Brand.white,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    padding: Spacing.four,
+    gap: 12,
+  },
+  ringsTitle: {
+    fontFamily: Fonts.semibold,
+    fontSize: 16,
+    color: Brand.dark,
+  },
+  ringsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  ringStat: { flex: 1, alignItems: 'center', gap: 6 },
+  ringLabel: {
+    fontFamily: Fonts.semibold,
+    fontSize: 12,
+  },
+  ringsHint: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Brand.muted,
+    textAlign: 'center',
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
-  span2: {
-    width: '100%',
-  },
+  span2: { width: '100%' },
   walkCard: {
     backgroundColor: Brand.primary,
     borderRadius: Radius.xl,
@@ -394,6 +535,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: Fonts.semibold,
     fontSize: 16,
+    flex: 1,
+  },
+  livePill: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  livePillText: {
+    color: '#fff',
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    letterSpacing: 0.6,
   },
   walkHint: {
     color: 'rgba(255,255,255,0.85)',
@@ -414,6 +568,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 8,
+    width: '100%',
   },
   iconBubble: {
     width: 28,

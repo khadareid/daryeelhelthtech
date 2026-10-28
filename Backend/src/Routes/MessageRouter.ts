@@ -5,6 +5,7 @@ import {
   deleteMessage,
   getOneMessage,
   getThread,
+  listConversations,
   listInbox,
   listMessages,
   listSent,
@@ -26,6 +27,7 @@ router.post("/", handle(createMessage));
 router.get("/", handle(listMessages));
 router.get("/inbox", handle(listInbox));
 router.get("/sent", handle(listSent));
+router.get("/conversations", handle(listConversations));
 router.get("/unread-count", handle(unreadCount));
 router.get("/thread/:peerId", handle(getThread));
 router.get("/:id", handle(getOneMessage));

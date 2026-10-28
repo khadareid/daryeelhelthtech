@@ -71,6 +71,14 @@ const ACTIONS: {
     href: '/(tabs)/appointments',
   },
   {
+    id: 'profile',
+    title: 'My Profile',
+    icon: 'person',
+    color: Brand.primary,
+    bg: Brand.light,
+    href: '/(tabs)/profile',
+  },
+  {
     id: 'med',
     title: 'Medications',
     icon: 'flask',

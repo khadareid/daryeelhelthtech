@@ -13,9 +13,14 @@ import { FormEvent, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
+function isNewsAdmin(role?: string | null) {
+  return role === 'ADMIN' || role === 'SUPER_ADMIN'
+}
+
 export default function NewsPage() {
   const session = useSelector((s: RootState) => s.userInfo)
   const signedIn = Boolean(session.isAuthenticated && session.userId)
+  const canPublish = signedIn && isNewsAdmin(session.role)
   const { data, isLoading, isError, refetch } = useGetNewsFeedQuery({
     page: 1,
     limit: 20,
@@ -52,10 +57,11 @@ export default function NewsPage() {
             Health news feed
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Community and professional updates. Do not post private patient
-            information. Verified clinicians show a badge after admin approval.
+            Official health updates from Daryeel. Users, doctors, and other
+            roles can read and comment — only admins can publish. Do not share
+            private patient information.
           </p>
-          {signedIn ? (
+          {canPublish ? (
             <Button
               className="mt-4 gap-2"
               variant="outline"
@@ -64,9 +70,13 @@ export default function NewsPage() {
               <Plus className="h-4 w-4" />
               {composer ? 'Close composer' : 'Create post'}
             </Button>
+          ) : signedIn ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              You can read posts and leave comments. Publishing is admin-only.
+            </p>
           ) : (
             <Button asChild className="mt-4">
-              <Link to="/signin">Sign in to post</Link>
+              <Link to="/signin">Sign in to comment</Link>
             </Button>
           )}
         </div>

@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Newspaper,
   Phone,
-  Pill,
   Plus,
   ShieldCheck,
   Stethoscope,
@@ -103,33 +102,25 @@ export const PRIMARY_TABS: DashLink[] = [
   {
     id: "doctors",
     label: "Doctors",
-    description: "Clinicians from the Daryeel network",
+    description: "Verified clinicians from Daryeel database",
     to: "/dashboard?section=doctors",
     icon: Stethoscope,
     bar: true,
   },
   {
-    id: "appointments",
-    label: "Appts",
-    description: "Upcoming and past visits",
-    to: "/dashboard?section=appointments",
-    icon: Calendar,
+    id: "hospitals",
+    label: "Hospitals",
+    description: "Find hospitals and book their doctors",
+    to: "/dashboard?section=hospitals",
+    icon: Building2,
     bar: true,
   },
   {
-    id: "pharmacy",
-    label: "Pharmacy",
-    description: "Medicines, refills, and pharmacies",
-    to: "/dashboard?section=pharmacy",
-    icon: Pill,
-    bar: true,
-  },
-  {
-    id: "profile",
-    label: "Profile",
-    description: "Account and security",
-    to: "/dashboard/UserProfile",
-    icon: UserRound,
+    id: "messages",
+    label: "Messages",
+    description: "Care team inbox",
+    to: "/dashboard?section=messages",
+    icon: MessageSquare,
     bar: true,
   },
 ]
@@ -142,6 +133,20 @@ const QUICK_ACTIONS: DashLink[] = [
     description: "Schedule a consultation",
     to: "/dashboard?section=appointments",
     icon: CalendarPlus,
+  },
+  {
+    id: "appointments",
+    label: "Appointments",
+    description: "Upcoming and history",
+    to: "/dashboard?section=appointments",
+    icon: Calendar,
+  },
+  {
+    id: "profile",
+    label: "My Profile",
+    description: "Account, Patient ID & settings",
+    to: "/dashboard/UserProfile",
+    icon: UserRound,
   },
   {
     id: "doctors",
@@ -161,7 +166,7 @@ const QUICK_ACTIONS: DashLink[] = [
     id: "hospitals",
     label: "Hospitals",
     description: "Find care facilities",
-    to: "/hospitals",
+    to: "/dashboard?section=hospitals",
     icon: Building2,
   },
   {
@@ -186,18 +191,11 @@ const QUICK_ACTIONS: DashLink[] = [
     icon: FlaskConical,
   },
   {
-    id: "pharmacy",
-    label: "Medications",
-    description: "Prescriptions and refills",
-    to: "/dashboard?section=pharmacy",
-    icon: Pill,
-  },
-  {
-    id: "messages",
-    label: "Messages",
-    description: "Care team inbox",
-    to: "/dashboard?section=messages",
-    icon: MessageSquare,
+    id: "connections",
+    label: "Connections",
+    description: "Your healthcare professionals",
+    to: "/dashboard?section=connections",
+    icon: Users,
   },
   {
     id: "notifications",
@@ -228,7 +226,8 @@ const MORE_LINKS = QUICK_ACTIONS
 const LEGACY_ALIASES: Record<string, string> = {
   home: "dashboard",
   care: "appointments",
-  prescriptions: "pharmacy",
+  prescriptions: "appointments",
+  pharmacy: "doctors",
   users: "patients",
 }
 
@@ -259,7 +258,9 @@ export const linksForRole = (role: AppRole): DashLink[] => [
     to: "/dashboard?section=patients",
     icon: Users,
   },
-  ...MORE_LINKS.filter((l) => l.id !== "doctors" && l.id !== "pharmacy"),
+  ...MORE_LINKS.filter(
+    (l) => l.id !== "doctors" && l.id !== "messages" && l.id !== "hospitals",
+  ),
 ]
 
 export const sectionFromLocation = (pathname: string, search: string): string => {
@@ -293,9 +294,8 @@ export function DashboardSidebar({
     ["dashboard", "doctors"].includes(t.id),
   )
   const right = PRIMARY_TABS.filter((t) =>
-    ["appointments", "pharmacy"].includes(t.id),
+    ["hospitals", "messages"].includes(t.id),
   )
-  const profileTab = PRIMARY_TABS.find((t) => t.id === "profile")!
 
   const go = (to: string) => {
     setActionsOpen(false)
@@ -347,10 +347,9 @@ export function DashboardSidebar({
               />
             ))}
 
-            {/* Profile — avatar chip (distinct from icon tabs) */}
             <button
               type="button"
-              onClick={() => go(profileTab.to)}
+              onClick={() => go("/dashboard/UserProfile")}
               className={cn(
                 "relative flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-0.5 py-1.5 transition sm:px-1",
                 current === "profile" && "bg-primary/8",
@@ -371,9 +370,6 @@ export function DashboardSidebar({
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                {current === "profile" ? (
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
-                ) : null}
               </span>
               <span
                 className={cn(

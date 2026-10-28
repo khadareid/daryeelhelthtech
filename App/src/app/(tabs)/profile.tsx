@@ -63,13 +63,25 @@ export default function ProfileScreen() {
           />
           <Text style={styles.name}>{user?.fullName || 'Daryeel user'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
-          <Text style={styles.role}>
-            {(user?.role || 'USER').replace(/_/g, ' ')}
+          {profile?.profile?.healthId ? (
+            <Text style={styles.patientId}>
+              Patient ID · {profile.profile.healthId}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.patientCard}>
+          <Text style={styles.patientCardLabel}>Daryeel Patient ID</Text>
+          <Text style={styles.patientCardValue}>
+            {profile?.profile?.healthId || 'Generating…'}
+          </Text>
+          <Text style={styles.patientCardHint}>
+            Permanent healthcare identity — stays the same if you become a
+            professional.
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Row label="Health ID" value={profile?.profile?.healthId || '—'} />
           <Row label="Phone" value={user?.phone || '—'} />
           <Row label="City" value={profile?.profile?.city || '—'} />
           <Row
@@ -188,6 +200,40 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 14,
     color: Brand.muted,
+  },
+  patientId: {
+    marginTop: 8,
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    color: Brand.primary,
+    letterSpacing: 0.3,
+  },
+  patientCard: {
+    backgroundColor: Brand.light,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    padding: Spacing.four,
+    gap: 4,
+  },
+  patientCardLabel: {
+    fontFamily: Fonts.semibold,
+    fontSize: 11,
+    color: Brand.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  patientCardValue: {
+    fontFamily: Fonts.bold,
+    fontSize: 20,
+    color: Brand.dark,
+    letterSpacing: 0.5,
+  },
+  patientCardHint: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: Brand.muted,
+    marginTop: 2,
   },
   role: {
     marginTop: 6,

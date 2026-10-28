@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/config/site';
 import { CATEGORIES } from '@/constants/content';
 import { HEALTH_SERVICES } from '@/constants/demo-data';
-import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useDoctors } from '@/hooks/use-doctors';
 import { useHospitals } from '@/hooks/use-hospitals';
@@ -131,6 +131,11 @@ export default function HomeScreen() {
           <Text style={[styles.ready, { color: theme.textSecondary }]}>
             Your care home · {apiOnline ? 'Connected' : 'Offline'}
           </Text>
+          {profile?.profile?.healthId ? (
+            <Text style={styles.patientId}>
+              Patient ID · {profile.profile.healthId}
+            </Text>
+          ) : null}
         </View>
       </View>
 
@@ -633,6 +638,13 @@ const styles = StyleSheet.create({
   ready: {
     fontFamily: Fonts.regular,
     fontSize: 13,
+  },
+  patientId: {
+    marginTop: 6,
+    fontFamily: Fonts.semibold,
+    fontSize: 12,
+    color: Brand.primary,
+    letterSpacing: 0.3,
   },
   searchBox: {
     borderRadius: Radius.full,

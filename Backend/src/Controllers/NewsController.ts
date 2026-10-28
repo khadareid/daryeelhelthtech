@@ -36,6 +36,12 @@ const VERIFIED_ROLES: Role[] = [
   Role.ADMIN,
 ];
 
+/** Only platform admins may create / edit / delete news posts.
+ *  USER, PATIENT, DOCTOR and other roles may only read + comment. */
+function canManageNews(role: Role | null | undefined) {
+  return role === Role.SUPER_ADMIN || role === Role.ADMIN;
+}
+
 async function authorBadge(userId: string) {
   const [user, profile] = await Promise.all([
     prisma.user.findUnique({
@@ -235,12 +241,19 @@ export const getNews = async (req: Request, res: Response) => {
   }
 };
 
-/** POST /news */
+/** POST /news — ADMIN / SUPER_ADMIN only */
 export const createNews = async (req: Request, res: Response) => {
   try {
     const { userId, role } = actor(req);
     if (!userId) {
       res.status(401).json({ isSuccess: false, message: "Sign in required" });
+      return;
+    }
+    if (!canManageNews(role)) {
+      res.status(403).json({
+        isSuccess: false,
+        message: "Only admins can publish news. You can read and comment.",
+      });
       return;
     }
     const allowed = await isFeatureAllowed({
@@ -302,15 +315,17 @@ export const updateNews = async (req: Request, res: Response) => {
       res.status(401).json({ isSuccess: false, message: "Sign in required" });
       return;
     }
+    if (!canManageNews(role)) {
+      res.status(403).json({
+        isSuccess: false,
+        message: "Only admins can edit news. You can read and comment.",
+      });
+      return;
+    }
     const id = String(req.params.id);
     const post = await prisma.newsPost.findUnique({ where: { newspostid: id } });
     if (!post || post.deletedAt) {
       res.status(404).json({ isSuccess: false, message: "Post not found" });
-      return;
-    }
-    const isAdmin = role === Role.SUPER_ADMIN || role === Role.ADMIN;
-    if (post.authorId !== userId && !isAdmin) {
-      res.status(403).json({ isSuccess: false, message: "Not allowed" });
       return;
     }
 
@@ -340,7 +355,7 @@ export const updateNews = async (req: Request, res: Response) => {
   }
 };
 
-/** DELETE /news/:id — soft delete */
+/** DELETE /news/:id — soft delete — ADMIN / SUPER_ADMIN only */
 export const deleteNews = async (req: Request, res: Response) => {
   try {
     const { userId, role } = actor(req);
@@ -348,15 +363,17 @@ export const deleteNews = async (req: Request, res: Response) => {
       res.status(401).json({ isSuccess: false, message: "Sign in required" });
       return;
     }
+    if (!canManageNews(role)) {
+      res.status(403).json({
+        isSuccess: false,
+        message: "Only admins can remove news. You can read and comment.",
+      });
+      return;
+    }
     const id = String(req.params.id);
     const post = await prisma.newsPost.findUnique({ where: { newspostid: id } });
     if (!post) {
       res.status(404).json({ isSuccess: false, message: "Post not found" });
-      return;
-    }
-    const isAdmin = role === Role.SUPER_ADMIN || role === Role.ADMIN;
-    if (post.authorId !== userId && !isAdmin) {
-      res.status(403).json({ isSuccess: false, message: "Not allowed" });
       return;
     }
     await prisma.newsPost.update({

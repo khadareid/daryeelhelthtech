@@ -1,5 +1,9 @@
 import { Request, Response } from "express";
-import { AppointmentStatus } from "@prisma/client";
+import {
+  AppointmentStatus,
+  NotificationChannel,
+  NotificationType,
+} from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 function getUserId(req: Request): string | null {
@@ -62,9 +66,32 @@ export const createAppointment = async (req: Request, res: Response) => {
       String(visitType || "").toLowerCase().includes("video") ||
       String(visitType || "").toLowerCase() === "telehealth";
 
+    // Resolve professional account when doctorId is a ProfessionalProfile id or user id
+    let professionalUserId: string | null =
+      typeof req.body?.professionalUserId === "string"
+        ? req.body.professionalUserId
+        : null;
+
+    if (!professionalUserId && doctorId) {
+      const byProfile = await prisma.professionalProfile.findFirst({
+        where: {
+          OR: [
+            { professionalprofileid: String(doctorId) },
+            { slug: String(doctorId) },
+            { userId: String(doctorId) },
+          ],
+        },
+        select: { userId: true, professionalprofileid: true },
+      });
+      if (byProfile) {
+        professionalUserId = byProfile.userId;
+      }
+    }
+
     const appointment = await prisma.appointment.create({
       data: {
         userId,
+        professionalUserId,
         appointmentCode: makeAppointmentCode(),
         doctorId: doctorId ? String(doctorId) : null,
         doctorName: doctorName ? String(doctorName) : "Clinician",
@@ -86,10 +113,48 @@ export const createAppointment = async (req: Request, res: Response) => {
       },
     });
 
+    const patient = await prisma.user.findUnique({
+      where: { userid: userId },
+      select: {
+        fullName: true,
+        phone: true,
+        email: true,
+        profile: { select: { healthId: true } },
+      },
+    });
+
+    if (professionalUserId) {
+      await prisma.notification
+        .create({
+          data: {
+            userId: professionalUserId,
+            title: "New appointment booking",
+            body: `${patient?.fullName || "A patient"} booked you for ${when.toLocaleString()}${
+              reason ? ` · ${String(reason)}` : ""
+            }.`,
+            type: NotificationType.APPOINTMENT,
+            channel: NotificationChannel.IN_APP,
+            metadata: {
+              appointmentId: appointment.appointmentid,
+              patientUserId: userId,
+              patientName: patient?.fullName,
+              patientHealthId: patient?.profile?.healthId,
+            },
+          },
+        })
+        .catch(() => undefined);
+    }
+
     res.status(201).json({
       isSuccess: true,
       message: "Appointment booked",
-      result: appointment,
+      result: {
+        ...appointment,
+        patientName: patient?.fullName,
+        patientHealthId: patient?.profile?.healthId,
+        patientPhone: patient?.phone,
+        patientEmail: patient?.email,
+      },
     });
   } catch (error) {
     console.error("createAppointment error:", error);
@@ -110,18 +175,86 @@ export const listMyAppointments = async (req: Request, res: Response) => {
     }
 
     const status = typeof req.query.status === "string" ? req.query.status : "";
-    const where: { userId: string; status?: AppointmentStatus } = { userId };
-    if (status && Object.values(AppointmentStatus).includes(status as AppointmentStatus)) {
-      where.status = status as AppointmentStatus;
-    }
+    const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
 
+    const statusFilter =
+      status && Object.values(AppointmentStatus).includes(status as AppointmentStatus)
+        ? (status as AppointmentStatus)
+        : undefined;
+
+    // Patient bookings + appointments where this user is the professional
     const appointments = await prisma.appointment.findMany({
-      where,
-      orderBy: { scheduledAt: "asc" },
+      where: {
+        OR: [{ userId }, { professionalUserId: userId }],
+        ...(statusFilter ? { status: statusFilter } : {}),
+      },
+      orderBy: { scheduledAt: "desc" },
       take: 100,
+      include: {
+        user: {
+          select: {
+            userid: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            avatarUrl: true,
+            picture: true,
+            profile: { select: { healthId: true, city: true } },
+          },
+        },
+        professional: {
+          select: {
+            userid: true,
+            fullName: true,
+            avatarUrl: true,
+            picture: true,
+          },
+        },
+      },
     });
 
-    res.status(200).json({ isSuccess: true, result: appointments });
+    const mapped = appointments.map((a) => ({
+      ...a,
+      patientName: a.user?.fullName,
+      patientUserId: a.userId,
+      patientHealthId: a.user?.profile?.healthId ?? null,
+      patientPhone: a.user?.phone ?? null,
+      patientEmail: a.user?.email ?? null,
+      professionalName: a.professional?.fullName || a.doctorName,
+      isMineAsPatient: a.userId === userId,
+      isMineAsProfessional: a.professionalUserId === userId,
+    }));
+
+    const now = Date.now();
+    const closed = new Set<AppointmentStatus>([
+      AppointmentStatus.CANCELLED,
+      AppointmentStatus.COMPLETED,
+      AppointmentStatus.NO_SHOW,
+    ]);
+    const upcoming = mapped.filter(
+      (a) => new Date(a.scheduledAt).getTime() >= now && !closed.has(a.status)
+    );
+    const history = mapped.filter(
+      (a) => new Date(a.scheduledAt).getTime() < now || closed.has(a.status)
+    );
+
+    const filtered =
+      scope === "upcoming"
+        ? upcoming
+        : scope === "past" || scope === "history"
+          ? history
+          : mapped;
+
+    res.status(200).json({
+      isSuccess: true,
+      result: filtered,
+      meta: {
+        upcomingCount: upcoming.length,
+        historyCount: history.length,
+        upcoming,
+        history,
+      },
+    });
   } catch (error) {
     console.error("listMyAppointments error:", error);
     res.status(500).json({

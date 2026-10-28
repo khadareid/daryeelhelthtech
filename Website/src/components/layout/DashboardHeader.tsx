@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom"
 import { Bell, Home, Settings } from "lucide-react"
 import { UserProfileMenu } from "./UserProfileMenu"
 import { siteConfig } from "@/config/site"
+import { useGetMyProfileQuery } from "@/Redex/service/users/UsersApi"
 
 interface DashboardHeaderProps {
   title?: string
@@ -22,6 +23,10 @@ export function DashboardHeader({
   userImage = "",
 }: DashboardHeaderProps) {
   const navigate = useNavigate()
+  const { data: profile } = useGetMyProfileQuery()
+  const healthId =
+    (profile as { profile?: { healthId?: string | null } } | undefined)?.profile
+      ?.healthId || null
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-blue-100/60 bg-white/80 backdrop-blur-xl">
@@ -55,6 +60,14 @@ export function DashboardHeader({
           <span className="truncate font-heading text-base font-bold text-brand-dark sm:hidden">
             {title}
           </span>
+          {healthId ? (
+            <span
+              className="hidden max-w-[11rem] truncate rounded-full bg-primary/10 px-2.5 py-1 font-mono text-[10px] font-semibold tracking-wide text-primary sm:inline-flex md:max-w-none md:text-[11px]"
+              title="Permanent Daryeel Patient / Health ID"
+            >
+              Patient ID · {healthId}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

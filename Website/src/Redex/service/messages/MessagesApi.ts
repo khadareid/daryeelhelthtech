@@ -98,17 +98,60 @@ export const MessagesApi = createApi({
 
     /* ---------- ONE ---------- */
 
-    getThread: builder.query<Message[], string>({
+    getConversations: builder.query<
+      Array<{
+        peerId: string
+        name: string
+        image?: string | null
+        preview: string
+        at: string
+      }>,
+      void
+    >({
+      query: () => ({
+        url: '/messages/conversations',
+        method: 'GET',
+      }),
+      transformResponse: (response: {
+        result?: Array<{
+          peerId: string
+          name: string
+          image?: string | null
+          preview: string
+          at: string
+        }>
+        data?: Array<{
+          peerId: string
+          name: string
+          image?: string | null
+          preview: string
+          at: string
+        }>
+      }) => response.result ?? response.data ?? [],
+      providesTags: ['Messages'],
+    }),
+
+    getThread: builder.query<
+      {
+        messages: Message[]
+        peer: { userId: string; name: string; image?: string | null } | null
+      },
+      string
+    >({
       query: (peerId) => ({
-        url: `/messages/thread/${peerId}`,
+        url: `/messages/thread/${encodeURIComponent(peerId)}`,
         method: 'GET',
       }),
       transformResponse: (response: {
         result?: Message[]
         data?: Message[]
-      }): Message[] => {
+        peer?: { userId: string; name: string; image?: string | null } | null
+      }) => {
         const list = response.result ?? response.data ?? []
-        return Array.isArray(list) ? list : []
+        return {
+          messages: Array.isArray(list) ? list : [],
+          peer: response.peer ?? null,
+        }
       },
       providesTags: (_r, _e, peerId) => [{ type: 'Messages', id: peerId }],
     }),
@@ -165,6 +208,7 @@ export const {
   useGetMessagesQuery,
   useGetInboxMessagesQuery,
   useGetSentMessagesQuery,
+  useGetConversationsQuery,
   useGetThreadQuery,
   useGetOneMessageQuery,
   useMarkMessageAsReadMutation,

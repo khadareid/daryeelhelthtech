@@ -8,6 +8,7 @@ export type AppointmentRecord = {
   status: string
   doctorName?: string | null
   doctorId?: string | null
+  professionalUserId?: string | null
   specialty?: string | null
   facilityName?: string | null
   facilityId?: string | null
@@ -15,10 +16,19 @@ export type AppointmentRecord = {
   notes?: string | null
   meetingLink?: string | null
   duration?: number
+  patientName?: string | null
+  patientUserId?: string | null
+  patientHealthId?: string | null
+  patientPhone?: string | null
+  patientEmail?: string | null
+  professionalName?: string | null
+  isMineAsPatient?: boolean
+  isMineAsProfessional?: boolean
 }
 
 export type BookAppointmentBody = {
   doctorId?: string
+  professionalUserId?: string
   doctorName: string
   specialty?: string
   facilityName?: string

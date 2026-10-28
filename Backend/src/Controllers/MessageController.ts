@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { NotificationChannel, NotificationType } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 function getUserId(req: Request): string | null {
@@ -10,6 +11,38 @@ function paginate(query: Request["query"]) {
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.min(50, Math.max(1, Number(query.limit) || 30));
   return { page, limit, skip: (page - 1) * limit };
+}
+
+const PERSON_SELECT = {
+  userid: true,
+  fullName: true,
+  avatarUrl: true,
+  picture: true,
+} as const;
+
+const MESSAGE_INCLUDE = {
+  sender: { select: PERSON_SELECT },
+  recipient: { select: PERSON_SELECT },
+} as const;
+
+async function resolveRecipientUserId(rawId: string): Promise<string | null> {
+  const id = String(rawId || "").trim();
+  if (!id) return null;
+
+  const user = await prisma.user.findFirst({
+    where: { userid: id, isDeleted: false },
+    select: { userid: true },
+  });
+  if (user) return user.userid;
+
+  const pro = await prisma.professionalProfile.findFirst({
+    where: {
+      deletedAt: null,
+      OR: [{ professionalprofileid: id }, { slug: id }, { userId: id }],
+    },
+    select: { userId: true },
+  });
+  return pro?.userId ?? null;
 }
 
 /** POST /messages — patient ↔ clinician chat */
@@ -37,26 +70,50 @@ export const createMessage = async (req: Request, res: Response) => {
       return;
     }
 
+    const resolvedRecipient = await resolveRecipientUserId(recipientId);
+    if (!resolvedRecipient) {
+      res.status(404).json({
+        isSuccess: false,
+        message: "Recipient not found",
+      });
+      return;
+    }
+
+    if (resolvedRecipient === senderId) {
+      res.status(400).json({
+        isSuccess: false,
+        message: "You cannot message yourself",
+      });
+      return;
+    }
+
     const message = await prisma.message.create({
       data: {
         senderId,
-        recipientId: String(recipientId),
-        recipientType: recipientType ? String(recipientType) : "CLINICIAN",
+        recipientId: resolvedRecipient,
+        recipientType: recipientType ? String(recipientType) : "USER",
         subject: subject ? String(subject) : null,
         body: body.trim(),
         attachmentUrl: attachmentUrl ? String(attachmentUrl) : null,
       },
-      include: {
-        sender: {
-          select: {
-            userid: true,
-            fullName: true,
-            avatarUrl: true,
-            picture: true,
+      include: MESSAGE_INCLUDE,
+    });
+
+    await prisma.notification
+      .create({
+        data: {
+          userId: resolvedRecipient,
+          title: "New message",
+          body: `${message.sender.fullName}: ${body.trim().slice(0, 120)}`,
+          type: NotificationType.MESSAGE,
+          channel: NotificationChannel.IN_APP,
+          metadata: {
+            messageId: message.messageid,
+            fromUserId: senderId,
           },
         },
-      },
-    });
+      })
+      .catch(() => undefined);
 
     res.status(201).json({
       isSuccess: true,
@@ -98,19 +155,10 @@ export const listMessages = async (req: Request, res: Response) => {
       prisma.message.count({ where }),
       prisma.message.findMany({
         where,
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         skip,
         take: limit,
-        include: {
-          sender: {
-            select: {
-              userid: true,
-              fullName: true,
-              avatarUrl: true,
-              picture: true,
-            },
-          },
-        },
+        include: MESSAGE_INCLUDE,
       }),
     ]);
 
@@ -149,16 +197,7 @@ export const listInbox = async (req: Request, res: Response) => {
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
-        include: {
-          sender: {
-            select: {
-              userid: true,
-              fullName: true,
-              avatarUrl: true,
-              picture: true,
-            },
-          },
-        },
+        include: MESSAGE_INCLUDE,
       }),
     ]);
 
@@ -197,6 +236,7 @@ export const listSent = async (req: Request, res: Response) => {
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
+        include: MESSAGE_INCLUDE,
       }),
     ]);
 
@@ -236,6 +276,86 @@ export const unreadCount = async (req: Request, res: Response) => {
   }
 };
 
+/** GET /messages/conversations — peers with real names for the inbox list */
+export const listConversations = async (req: Request, res: Response) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      res.status(401).json({ isSuccess: false, message: "Sign in required" });
+      return;
+    }
+
+    const messages = await prisma.message.findMany({
+      where: {
+        OR: [{ senderId: userId }, { recipientId: userId }],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: MESSAGE_INCLUDE,
+    });
+
+    const map = new Map<
+      string,
+      {
+        peerId: string;
+        name: string;
+        image: string | null;
+        preview: string;
+        at: string;
+      }
+    >();
+
+    for (const msg of messages) {
+      const otherId =
+        msg.senderId === userId ? msg.recipientId || "" : msg.senderId;
+      if (!otherId || otherId === userId) continue;
+      if (map.has(otherId)) continue;
+
+      const person =
+        msg.senderId === userId ? msg.recipient : msg.sender;
+      map.set(otherId, {
+        peerId: otherId,
+        name: person?.fullName?.trim() || "Unknown",
+        image: person?.avatarUrl || person?.picture || null,
+        preview: msg.body,
+        at: msg.createdAt.toISOString(),
+      });
+    }
+
+    // Fill any missing names from User table
+    const missing = [...map.values()].filter(
+      (c) => !c.name || c.name === "Unknown",
+    );
+    if (missing.length) {
+      const users = await prisma.user.findMany({
+        where: {
+          userid: { in: missing.map((m) => m.peerId) },
+          isDeleted: false,
+        },
+        select: PERSON_SELECT,
+      });
+      for (const u of users) {
+        const row = map.get(u.userid);
+        if (row) {
+          row.name = u.fullName;
+          row.image = u.avatarUrl || u.picture || row.image;
+        }
+      }
+    }
+
+    res.status(200).json({
+      isSuccess: true,
+      result: Array.from(map.values()),
+    });
+  } catch (error) {
+    console.error("listConversations error:", error);
+    res.status(500).json({
+      isSuccess: false,
+      message: "Failed to load conversations",
+    });
+  }
+};
+
 /** GET /messages/thread/:peerId — conversation with a clinician */
 export const getThread = async (req: Request, res: Response) => {
   try {
@@ -245,34 +365,61 @@ export const getThread = async (req: Request, res: Response) => {
       return;
     }
 
-    const peerId = String(req.params.peerId || "");
-    if (!peerId) {
+    const rawPeerId = String(req.params.peerId || "");
+    if (!rawPeerId) {
       res.status(400).json({ isSuccess: false, message: "peerId required" });
       return;
     }
 
-    const data = await prisma.message.findMany({
-      where: {
-        OR: [
-          { senderId: userId, recipientId: peerId },
-          { senderId: peerId, recipientId: userId },
-        ],
-      },
-      orderBy: { createdAt: "asc" },
-      take: 200,
-      include: {
-        sender: {
-          select: {
-            userid: true,
-            fullName: true,
-            avatarUrl: true,
-            picture: true,
-          },
-        },
-      },
-    });
+    const resolvedPeerId =
+      (await resolveRecipientUserId(rawPeerId)) || rawPeerId;
+    const peerIds = Array.from(new Set([rawPeerId, resolvedPeerId]));
 
-    res.status(200).json({ isSuccess: true, result: data });
+    const [data, peer] = await Promise.all([
+      prisma.message.findMany({
+        where: {
+          OR: peerIds.flatMap((pid) => [
+            { senderId: userId, recipientId: pid },
+            { senderId: pid, recipientId: userId },
+          ]),
+        },
+        orderBy: { createdAt: "asc" },
+        take: 200,
+        include: MESSAGE_INCLUDE,
+      }),
+      prisma.user.findFirst({
+        where: { userid: resolvedPeerId, isDeleted: false },
+        select: PERSON_SELECT,
+      }),
+    ]);
+
+    // Fallback: infer peer name from message participants
+    let peerPayload = peer
+      ? {
+          userId: peer.userid,
+          name: peer.fullName,
+          image: peer.avatarUrl || peer.picture,
+        }
+      : null;
+
+    if (!peerPayload && data.length > 0) {
+      const sample = data[0];
+      const other =
+        sample.senderId === userId ? sample.recipient : sample.sender;
+      if (other) {
+        peerPayload = {
+          userId: other.userid,
+          name: other.fullName,
+          image: other.avatarUrl || other.picture,
+        };
+      }
+    }
+
+    res.status(200).json({
+      isSuccess: true,
+      result: data,
+      peer: peerPayload,
+    });
   } catch (error) {
     console.error("getThread error:", error);
     res.status(500).json({ isSuccess: false, message: "Failed to load thread" });

@@ -13,10 +13,15 @@ import messageRouter from "./Routes/MessageRouter";
 import adminRouter from "./Routes/AdminRouter";
 import newsRouter from "./Routes/NewsRouter";
 import professionalApplicationRouter from "./Routes/ProfessionalApplicationRouter";
+import connectionRouter from "./Routes/ConnectionRouter";
+import professionalsRouter, {
+  professionalSelfRouter,
+} from "./Routes/ProfessionalsRouter";
 import refreshTokenRouter from "./helpers/secure/RefreshTokenRouter";
 import { auditMiddleware } from "./helpers/middleware/auditMiddleware";
 import { csrfProtection, currentOrNewCsrf } from "./helpers/middleware/csrf";
 import { ensureDefaultFeatureFlags } from "./services/featureFlag.service";
+import { backfillMissingHealthIds } from "./services/healthId.service";
 
 dotenv.config();
 
@@ -102,10 +107,21 @@ app.use("/api/v1/messages", messageRouter);
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/news", newsRouter);
 app.use("/api/v1/professional-applications", professionalApplicationRouter);
+app.use("/api/v1/connections", connectionRouter);
+app.use("/api/v1/professionals", professionalsRouter);
+app.use("/api/v1/professional", professionalSelfRouter);
 
 void ensureDefaultFeatureFlags().catch((err) =>
   console.error("Feature flag seed skipped:", err?.message || err)
 );
+
+void backfillMissingHealthIds()
+  .then((n) => {
+    if (n > 0) console.log(`Backfilled ${n} missing Patient/Health IDs`);
+  })
+  .catch((err) =>
+    console.error("Health ID backfill skipped:", err?.message || err)
+  );
 
 app.get("/", (req, res) => {
   res.send("Hello World");

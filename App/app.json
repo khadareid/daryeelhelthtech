@@ -13,7 +13,7 @@
       "bundleIdentifier": "com.engkhadareid.daryeelhealth",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMotionUsageDescription": "Daryeel Health uses motion data to count your steps automatically in Health Daily."
+        "NSMotionUsageDescription": "Daryeel Health links motion data like Google Health / Apple Health to count your steps automatically in Health Daily."
       }
     },
     "android": {

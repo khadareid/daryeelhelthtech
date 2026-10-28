@@ -49,7 +49,8 @@ export default function NewsListScreen() {
           Health news feed
         </Text>
         <Text style={[styles.heroSub, { color: theme.textSecondary }]}>
-          Live posts from Daryeel. Do not share private medical details publicly.
+          Read and comment on official Daryeel posts. Only admins can publish.
+          Do not share private medical details publicly.
         </Text>
         <Pressable
           onPress={() => router.push('/apply-professional' as Href)}

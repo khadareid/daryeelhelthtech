@@ -9,6 +9,7 @@ import HospitalsPage from "@/features/Main/public/HospitalsPage";
 import HospitalDetailPage from "@/features/Main/public/HospitalDetailPage";
 import DoctorsPage from "@/features/Main/public/DoctorsPage";
 import DoctorDetailPage from "@/features/Main/public/DoctorDetailPage";
+import ProfessionalDetailPage from "@/features/Main/public/ProfessionalDetailPage";
 import NewsPage from "@/features/Main/public/NewsPage";
 import NewsDetailPage from "@/features/Main/public/NewsDetailPage";
 import SignInPage from "@/pages/auth/SignIn";
@@ -65,6 +66,8 @@ export const router = createBrowserRouter(
         { path: "hospitals/:tenantId", element: <HospitalDetailPage /> },
         { path: "doctors", element: <DoctorsPage /> },
         { path: "doctors/:doctorId", element: <DoctorDetailPage /> },
+        { path: "professionals", element: <DoctorsPage /> },
+        { path: "professionals/:slug", element: <ProfessionalDetailPage /> },
         { path: "news", element: <NewsPage /> },
         { path: "news/:id", element: <NewsDetailPage /> },
         { path: "pricing", element: <PricingPage /> },

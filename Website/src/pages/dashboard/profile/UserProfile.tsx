@@ -38,15 +38,13 @@ import {
 import { setUser } from "@/Redex/service/auth/Userinfo"
 import { User } from "@/Redex/types/Types"
 
+/** Visible professional roles only — USER / PATIENT / RECEPTIONIST hidden from UI */
 const ROLES = [
-  "USER",
-  "PATIENT",
   "DOCTOR",
   "NURSE",
   "MIDWIFE",
   "LAB_TECH",
   "PHARMACIST",
-  "RECEPTIONIST",
 ] as const
 
 const BLOOD_TYPES = [
@@ -81,6 +79,10 @@ function initials(name?: string) {
 
 function labelize(value?: string | null) {
   if (!value) return "—"
+  const upper = value.toUpperCase()
+  // Hide raw USER / PATIENT / RECEPTIONIST labels in the UI
+  if (upper === "USER" || upper === "PATIENT") return "Member"
+  if (upper === "RECEPTIONIST") return "Staff"
   return value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
@@ -324,6 +326,9 @@ export default function UserProfile() {
   }
 
   const displayName = profile?.fullName || session.name || "User"
+  const healthId =
+    (profile as ProfileUser & { profile?: { healthId?: string | null } })?.profile
+      ?.healthId || null
   const displayRole = profile?.role || session.role || "USER"
   const displayImage = form.image || session.image
   const counts = profile?._count
@@ -353,6 +358,11 @@ export default function UserProfile() {
                     {profile?.email || session.email}
                   </span>
                 </div>
+                {healthId ? (
+                  <p className="mt-2 font-mono text-sm font-semibold tracking-wide text-white">
+                    Patient ID · {healthId}
+                  </p>
+                ) : null}
               </div>
             </div>
             <Button
@@ -368,6 +378,24 @@ export default function UserProfile() {
           </div>
         </div>
       </Card>
+
+      {healthId ? (
+        <Card className="border-primary/20 bg-primary/5 shadow-sm">
+          <CardContent className="flex flex-col gap-1 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Daryeel Patient ID
+              </p>
+              <p className="font-mono text-lg font-bold tracking-wide text-brand-dark">
+                {healthId}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Permanent healthcare identity — never changes if you become a professional.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         <InfoTile icon={Shield} label="Role" value={labelize(displayRole)} />

@@ -4,6 +4,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { generateTokens } from '../helpers/GenerateToken';
+import { generateUniqueHealthId } from '../services/healthId.service';
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ passport.use(
 
         // 2. First Google visit creates a USER account (sign up).
         if (!user) {
+          const healthId = await generateUniqueHealthId();
           user = await prisma.user.create({
             data: {
               email,
@@ -61,14 +63,16 @@ passport.use(
               dateOfBirth: null,
               lastLoginAt: new Date(),
               lastLogin: new Date(),
+              profile: { create: { healthId } },
+              medicalProfile: { create: {} },
             },
           });
-
-          await prisma.userProfile
-            .create({ data: { userId: user.userid } })
-            .catch(() => {
-              /* profile may already exist */
-            });
+        } else {
+          // Existing Google users: ensure permanent Patient/Health ID
+          const { ensureUserProfileWithHealthId } = await import(
+            "../services/healthId.service"
+          );
+          await ensureUserProfileWithHealthId(user.userid).catch(() => undefined);
         }
 
         // 3. Check account status
