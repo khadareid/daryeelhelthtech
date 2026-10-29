@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/layout/UserProfileMenu"
+import { InstallAppButton } from "@/components/pwa/InstallAppButton"
 import { siteConfig } from "@/config/site"
 import { RootState } from "@/Redex/store/store"
 import { cn } from "@/lib/utils"
@@ -118,6 +119,8 @@ export default function SiteHeader() {
             Emergency 24/7
           </a>
 
+          <InstallAppButton variant="compact" className="hidden sm:inline-flex" />
+
           {isAuthenticated ? (
             <UserProfileMenu
               userName={name || "User"}
@@ -179,6 +182,8 @@ export default function SiteHeader() {
               <Activity className="h-4 w-4" />
               Emergency · 24/7
             </a>
+
+            <InstallAppButton variant="menu" />
 
             {isAuthenticated ? (
               <div className="mt-2 grid gap-1 border-t border-blue-50 pt-3">

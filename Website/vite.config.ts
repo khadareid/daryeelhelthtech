@@ -8,10 +8,12 @@ export default defineConfig({
     react(),
 
     VitePWA({
+      injectRegister: "auto",
       registerType: "autoUpdate",
 
+      // Keep SW off in Vite HMR to avoid stale-module issues; production builds still ship a full PWA.
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
 
       includeAssets: [
@@ -20,52 +22,56 @@ export default defineConfig({
         "favicon-16x16.png",
         "favicon-32x32.png",
         "apple-touch-icon.png",
+        "logo.png",
+        "maskable-icon-512x512.png",
         "masked-icon.png",
       ],
 
       manifest: {
         name: "Daryeel Health",
         short_name: "DaryeelHealth",
-        description: "Daryeel Health Management System",
-
+        description:
+          "Patient health platform — find hospitals, book doctors, and manage care",
+        theme_color: "#146AFB",
+        background_color: "#ffffff",
+        display: "standalone",
+        orientation: "portrait-primary",
+        scope: "/",
+        start_url: "/",
+        id: "/",
+        categories: ["health", "medical", "lifestyle"],
         icons: [
           {
             src: "/android-chrome-192x192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any",
           },
           {
             src: "/android-chrome-512x512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "any maskable",
+            purpose: "any",
+          },
+          {
+            src: "/maskable-icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
           {
             src: "/apple-touch-icon.png",
             sizes: "180x180",
             type: "image/png",
-          },
-          {
-            src: "/favicon-32x32.png",
-            sizes: "32x32",
-            type: "image/png",
-          },
-          {
-            src: "/favicon-16x16.png",
-            sizes: "16x16",
-            type: "image/png",
+            purpose: "any",
           },
         ],
-
-        theme_color: "#ffffff",
-        background_color: "#ffffff",
-        display: "standalone",
-        scope: "/",
-        start_url: "/",
-        orientation: "portrait",
       },
 
       workbox: {
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/api\//],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,webmanifest}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
     }),

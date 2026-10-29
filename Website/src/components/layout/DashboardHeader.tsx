@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom"
 import { Bell, Home, Settings } from "lucide-react"
 import { UserProfileMenu } from "./UserProfileMenu"
+import { InstallAppButton } from "@/components/pwa/InstallAppButton"
 import { siteConfig } from "@/config/site"
 import { useGetMyProfileQuery } from "@/Redex/service/users/UsersApi"
 
@@ -71,6 +72,7 @@ export function DashboardHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <InstallAppButton variant="compact" />
           <button
             type="button"
             onClick={() => navigate("/")}
