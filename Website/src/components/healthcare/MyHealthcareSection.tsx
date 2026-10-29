@@ -23,6 +23,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import {
+  TicketChip,
+  VisitTicketCard,
+} from '@/components/healthcare/VisitTicketCard'
 
 type Tab =
   | 'upcoming'
@@ -98,13 +102,11 @@ function AppointmentCard({
       </div>
 
       {item.saasTicketNumber ? (
-        <div className="mt-3 flex items-center gap-2 rounded-xl bg-[#F8FAFC] px-3 py-2 text-sm">
-          <Ticket className="h-4 w-4 text-primary" />
-          <span className="font-medium">{item.saasTicketNumber}</span>
-          <span className="text-xs text-muted-foreground">
-            · Payment {item.paymentStatus || 'UNPAID'}
-          </span>
-        </div>
+        <TicketChip number={item.saasTicketNumber} />
+      ) : item.status === 'PENDING' ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Visit ticket will appear here after the hospital accepts your request.
+        </p>
       ) : null}
 
       {item.status === 'RESCHEDULE_REQUESTED' && item.proposedScheduledAt ? (
@@ -354,27 +356,27 @@ export default function MyHealthcareSection() {
       ) : null}
 
       {tab === 'tickets' ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {tickets.length === 0 ? (
-            <Empty text="No OPD tickets yet. Tickets appear after the hospital confirms your booking." />
+            <Empty text="No visit tickets yet. Book a hospital doctor — your ticket appears after they accept." />
           ) : (
-            tickets.map((t) => (
-              <div
+            tickets.map((t: any) => (
+              <VisitTicketCard
                 key={t.appointmentid}
-                className="rounded-2xl border border-blue-100 bg-white p-4"
-              >
-                <p className="font-mono text-lg font-bold text-brand-dark">
-                  {t.saasTicketNumber}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {t.doctorName} · {t.facilityName}
-                </p>
-                <p className="mt-1 text-sm">{formatWhen(t.scheduledAt)}</p>
-                <div className="mt-2 flex gap-2">
-                  <StatusPill status={t.status} />
-                  <StatusPill status={t.paymentStatus || 'UNPAID'} />
-                </div>
-              </div>
+                ticket={{
+                  ticketNumber: t.saasTicketNumber,
+                  queueNumber: t.queueNumber,
+                  ticketStatus: t.ticketStatus,
+                  status: t.status,
+                  doctorName: t.doctorName,
+                  facilityName: t.facilityName,
+                  department: t.department,
+                  specialty: t.specialty,
+                  scheduledAt: t.scheduledAt,
+                  paymentStatus: t.paymentStatus,
+                  appointmentCode: t.appointmentCode,
+                }}
+              />
             ))
           )}
         </div>

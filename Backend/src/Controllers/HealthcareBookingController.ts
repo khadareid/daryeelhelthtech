@@ -753,7 +753,29 @@ export const listMyOpdTickets = async (req: Request, res: Response) => {
         paymentStatus: true,
       },
     });
-    res.status(200).json({ isSuccess: true, result: tickets, data: tickets });
+
+    // Enrich with live SaaS ticket status / queue when reachable
+    const enriched = await Promise.all(
+      tickets.map(async (t) => {
+        const id = t.saasTicketId || t.saasAppointmentId || t.saasTicketNumber;
+        if (!id) return { ...t, ticketStatus: null, queueNumber: null };
+        try {
+          const remote = await saasApi.getOpdTicket(String(id));
+          const ticket = remote.result || remote.data;
+          return {
+            ...t,
+            ticketStatus: ticket?.status || null,
+            queueNumber: ticket?.queueNumber ?? null,
+            department: ticket?.department || t.department,
+            saasTicketNumber: ticket?.ticketNumber || t.saasTicketNumber,
+          };
+        } catch {
+          return { ...t, ticketStatus: null, queueNumber: null };
+        }
+      })
+    );
+
+    res.status(200).json({ isSuccess: true, result: enriched, data: enriched });
   } catch {
     res.status(500).json({ isSuccess: false, message: "Failed to load tickets" });
   }

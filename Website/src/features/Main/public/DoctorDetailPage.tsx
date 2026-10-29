@@ -31,6 +31,7 @@ import {
 } from '@/Redex/service/messages/MessagesApi'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { VisitTicketCard } from '@/components/healthcare/VisitTicketCard'
 import { siteConfig } from '@/config/site'
 import type { RootState } from '@/Redex/store/store'
 
@@ -522,11 +523,20 @@ export default function DoctorDetailPage() {
                 </p>
               ) : null}
 
-              <div className="rounded-xl border border-dashed border-blue-100 bg-brand-bg px-3 py-2 text-[11px] text-muted-foreground">
+              <VisitTicketCard
+                preview
+                ticket={{
+                  doctorName: doctorName(doctor),
+                  facilityName: doctor.hospitalName,
+                  specialty: doctor.specialization,
+                  scheduledAt: slotIso || undefined,
+                }}
+              />
+              <p className="text-[11px] text-muted-foreground">
                 <Ticket className="mr-1 inline h-3.5 w-3.5 text-primary" />
-                After the hospital accepts in SaaS, your OPD ticket syncs here
-                automatically.
-              </div>
+                Your real visit ticket number appears in My Healthcare after the
+                hospital accepts this booking in SaaS.
+              </p>
 
               <Button
                 type="submit"

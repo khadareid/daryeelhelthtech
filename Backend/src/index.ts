@@ -20,7 +20,11 @@ import professionalsRouter, {
 } from "./Routes/ProfessionalsRouter";
 import refreshTokenRouter from "./helpers/secure/RefreshTokenRouter";
 import { auditMiddleware } from "./helpers/middleware/auditMiddleware";
-import { csrfProtection, currentOrNewCsrf } from "./helpers/middleware/csrf";
+import {
+  createSignedCsrfToken,
+  csrfProtection,
+  currentOrNewCsrf,
+} from "./helpers/middleware/csrf";
 import { ensureDefaultFeatureFlags } from "./services/featureFlag.service";
 import { backfillMissingHealthIds } from "./services/healthId.service";
 
@@ -30,11 +34,22 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const isProd = process.env.NODE_ENV === "production";
 
+const sessionSecret =
+  process.env.SESSION_SECRET ||
+  process.env.JWT_SECRET ||
+  process.env.JWT_SECRET_TOKEN ||
+  process.env.CSRF_SECRET ||
+  "daryeel-healthtech-session-fallback";
+
 if (!process.env.SESSION_SECRET) {
   if (isProd || process.env.VERCEL) {
-    console.error("[Daryeel Healthtech] SESSION_SECRET is missing");
+    console.error(
+      "[Daryeel Healthtech] SESSION_SECRET is missing — using fallback (set SESSION_SECRET in Vercel)"
+    );
   } else {
-    throw new Error("SESSION_SECRET is missing from .env file");
+    console.warn(
+      "[Daryeel Healthtech] SESSION_SECRET missing — using local fallback"
+    );
   }
 }
 
@@ -50,6 +65,7 @@ const allowedOrigins = [
   "http://localhost:8082",
   "http://localhost:3000",
   "http://localhost:3001",
+  "https://daryeel-healthtech.vercel.app",
   "https://daryeel-healthtech-gamma.vercel.app",
   "https://daryeel-saas-healthtech.vercel.app",
   process.env.FRONTEND_URL,
@@ -70,10 +86,12 @@ const isPrivateHost = (hostname: string) => {
 };
 
 const isAllowedVercelPreview = (hostname: string) => {
-  // Allow this project's Vercel preview / alias hosts only
+  // Allow this project's Vercel production + preview / alias hosts
   return (
     hostname === "daryeel-healthtech.vercel.app" ||
+    hostname === "daryeel-healthtech-gamma.vercel.app" ||
     hostname.endsWith(".daryeel-healthtech.vercel.app") ||
+    hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
     /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname)
   );
 };
@@ -121,9 +139,14 @@ app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET!,
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      secure: isProd || Boolean(process.env.VERCEL),
+      sameSite: isProd || process.env.VERCEL ? "none" : "lax",
+      httpOnly: true,
+    },
   })
 );
 app.use(passport.initialize());
@@ -133,8 +156,22 @@ app.use("/api/v1", csrfProtection);
 app.use("/api/v1", auditMiddleware);
 
 app.get("/api/v1/csrf", (req, res) => {
-  const csrfToken = currentOrNewCsrf(req, res);
-  res.json({ isSuccess: true, result: { csrfToken } });
+  try {
+    const csrfToken = currentOrNewCsrf(req, res);
+    res.status(200).json({ isSuccess: true, result: { csrfToken } });
+  } catch (error: any) {
+    console.error("[csrf]", error?.message || error);
+    // Still return a usable signed token so the SPA can sign in
+    try {
+      const csrfToken = createSignedCsrfToken();
+      res.status(200).json({ isSuccess: true, result: { csrfToken } });
+    } catch {
+      res.status(500).json({
+        isSuccess: false,
+        message: "Could not issue CSRF token",
+      });
+    }
+  }
 });
 
 // Routes
