@@ -1,26 +1,48 @@
 import { useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useDispatch } from "react-redux"
+import axios from "axios"
 import { toast } from "sonner"
 import { Eye, EyeOff, Loader2, Lock, Mail, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useRegisterMutation } from "@/Redex/service/users/UsersApi"
 import { setUser } from "@/Redex/service/auth/Userinfo"
 import { AppDispatch } from "@/Redex/store/store"
+import { env } from "@/config/env"
+import { clearCsrfToken, ensureCsrfToken } from "@/lib/csrf"
 import AuthLayout from "./AuthLayout"
 import GoogleAuth from "./GoogleAuth"
+
+type RegisterResponse = {
+  isSuccess: boolean
+  message?: string
+  result?: {
+    user: {
+      userid: string
+      email: string
+      fullName: string
+      role?: string
+      phone?: string | null
+      avatarUrl?: string | null
+      picture?: string | null
+      emailVerified?: boolean
+      phoneVerified?: boolean
+    }
+    accessToken: string
+    refreshToken: string
+  }
+}
 
 export default function RegisterPage() {
   const navigate = useNavigate()
   const dispatch = useDispatch<AppDispatch>()
-  const [register, { isLoading }] = useRegisterMutation()
 
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -31,19 +53,51 @@ export default function RegisterPage() {
       return
     }
 
+    setIsLoading(true)
     try {
-      const res = await register({
-        fullName: fullName.trim(),
-        email: email.trim(),
-        password,
-        role: "USER",
-      }).unwrap()
-
-      if (!res.isSuccess || !res.result) {
-        throw new Error(res.message || "Registration failed")
+      const postRegister = async (forceCsrf = false) => {
+        const csrf = await ensureCsrfToken(forceCsrf)
+        return axios.post<RegisterResponse>(
+          `${env.apiUrl}/user/register`,
+          {
+            fullName: fullName.trim(),
+            email: email.trim(),
+            password,
+          },
+          {
+            withCredentials: true,
+            headers: { "x-csrf-token": csrf },
+          }
+        )
       }
 
-      const { user, accessToken, refreshToken } = res.result
+      let response
+      try {
+        response = await postRegister()
+      } catch (first: unknown) {
+        const status = axios.isAxiosError(first)
+          ? first.response?.status
+          : undefined
+        const message = axios.isAxiosError(first)
+          ? String(
+              (first.response?.data as { message?: string } | undefined)
+                ?.message || ""
+            )
+          : ""
+        if (status === 403 && /csrf/i.test(message)) {
+          clearCsrfToken()
+          response = await postRegister(true)
+        } else {
+          throw first
+        }
+      }
+
+      const data = response.data
+      if (!data.isSuccess || !data.result) {
+        throw new Error(data.message || "Registration failed")
+      }
+
+      const { user, accessToken, refreshToken } = data.result
 
       dispatch(
         setUser({
@@ -60,10 +114,25 @@ export default function RegisterPage() {
         })
       )
 
-      toast.success(res.message || "Account created")
+      toast.success(data.message || "Account created")
       navigate("/dashboard")
-    } catch (err: any) {
-      toast.error(err?.data?.message || err?.message || "Registration failed")
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const msg =
+          (err.response?.data as { message?: string } | undefined)?.message ||
+          err.message
+        if (err.code === "ERR_NETWORK") {
+          toast.error(
+            "Could not reach the API. Check your connection and try again."
+          )
+        } else {
+          toast.error(msg || "Registration failed")
+        }
+      } else {
+        toast.error(err instanceof Error ? err.message : "Registration failed")
+      }
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -130,7 +199,11 @@ export default function RegisterPage() {
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-dark"
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
         </div>
@@ -162,7 +235,10 @@ export default function RegisterPage() {
 
       <p className="mt-5 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link to="/signin" className="font-medium text-primary hover:text-primary/80">
+        <Link
+          to="/signin"
+          className="font-medium text-primary hover:text-primary/80"
+        >
           Sign in
         </Link>
       </p>
