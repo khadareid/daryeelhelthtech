@@ -107,7 +107,7 @@ export const createAppointment = async (req: Request, res: Response) => {
             ? `Visit type: ${visitType}`
             : null,
         meetingLink: isVideo
-          ? `https://daryeel-healthtech.vercel.app/dashboard?section=appointments`
+          ? `https://daryeel-healthtech-gamma.vercel.app/dashboard?section=appointments`
           : null,
         status: AppointmentStatus.SCHEDULED,
       },
