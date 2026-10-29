@@ -28,21 +28,38 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProd = process.env.NODE_ENV === "production";
 
 if (!process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET is missing from .env file");
+  if (isProd || process.env.VERCEL) {
+    console.error("[Daryeel Healthtech] SESSION_SECRET is missing");
+  } else {
+    throw new Error("SESSION_SECRET is missing from .env file");
+  }
+}
+
+function normalizeOrigin(value: string): string {
+  return value.trim().replace(/\/$/, "");
 }
 
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
- "http://localhost:8081",
- "http://localhost:8082",
+  "http://localhost:8081",
+  "http://localhost:8082",
   "http://localhost:3000",
   "http://localhost:3001",
-  "https://daryeel-healthtech.vercel.app"
-];
+  "https://daryeel-healthtech.vercel.app",
+  "https://daryeel-saas-healthtech.vercel.app",
+  process.env.FRONTEND_URL,
+  ...(process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+]
+  .filter(Boolean)
+  .map((o) => normalizeOrigin(String(o)));
 
 const isPrivateHost = (hostname: string) => {
   if (hostname === "localhost" || hostname === "127.0.0.1") return true;
@@ -52,10 +69,24 @@ const isPrivateHost = (hostname: string) => {
   return false;
 };
 
-const isLocalOrigin = (origin: string) => {
+const isAllowedVercelPreview = (hostname: string) => {
+  // Allow this project's Vercel preview / alias hosts only
+  return (
+    hostname === "daryeel-healthtech.vercel.app" ||
+    hostname.endsWith(".daryeel-healthtech.vercel.app") ||
+    /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname)
+  );
+};
+
+const isAllowedOrigin = (origin?: string | null) => {
+  if (!origin) return true; // same-origin / server / mobile
   try {
-    const url = new URL(origin);
-    return isPrivateHost(url.hostname);
+    const normalized = normalizeOrigin(origin);
+    if (allowedOrigins.includes(normalized)) return true;
+    const url = new URL(normalized);
+    if (isPrivateHost(url.hostname)) return true;
+    if (isAllowedVercelPreview(url.hostname)) return true;
+    return false;
   } catch {
     return false;
   }
@@ -64,15 +95,24 @@ const isLocalOrigin = (origin: string) => {
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || isLocalOrigin(origin)) {
+      // Never pass Error here — that turns browser OPTIONS preflight into HTTP 500
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        console.warn("[CORS] blocked origin:", origin);
+        callback(null, false);
       }
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-CSRF-Token",
+      "X-Requested-With",
+      "Idempotency-Key",
+    ],
+    optionsSuccessStatus: 204,
   })
 );
 
@@ -125,16 +165,42 @@ void backfillMissingHealthIds()
     console.error("Health ID backfill skipped:", err?.message || err)
   );
 
-app.get("/", (req, res) => {
-  res.send("Hello World");
+app.get("/", (_req, res) => {
+  res.send("Daryeel Healthtech API");
 });
 
- 
-app.all("/{*splat}", (req, res) => {
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true, service: "daryeel-healthtech-api" });
+});
+
+app.use(
+  (
+    err: any,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error("[API Error]", err?.message || err);
+    const status = err?.status || err?.statusCode || 500;
+    if (res.headersSent) return;
+    res.status(status).json({
+      isSuccess: false,
+      message: isProd ? "Internal server error" : err?.message || "Internal server error",
+      status,
+    });
+  }
+);
+
+app.all("/{*splat}", (_req, res) => {
   res.status(404).json({
     message: "API Not Found",
     status: 404,
   });
 });
 
-app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));
+// Vercel serverless needs the exported app; listen only for local/dev.
+export default app;
+
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));
+}
