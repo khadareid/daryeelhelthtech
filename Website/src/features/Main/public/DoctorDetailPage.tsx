@@ -8,17 +8,22 @@ import {
   MessageCircle,
   Phone,
   Star,
+  Ticket,
   Video,
 } from 'lucide-react'
 import {
   doctorName,
   doctorPhoto,
+  saasDoctorId,
   useGetPublicCareTeamQuery,
+  useGetPublicDoctorAvailabilityQuery,
+  useGetPublicHospitalQuery,
   type CareTeamDoctor,
+  type PublicHospitalDoctor,
 } from '@/Redex/service/hospitals/HospitalsApi'
 import {
   useCreateHealthcareAppointmentMutation,
-  useGetDoctorAvailabilityQuery,
+  useGetHealthcareDoctorQuery,
 } from '@/Redex/service/healthcare/HealthcareApi'
 import {
   useCreateMessageMutation,
@@ -38,29 +43,139 @@ function nextDays(count: number) {
 }
 
 function dayIso(day: Date) {
-  return day.toISOString().slice(0, 10)
+  const y = day.getFullYear()
+  const m = String(day.getMonth() + 1).padStart(2, '0')
+  const d = String(day.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Local clinic hours when SaaS schedule is empty / unreachable */
+function buildFallbackSlots(dateStr: string) {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  if (!y || !mo || !d) return []
+  const out: string[] = []
+  const lead = Date.now() + 5 * 60_000
+  for (let h = 8; h < 20; h++) {
+    for (const minute of [0, 30]) {
+      const start = new Date(y, mo - 1, d, h, minute, 0, 0)
+      if (start.getTime() > lead) out.push(start.toISOString())
+    }
+  }
+  return out
+}
+
+function matchesDoctor(d: PublicHospitalDoctor, id: string) {
+  return (
+    d.doctorId === id ||
+    d.user?.userId === id ||
+    d.professionalProfileId === id
+  )
+}
+
+function toCareDoctor(
+  doctor: PublicHospitalDoctor,
+  hospitalId: string,
+  hospitalName: string,
+  city?: string | null,
+): CareTeamDoctor {
+  return {
+    ...doctor,
+    doctorId: saasDoctorId(doctor),
+    hospitalId,
+    hospitalName,
+    city: city ?? null,
+  }
 }
 
 export default function DoctorDetailPage() {
   const { doctorId = '' } = useParams()
   const [search] = useSearchParams()
+  const hospitalParam = search.get('hospital') || ''
   const navigate = useNavigate()
   const session = useSelector((s: RootState) => s.userInfo)
   const signedIn = Boolean(session.isAuthenticated && session.userId)
 
-  const { data: careTeam = [], isLoading } = useGetPublicCareTeamQuery()
-  const doctor = useMemo(
-    () =>
-      careTeam.find((d) => d.professionalProfileId === doctorId) ??
-      null,
-    [careTeam, doctorId],
-  )
+  const hospitalQ = useGetPublicHospitalQuery(hospitalParam, {
+    skip: !hospitalParam,
+  })
+  const careTeamQ = useGetPublicCareTeamQuery(undefined, {
+    skip: Boolean(hospitalParam),
+  })
+  const healthcareDoctorQ = useGetHealthcareDoctorQuery(doctorId, {
+    skip: !doctorId,
+  })
+
+  const doctor = useMemo((): CareTeamDoctor | null => {
+    if (!doctorId) return null
+
+    if (hospitalQ.data) {
+      const found = (hospitalQ.data.doctors || []).find((d) =>
+        matchesDoctor(d, doctorId),
+      )
+      if (found) {
+        return toCareDoctor(
+          found,
+          hospitalQ.data.tenantId,
+          hospitalQ.data.companyName,
+          hospitalQ.data.city,
+        )
+      }
+    }
+
+    const fromTeam = (careTeamQ.data || []).find((d) => matchesDoctor(d, doctorId))
+    if (fromTeam) return fromTeam
+
+    const remote = healthcareDoctorQ.data
+    if (remote) {
+      const mapped: PublicHospitalDoctor = {
+        professionalProfileId:
+          remote.professionalProfileId ||
+          remote.professionalProfile?.professionalProfileId ||
+          doctorId,
+        doctorId: remote.doctorId || remote.userId || doctorId,
+        facilityId: remote.facilityId || remote.professionalProfile?.facilityId,
+        specialization:
+          remote.specialization || remote.professionalProfile?.specialization,
+        publicBio: remote.publicBio || remote.professionalProfile?.publicBio,
+        publicPhotoUrl:
+          remote.publicPhotoUrl ||
+          remote.professionalProfile?.publicPhotoUrl ||
+          remote.picture,
+        yearsOfExperience:
+          remote.yearsOfExperience ||
+          remote.professionalProfile?.yearsOfExperience,
+        consultationFee:
+          remote.consultationFee || remote.professionalProfile?.consultationFee,
+        currency: remote.currency || remote.professionalProfile?.currency || 'USD',
+        averageRating:
+          remote.averageRating || remote.professionalProfile?.averageRating,
+        totalReviews:
+          remote.totalReviews || remote.professionalProfile?.totalReviews,
+        user: remote.user || {
+          name: remote.name,
+          picture: remote.picture,
+          userId: remote.doctorId || remote.userId,
+        },
+        isVerified: true,
+      }
+      return toCareDoctor(
+        mapped,
+        remote.hospitalId || remote.tenantId || remote.tenant?.tenantId || '',
+        remote.hospitalName ||
+          remote.tenant?.companyName ||
+          'Hospital',
+        remote.city || remote.tenant?.city,
+      )
+    }
+
+    return null
+  }, [doctorId, hospitalQ.data, careTeamQ.data, healthcareDoctorQ.data])
 
   const days = useMemo(() => nextDays(7), [])
   const [dayIndex, setDayIndex] = useState(0)
-  const [slotIso, setSlotIso] = useState<string>('')
+  const [slotIso, setSlotIso] = useState('')
   const [visitType, setVisitType] = useState<'In-Person' | 'Video Call'>(
-    (search.get('visit') as 'Video Call') || 'In-Person',
+    search.get('visit') === 'Video Call' ? 'Video Call' : 'In-Person',
   )
   const [consent, setConsent] = useState(false)
   const [reason, setReason] = useState('')
@@ -68,21 +183,36 @@ export default function DoctorDetailPage() {
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<string | null>(null)
 
-  const saasDoctorId =
-    doctor?.doctorId || doctor?.user?.userId || doctor?.professionalProfileId || doctorId
+  const bookingDoctorId = doctor ? saasDoctorId(doctor) : doctorId
   const selectedDay = days[dayIndex]
-  const { data: availability } = useGetDoctorAvailabilityQuery(
-    { doctorId: saasDoctorId, date: dayIso(selectedDay) },
-    { skip: !saasDoctorId },
-  )
-  const slots = availability?.slots || []
+  const selectedDate = dayIso(selectedDay)
+  const { data: availability, isFetching: loadingSlots } =
+    useGetPublicDoctorAvailabilityQuery(
+      { doctorId: bookingDoctorId, date: selectedDate },
+      { skip: !bookingDoctorId },
+    )
+  const slots = useMemo(() => {
+    const remote = availability?.slots || []
+    if (remote.length > 0) return remote
+    return buildFallbackSlots(selectedDate)
+  }, [availability?.slots, selectedDate])
 
-  const peerId = doctor?.professionalProfileId || doctorId
+  const peerId = doctor?.professionalProfileId || bookingDoctorId
   const [book, { isLoading: booking }] = useCreateHealthcareAppointmentMutation()
   const [sendMessage, { isLoading: sending }] = useCreateMessageMutation()
   const { data: thread = [], refetch: refetchThread } = useGetThreadQuery(peerId, {
     skip: !signedIn || !peerId || !chatOpen,
   })
+
+  const loading =
+    (!!hospitalParam && hospitalQ.isLoading) ||
+    (!hospitalParam && careTeamQ.isLoading) ||
+    (healthcareDoctorQ.isLoading && !doctor)
+
+  const backHospital = doctor?.hospitalId || hospitalParam
+  const backHref = backHospital
+    ? `/hospitals/${encodeURIComponent(backHospital)}`
+    : '/hospitals'
 
   function requireSignIn(next: string) {
     navigate(`/signin?next=${encodeURIComponent(next)}`)
@@ -90,9 +220,14 @@ export default function DoctorDetailPage() {
 
   async function onBook(e?: FormEvent) {
     e?.preventDefault()
-    if (!doctor) return
+    if (!doctor?.hospitalId) {
+      setStatus('Hospital context missing — open this doctor from the hospital page.')
+      return
+    }
     if (!signedIn) {
-      requireSignIn(`/doctors/${doctorId}`)
+      requireSignIn(
+        `/doctors/${bookingDoctorId}?hospital=${encodeURIComponent(doctor.hospitalId)}`,
+      )
       return
     }
     if (!consent) {
@@ -109,21 +244,21 @@ export default function DoctorDetailPage() {
       const appt = await book({
         tenantId: doctor.hospitalId,
         hospitalId: doctor.hospitalId,
-        doctorId: saasDoctorId,
+        doctorId: bookingDoctorId,
         doctorName: doctorName(doctor),
         specialty: doctor.specialization || 'General Physician',
         facilityName: doctor.hospitalName,
-        facilityId: doctor.hospitalId,
+        facilityId: doctor.facilityId || undefined,
         scheduledAt: when.toISOString(),
         reason: reason || `${visitType} visit`,
         type: visitType === 'Video Call' ? 'TELECONSULTATION' : 'IN_PERSON',
         consentGranted: true,
         consultationFee: doctor.consultationFee || undefined,
         currency: doctor.currency || 'USD',
-        idempotencyKey: `web-${session.userId}-${saasDoctorId}-${slotIso}`,
+        idempotencyKey: `web-${session.userId}-${bookingDoctorId}-${slotIso}`,
       }).unwrap()
       setStatus(
-        `Request sent for ${when.toLocaleString()}. Status: ${appt.status}. Track it in My Healthcare.`,
+        `Request sent for ${when.toLocaleString()}. Status: ${appt.status}. Track appointments & tickets in My Healthcare.`,
       )
       navigate('/dashboard?section=healthcare')
     } catch (err: any) {
@@ -138,7 +273,7 @@ export default function DoctorDetailPage() {
   async function onSendChat(e: FormEvent) {
     e.preventDefault()
     if (!signedIn) {
-      requireSignIn(`/doctors/${doctorId}?chat=1`)
+      requireSignIn(`/doctors/${bookingDoctorId}?chat=1&hospital=${hospitalParam}`)
       return
     }
     const body = draft.trim()
@@ -165,7 +300,7 @@ export default function DoctorDetailPage() {
     window.location.href = `tel:${phone}`
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="container-page flex min-h-[50vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -179,8 +314,11 @@ export default function DoctorDetailPage() {
         <h1 className="font-heading text-2xl font-bold text-brand-dark">
           Doctor not found
         </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Open the hospital page and choose a clinician to book.
+        </p>
         <Button asChild className="mt-6">
-          <Link to="/doctors">Back to doctors</Link>
+          <Link to={backHref}>Back to hospital</Link>
         </Button>
       </div>
     )
@@ -190,10 +328,10 @@ export default function DoctorDetailPage() {
     <div className="bg-brand-bg pb-16">
       <div className="container-page space-y-6 py-8">
         <Link
-          to="/doctors"
+          to={backHref}
           className="inline-flex items-center gap-1 text-sm font-medium text-primary"
         >
-          <ArrowLeft className="h-4 w-4" /> All doctors
+          <ArrowLeft className="h-4 w-4" /> {doctor.hospitalName || 'Hospital'}
         </Link>
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -229,7 +367,7 @@ export default function DoctorDetailPage() {
 
             <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
               {doctor.publicBio ||
-                'Book a visit, chat securely, or call for care guidance.'}
+                'Book a visit with live hospital slots. When the hospital accepts, your OPD ticket appears in My Healthcare and in the hospital SaaS console.'}
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -260,7 +398,8 @@ export default function DoctorDetailPage() {
               <Calendar className="h-5 w-5 text-primary" /> Book appointment
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Live slots from the hospital schedule. Requests stay pending until the hospital responds.
+              Pick a date and time, then request. The hospital sees it in SaaS;
+              when they accept, your OPD ticket syncs here automatically.
             </p>
 
             <form onSubmit={onBook} className="mt-4 space-y-4">
@@ -297,9 +436,14 @@ export default function DoctorDetailPage() {
                   Available times
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {slots.length === 0 ? (
+                  {loadingSlots && (availability?.slots?.length || 0) === 0 ? (
+                    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading hospital schedule…
+                    </p>
+                  ) : slots.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      No open slots for this day. Try another date.
+                      No open times left today — choose tomorrow or a later day.
                     </p>
                   ) : (
                     slots.map((item) => (
@@ -321,6 +465,18 @@ export default function DoctorDetailPage() {
                     ))
                   )}
                 </div>
+                {slotIso ? (
+                  <p className="mt-2 text-xs font-medium text-primary">
+                    Selected:{' '}
+                    {new Date(slotIso).toLocaleString([], {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                ) : null}
               </div>
 
               <div className="flex gap-2">
@@ -366,6 +522,12 @@ export default function DoctorDetailPage() {
                 </p>
               ) : null}
 
+              <div className="rounded-xl border border-dashed border-blue-100 bg-brand-bg px-3 py-2 text-[11px] text-muted-foreground">
+                <Ticket className="mr-1 inline h-3.5 w-3.5 text-primary" />
+                After the hospital accepts in SaaS, your OPD ticket syncs here
+                automatically.
+              </div>
+
               <Button
                 type="submit"
                 className="w-full"
@@ -391,7 +553,11 @@ export default function DoctorDetailPage() {
             sending={sending}
             onSend={onSendChat}
             onClose={() => setChatOpen(false)}
-            onSignIn={() => requireSignIn(`/doctors/${doctorId}?chat=1`)}
+            onSignIn={() =>
+              requireSignIn(
+                `/doctors/${bookingDoctorId}?chat=1&hospital=${doctor.hospitalId}`,
+              )
+            }
           />
         ) : null}
       </div>
@@ -414,7 +580,12 @@ function DoctorChatPanel({
   doctor: CareTeamDoctor
   peerId: string
   signedIn: boolean
-  thread: Array<{ messageid: string; body: string; senderId: string; createdAt: string | Date }>
+  thread: Array<{
+    messageid: string
+    body: string
+    senderId: string
+    createdAt: string | Date
+  }>
   draft: string
   setDraft: (v: string) => void
   sending: boolean
@@ -431,7 +602,9 @@ function DoctorChatPanel({
           <h2 className="font-heading text-lg font-bold text-brand-dark">
             Chat with {doctorName(doctor)}
           </h2>
-          <p className="text-xs text-muted-foreground">Secure patient messaging · {peerId.slice(0, 8)}…</p>
+          <p className="text-xs text-muted-foreground">
+            Secure patient messaging · {peerId.slice(0, 8)}…
+          </p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
           Close

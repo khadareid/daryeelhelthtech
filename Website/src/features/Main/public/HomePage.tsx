@@ -388,8 +388,12 @@ export default function HomePage() {
                 ))
               : careTeam.slice(0, 8).map((doctor) => (
                   <Link
-                    key={doctor.professionalProfileId}
-                    to={`/hospitals/${doctor.hospitalId}`}
+                    key={doctor.professionalProfileId || doctor.doctorId}
+                    to={`/doctors/${encodeURIComponent(
+                      doctor.doctorId ||
+                        doctor.user?.userId ||
+                        doctor.professionalProfileId,
+                    )}?hospital=${encodeURIComponent(doctor.hospitalId)}`}
                     className="group"
                   >
                     <article className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-brand-light">

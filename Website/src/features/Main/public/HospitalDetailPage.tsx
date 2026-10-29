@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   BadgeCheck,
+  Calendar,
   Globe,
   MapPin,
   Phone,
@@ -14,6 +15,7 @@ import {
   doctorPhoto,
   hospitalAbout,
   hospitalCover,
+  saasDoctorId,
   useGetPublicHospitalQuery,
   type PublicHospitalDoctor,
 } from '@/Redex/service/hospitals/HospitalsApi'
@@ -60,6 +62,10 @@ export default function HospitalDetailPage() {
   }
 
   const doctors = hospital.doctors ?? []
+  const firstBookable = doctors[0]
+  const firstBookHref = firstBookable
+    ? `/doctors/${encodeURIComponent(saasDoctorId(firstBookable))}?hospital=${encodeURIComponent(hospital.tenantId)}`
+    : null
 
   return (
     <div className="bg-brand-bg pb-16">
@@ -74,7 +80,8 @@ export default function HospitalDetailPage() {
           <div className="container-page pb-6">
             <Link
               to="/hospitals"
-              className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-blue-100">
+              className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-blue-100"
+            >
               <ArrowLeft className="h-4 w-4" /> All hospitals
             </Link>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-200">
@@ -119,14 +126,34 @@ export default function HospitalDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm">
-            <h2 className="font-heading text-xl font-semibold text-brand-dark">
-              Doctors at this facility
-            </h2>
+          <div
+            id="doctors"
+            className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm"
+          >
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="font-heading text-xl font-semibold text-brand-dark">
+                  Doctors at this facility
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Open a profile to see schedule, then request an appointment.
+                  The hospital sees it instantly in SaaS.
+                </p>
+              </div>
+            </div>
             <div className="mt-4 space-y-3">
               {doctors.length > 0 ? (
                 doctors.map((doctor) => (
-                  <DoctorCard key={doctor.professionalProfileId} doctor={doctor} />
+                  <DoctorCard
+                    key={
+                      doctor.professionalProfileId ||
+                      doctor.doctorId ||
+                      doctorName(doctor)
+                    }
+                    doctor={doctor}
+                    hospitalId={hospital.tenantId}
+                    hospitalName={hospital.companyName}
+                  />
                 ))
               ) : (
                 <p className="rounded-2xl border border-dashed border-blue-100 p-4 text-sm text-muted-foreground">
@@ -159,7 +186,8 @@ export default function HospitalDetailPage() {
               href={hospital.website}
               target="_blank"
               rel="noreferrer"
-              className="block">
+              className="block"
+            >
               <Row icon={Globe} text={hospital.website} accent />
             </a>
           ) : null}
@@ -167,17 +195,22 @@ export default function HospitalDetailPage() {
             icon={Star}
             text={`★ ${Number(hospital.rating || 0).toFixed(1)} · ${hospital.totalReviews ?? 0} reviews`}
           />
-          <Row
-            icon={Stethoscope}
-            text={`${doctors.length} doctors listed`}
-          />
+          <Row icon={Stethoscope} text={`${doctors.length} doctors listed`} />
           {hospital.username ? (
             <p className="pt-2 text-xs text-muted-foreground">
               @{hospital.username}
             </p>
           ) : null}
-          <Button asChild className="mt-4 w-full">
-            <Link to="/doctors">Browse care team</Link>
+          {firstBookHref ? (
+            <Button asChild className="mt-4 w-full gap-2">
+              <Link to={firstBookHref}>
+                <Calendar className="h-4 w-4" />
+                Book an appointment
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild variant="outline" className="w-full">
+            <a href="#doctors">View doctors</a>
           </Button>
         </aside>
       </div>
@@ -185,19 +218,34 @@ export default function HospitalDetailPage() {
   )
 }
 
-function DoctorCard({ doctor }: { doctor: PublicHospitalDoctor }) {
+function DoctorCard({
+  doctor,
+  hospitalId,
+  hospitalName,
+}: {
+  doctor: PublicHospitalDoctor
+  hospitalId: string
+  hospitalName: string
+}) {
+  const id = saasDoctorId(doctor)
+  const href = `/doctors/${encodeURIComponent(id)}?hospital=${encodeURIComponent(hospitalId)}`
+
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-blue-100 bg-brand-bg p-4 sm:flex-row sm:gap-4">
-      <img
-        src={doctorPhoto(doctor)}
-        alt={doctorName(doctor)}
-        className="h-16 w-16 rounded-2xl object-cover"
-      />
+      <Link to={href} className="shrink-0">
+        <img
+          src={doctorPhoto(doctor)}
+          alt={doctorName(doctor)}
+          className="h-16 w-16 rounded-2xl object-cover"
+        />
+      </Link>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-heading font-semibold text-brand-dark">
-            {doctorName(doctor)}
-          </h3>
+          <Link to={href} className="min-w-0 hover:text-primary">
+            <h3 className="font-heading font-semibold text-brand-dark">
+              {doctorName(doctor)}
+            </h3>
+          </Link>
           {doctor.isVerified ? (
             <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
               <BadgeCheck className="h-3.5 w-3.5" />
@@ -209,8 +257,10 @@ function DoctorCard({ doctor }: { doctor: PublicHospitalDoctor }) {
           {doctor.specialization || 'General Physician'}
           {doctor.subSpecialty ? ` · ${doctor.subSpecialty}` : ''}
         </p>
-        {doctor.department?.name ? (
-          <p className="text-xs text-muted-foreground">{doctor.department.name}</p>
+        {doctor.department?.name || doctor.facilityName ? (
+          <p className="text-xs text-muted-foreground">
+            {doctor.department?.name || doctor.facilityName}
+          </p>
         ) : null}
         <p className="mt-1 text-xs text-muted-foreground">
           {doctor.yearsOfExperience
@@ -227,9 +277,13 @@ function DoctorCard({ doctor }: { doctor: PublicHospitalDoctor }) {
         ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <Button asChild size="sm">
-            <Link to={`/doctors/${doctor.professionalProfileId}`}>
-              Book / Chat
+            <Link to={href}>
+              <Calendar className="mr-1 h-3.5 w-3.5" />
+              View profile & book
             </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link to={`${href}&visit=In-Person`}>Book visit</Link>
           </Button>
           {doctor.publicPhone ? (
             <Button asChild size="sm" variant="outline">
@@ -239,6 +293,9 @@ function DoctorCard({ doctor }: { doctor: PublicHospitalDoctor }) {
             </Button>
           ) : null}
         </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Booking goes to {hospitalName} · appears in hospital SaaS instantly
+        </p>
       </div>
     </article>
   )

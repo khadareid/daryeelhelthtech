@@ -5,6 +5,8 @@ export type PublicHospitalDoctor = {
   professionalProfileId: string
   /** SaaS User.userId — required for Healthtech → SaaS booking */
   doctorId?: string | null
+  facilityId?: string | null
+  facilityName?: string | null
   specialization?: string | null
   subSpecialty?: string | null
   publicBio?: string | null
@@ -20,6 +22,11 @@ export type PublicHospitalDoctor = {
   isVerified?: boolean
   department?: { name?: string | null } | null
   user?: { name?: string | null; picture?: string | null; userId?: string | null } | null
+}
+
+/** Prefer SaaS userId for booking / availability APIs */
+export function saasDoctorId(doctor: PublicHospitalDoctor) {
+  return doctor.doctorId || doctor.user?.userId || doctor.professionalProfileId
 }
 
 export type PublicHospital = {
@@ -148,67 +155,110 @@ export const hospitalsApi = createApi({
       },
       providesTags: (_r, _e, id) => [{ type: 'Hospital', id }],
     }),
-    /** Flatten doctors from a few hospital details (cached; one shared key). */
-    getPublicCareTeam: builder.query<CareTeamDoctor[], { limit?: number } | void>(
-      {
-        // Same cache for every page — avoids 15× duplicate SaaS calls
-        serializeQueryArgs: () => 'careTeam',
-        async queryFn(arg, _api, _extra, baseQuery) {
-          const limit = arg?.limit ?? 24
+    /**
+     * Flatten doctors from SaaS public hospitals (not Healthtech professionals).
+     * Use `{ all: true }` on Doctors pages; homepage can pass a smaller limit.
+     */
+    getPublicCareTeam: builder.query<
+      CareTeamDoctor[],
+      { limit?: number; all?: boolean } | void
+    >({
+      serializeQueryArgs: ({ queryArgs }) =>
+        queryArgs?.all
+          ? 'careTeam-all'
+          : `careTeam-${queryArgs?.limit ?? 24}`,
+      async queryFn(arg, _api, _extra, baseQuery) {
+        const all = Boolean(arg?.all)
+        const limit = all ? 500 : Math.max(1, arg?.limit ?? 24)
+        const pageSize = all ? 50 : 9
+        const hospitals: PublicHospital[] = []
+
+        let page = 1
+        let totalPages = 1
+        do {
           const listRes = await baseQuery({
-            url: '/company/public-hospitals?page=1&limit=9',
+            url: `/company/public-hospitals?page=${page}&limit=${pageSize}`,
           })
           if (listRes.error) {
             return { error: listRes.error }
           }
-
           const payload = listRes.data as HospitalsListApi
-          const hospitals = payload.data ?? payload.result ?? []
-          const targets = hospitals
-            .filter((h) => Number(h._count?.professionalProfiles || 0) > 0)
-            .slice(0, 3)
+          const batch = payload.data ?? payload.result ?? []
+          hospitals.push(...(Array.isArray(batch) ? batch : []))
+          totalPages = payload.pagination?.totalPages ?? 1
+          page += 1
+        } while (all && page <= totalPages && page <= 10)
 
-          if (targets.length === 0) {
-            return { data: [] }
+        const targets = hospitals.filter(
+          (h) =>
+            Number(h._count?.professionalProfiles || 0) > 0 ||
+            (h.doctors && h.doctors.length > 0),
+        )
+        const fetchTargets = all ? targets : targets.slice(0, 6)
+
+        if (fetchTargets.length === 0) {
+          return { data: [] }
+        }
+
+        const details = await Promise.all(
+          fetchTargets.map((h) =>
+            baseQuery({
+              url: `/company/public-hospitals/${encodeURIComponent(h.tenantId)}`,
+            }),
+          ),
+        )
+
+        const seen = new Set<string>()
+        const doctors: CareTeamDoctor[] = []
+        for (let i = 0; i < details.length; i++) {
+          const res = details[i]
+          if (res.error) continue
+          const hospital =
+            (res.data as HospitalDetailApi).data ??
+            (res.data as HospitalDetailApi).result ??
+            fetchTargets[i]
+          for (const doctor of hospital.doctors ?? []) {
+            const id =
+              doctor.doctorId ||
+              doctor.user?.userId ||
+              doctor.professionalProfileId
+            if (!id || seen.has(id)) continue
+            seen.add(id)
+            doctors.push({
+              ...doctor,
+              doctorId: id,
+              hospitalId: hospital.tenantId,
+              hospitalName: hospital.companyName,
+              city: hospital.city,
+              country: hospital.country,
+            })
           }
+        }
 
-          const details = await Promise.all(
-            targets.map((h) =>
-              baseQuery({
-                url: `/company/public-hospitals/${encodeURIComponent(h.tenantId)}`,
-              }),
-            ),
-          )
-
-          const doctors: CareTeamDoctor[] = []
-          for (let i = 0; i < details.length; i++) {
-            const res = details[i]
-            if (res.error) continue
-            const hospital =
-              (res.data as HospitalDetailApi).data ??
-              (res.data as HospitalDetailApi).result ??
-              targets[i]
-            for (const doctor of hospital.doctors ?? []) {
-              doctors.push({
-                ...doctor,
-                doctorId:
-                  doctor.doctorId ||
-                  doctor.user?.userId ||
-                  doctor.professionalProfileId,
-                hospitalId: hospital.tenantId,
-                hospitalName: hospital.companyName,
-                city: hospital.city,
-                country: hospital.country,
-              })
-            }
-          }
-
-          return { data: doctors.slice(0, limit) }
-        },
-        keepUnusedDataFor: 120,
-        providesTags: ['CareTeam'],
+        return { data: doctors.slice(0, limit) }
       },
-    ),
+      keepUnusedDataFor: 120,
+      providesTags: ['CareTeam'],
+    }),
+    /** Public SaaS slots — no Healthtech integration key required */
+    getPublicDoctorAvailability: builder.query<
+      { windows: any[]; slots: string[]; usingDefault?: boolean },
+      { doctorId: string; date?: string }
+    >({
+      query: ({ doctorId, date }) => {
+        const q = date ? `?date=${encodeURIComponent(date)}` : ''
+        return `/company/public-doctors/${encodeURIComponent(doctorId)}/availability${q}`
+      },
+      transformResponse: (res: any) => {
+        const data = res?.data ?? res?.result ?? {}
+        return {
+          windows: data.windows ?? [],
+          slots: Array.isArray(data.slots) ? data.slots : [],
+          usingDefault: Boolean(data.usingDefault),
+        }
+      },
+      providesTags: ['CareTeam'],
+    }),
   }),
 })
 
@@ -216,4 +266,5 @@ export const {
   useGetPublicHospitalsQuery,
   useGetPublicHospitalQuery,
   useGetPublicCareTeamQuery,
+  useGetPublicDoctorAvailabilityQuery,
 } = hospitalsApi

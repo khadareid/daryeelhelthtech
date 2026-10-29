@@ -329,8 +329,12 @@ export function CareHome({
               ))
             : careTeam.slice(0, 4).map((doctor) => (
                 <Link
-                  key={doctor.professionalProfileId}
-                  to={`/doctors/${doctor.professionalProfileId}`}
+                  key={doctor.professionalProfileId || doctor.doctorId}
+                  to={`/doctors/${encodeURIComponent(
+                    doctor.doctorId ||
+                      doctor.user?.userId ||
+                      doctor.professionalProfileId,
+                  )}?hospital=${encodeURIComponent(doctor.hospitalId)}`}
                   className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm transition hover:border-primary/30"
                 >
                   <img

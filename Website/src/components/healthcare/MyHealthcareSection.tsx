@@ -272,10 +272,10 @@ export default function MyHealthcareSection() {
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button asChild>
-            <Link to="/dashboard?section=hospitals">Find hospital</Link>
+            <Link to="/hospitals">Find hospital</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link to="/dashboard?section=doctors">Find doctor</Link>
+            <Link to="/hospitals">Book with a doctor</Link>
           </Button>
         </div>
       </header>

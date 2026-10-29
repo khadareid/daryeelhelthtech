@@ -34,10 +34,13 @@ import {
 import { cn } from "@/lib/utils"
 import { DailyHealthPanel } from "./DailyHealthPanel"
 import { CareHome } from "./CareHome"
+import { useGetMyAppointmentsQuery } from "@/Redex/service/appointments/AppointmentsApi"
 import {
-  useCreateAppointmentMutation,
-  useGetMyAppointmentsQuery,
-} from "@/Redex/service/appointments/AppointmentsApi"
+  doctorName,
+  doctorPhoto,
+  saasDoctorId,
+  useGetPublicCareTeamQuery,
+} from "@/Redex/service/hospitals/HospitalsApi"
 import SuperAdminPanel from "@/pages/dashboard/admin/SuperAdminPanel"
 import ApplyProfessional from "@/pages/dashboard/ApplyProfessional"
 import HospitalsSection from "@/components/layout/HospitalsSection"
@@ -45,19 +48,12 @@ import MessagesSection from "@/components/layout/MessagesSection"
 import MyHealthcareSection from "@/components/healthcare/MyHealthcareSection"
 import { useGetNewsFeedQuery } from "@/Redex/service/news/NewsApi"
 import {
-  professionalPhoto,
-  useGetDoctorsQuery,
   useGetConnectionsQuery,
   useAcceptConnectionMutation,
   useRejectConnectionMutation,
   useEndConnectionMutation,
-  useRequestConnectionMutation,
-  useGetProfessionalQuery,
-  useUpdateMyProfessionalProfileMutation,
 } from "@/Redex/service/professionals/ProfessionalsApi"
 import { PatientIdCard } from "@/components/common/PatientIdCard"
-import { useAuth } from "@/hooks/useAuth"
-import { toast } from "sonner"
 import { Building2, MapPin, Newspaper, Star } from "lucide-react"
 
 function initials(name?: string) {
@@ -173,26 +169,25 @@ export function Dashboard() {
 
 function DoctorsSection() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const selectedId = new URLSearchParams(location.search).get("doctor") || ""
   const [q, setQ] = useState("")
-  const { data: doctors = [], isLoading, isError, refetch } = useGetDoctorsQuery({
-    q: q || undefined,
-    type: "DOCTOR",
-  })
-  const selected =
-    doctors.find(
-      (d) => d.id === selectedId || d.slug === selectedId || d.userId === selectedId,
-    ) || null
+  const { data: doctors = [], isLoading, isError, refetch } =
+    useGetPublicCareTeamQuery({ all: true })
 
-  if (selectedId && selected) {
-    return (
-      <DoctorDetailEmbedded
-        doctor={selected}
-        onBack={() => navigate("/dashboard?section=doctors")}
-      />
-    )
-  }
+  const filtered = doctors.filter((d) => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return true
+    const hay = [
+      doctorName(d),
+      d.specialization,
+      d.hospitalName,
+      d.city,
+      d.country,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+    return hay.includes(needle)
+  })
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 sm:space-y-5">
@@ -201,8 +196,8 @@ function DoctorsSection() {
           Doctors
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Verified doctors from the Daryeel database. Facility doctors live under
-          Hospitals in this same dashboard.
+          Clinicians from Daryeel SaaS hospitals — open a profile to book. Your
+          request appears in the hospital console instantly.
         </p>
         <button
           type="button"
@@ -214,24 +209,15 @@ function DoctorsSection() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search doctors, specialty, city…"
+          placeholder="Search doctors, specialty, hospital, city…"
           className="mt-3 h-10 w-full rounded-xl border border-blue-100 bg-[#F8FAFC] px-3 text-sm outline-none ring-primary focus:ring-2"
         />
+        {!isLoading ? (
+          <p className="mt-2 text-sm font-semibold text-primary">
+            {filtered.length} SaaS hospital clinicians
+          </p>
+        ) : null}
       </header>
-      {selectedId && !selected && !isLoading ? (
-        <Card className="border-amber-100 bg-amber-50/50">
-          <CardContent className="p-4 text-sm text-amber-900">
-            That doctor could not be loaded from the list.{" "}
-            <button
-              type="button"
-              className="font-semibold text-primary"
-              onClick={() => navigate("/dashboard?section=doctors")}
-            >
-              Back to doctors
-            </button>
-          </CardContent>
-        </Card>
-      ) : null}
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -243,7 +229,7 @@ function DoctorsSection() {
         <Card className="border-blue-100">
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">
-              Couldn’t load doctors from the database.
+              Couldn’t load hospital doctors from SaaS.
             </p>
             <button
               type="button"
@@ -256,498 +242,72 @@ function DoctorsSection() {
         </Card>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {doctors.map((doctor) => (
-          <button
-            key={doctor.id}
-            type="button"
-            onClick={() =>
-              navigate(
-                `/dashboard?section=doctors&doctor=${encodeURIComponent(doctor.id)}`,
-              )
-            }
-            className="flex gap-3 rounded-2xl border border-blue-100 bg-white p-3 text-left shadow-sm transition hover:border-primary/30"
-          >
-            <img
-              src={professionalPhoto(doctor)}
-              alt={doctor.name}
-              className="h-14 w-14 shrink-0 rounded-2xl object-cover sm:h-16 sm:w-16"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <p className="truncate font-heading font-semibold text-brand-dark">
-                  {doctor.name}
+        {filtered.map((doctor) => {
+          const id = saasDoctorId(doctor)
+          return (
+            <button
+              key={`${doctor.hospitalId}-${id}`}
+              type="button"
+              onClick={() =>
+                navigate(
+                  `/doctors/${encodeURIComponent(id)}?hospital=${encodeURIComponent(doctor.hospitalId)}`,
+                )
+              }
+              className="flex gap-3 rounded-2xl border border-blue-100 bg-white p-3 text-left shadow-sm transition hover:border-primary/30"
+            >
+              <img
+                src={doctorPhoto(doctor)}
+                alt={doctorName(doctor)}
+                className="h-14 w-14 shrink-0 rounded-2xl object-cover sm:h-16 sm:w-16"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate font-heading font-semibold text-brand-dark">
+                    {doctorName(doctor)}
+                  </p>
+                  {doctor.isVerified ? (
+                    <Badge className="shrink-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+                      Verified
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="truncate text-sm text-primary">
+                  {doctor.specialization || "Doctor"}
                 </p>
-                {doctor.verified || doctor.isVerified ? (
-                  <Badge className="shrink-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                    Verified
-                  </Badge>
-                ) : null}
+                <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <Building2 className="h-3 w-3 shrink-0" />
+                  {doctor.hospitalName}
+                </p>
+                <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <MapPin className="h-3 w-3 shrink-0" />
+                  {[doctor.city, doctor.country].filter(Boolean).join(" · ") ||
+                    "Location TBA"}
+                  {typeof doctor.averageRating === "number" &&
+                  doctor.averageRating > 0 ? (
+                    <>
+                      <Star className="ml-1 h-3 w-3 fill-amber-400 text-amber-400" />
+                      {doctor.averageRating.toFixed(1)}
+                    </>
+                  ) : null}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                    Book
+                  </span>
+                  <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    View profile
+                  </span>
+                </div>
               </div>
-              <p className="truncate text-sm text-primary">
-                {doctor.specialization || doctor.specialty || "Doctor"}
-              </p>
-              <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3 shrink-0" />
-                {doctor.city}
-                {doctor.rating > 0 ? (
-                  <>
-                    <Star className="ml-1 h-3 w-3 fill-amber-400 text-amber-400" />
-                    {doctor.rating.toFixed(1)}
-                  </>
-                ) : null}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <span className="rounded-lg bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                  Book
-                </span>
-                <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                  View profile
-                </span>
-              </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
       </div>
-      {!isLoading && !isError && doctors.length === 0 ? (
+      {!isLoading && !isError && filtered.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
-          No doctors in the database yet. Approved professionals with public
-          profiles appear here.
+          No SaaS hospital doctors yet. Open Hospitals to browse facilities.
         </p>
       ) : null}
-    </div>
-  )
-}
-
-function DoctorDetailEmbedded({
-  doctor,
-  onBack,
-}: {
-  doctor: {
-    id: string
-    userId: string
-    name: string
-    specialization?: string
-    specialty?: string
-    subSpecialty?: string | null
-    professionalType?: string
-    city?: string
-    country?: string
-    workplace?: string | null
-    facilityName?: string | null
-    bio?: string
-    verified?: boolean
-    isVerified?: boolean
-    rating?: number
-    reviews?: number
-    totalPatients?: number
-    yearsOfExperience?: number
-    languages?: string[]
-    fee?: number
-    currency?: string
-    healthId?: string | null
-  }
-  onBack: () => void
-}) {
-  const navigate = useNavigate()
-  const { isAuthenticated, user } = useAuth()
-  const sessionUserId = user?.userId
-  const isOwner = Boolean(sessionUserId && sessionUserId === doctor.userId)
-  const { data: detail } = useGetProfessionalQuery(doctor.id, {
-    skip: !doctor.id,
-  })
-  const [requestConnection, { isLoading: connecting }] =
-    useRequestConnectionMutation()
-  const [createAppointment, { isLoading: booking }] =
-    useCreateAppointmentMutation()
-  const [updatePro, { isLoading: saving }] =
-    useUpdateMyProfessionalProfileMutation()
-  const [when, setWhen] = useState("")
-  const [editing, setEditing] = useState(false)
-
-  const live = { ...doctor, ...(detail || {}) }
-  const verified = live.verified || live.isVerified
-  const typeLabel = (live.professionalType || "DOCTOR").replace(/_/g, " ")
-  const specialty =
-    live.specialization || live.specialty || typeLabel
-
-  const [form, setForm] = useState({
-    specialization: specialty,
-    subSpecialty: live.subSpecialty || "",
-    publicBio: live.bio || "",
-    workplace: live.workplace || live.facilityName || "",
-    yearsOfExperience: String(live.yearsOfExperience || ""),
-    languages: (live.languages || []).join(", "),
-    publicPhone: (live as { publicPhone?: string }).publicPhone || "",
-    publicEmail: (live as { publicEmail?: string }).publicEmail || "",
-    website: (live as { website?: string }).website || "",
-    consultationFee:
-      live.fee != null && live.fee !== undefined ? String(live.fee) : "",
-    isPubliclyVisible: true,
-  })
-
-  return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <button
-        type="button"
-        onClick={onBack}
-        className="text-sm font-semibold text-primary"
-      >
-        ← Back to doctors
-      </button>
-      <Card className="overflow-hidden border-blue-100">
-        <CardContent className="space-y-4 p-5 sm:p-6">
-          <div className="flex flex-wrap items-start gap-4">
-            <img
-              src={professionalPhoto(live as any)}
-              alt={live.name}
-              className="h-24 w-24 rounded-2xl object-cover"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-heading text-2xl font-bold text-brand-dark">
-                  {live.name}
-                </h1>
-                {verified ? (
-                  <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                    Verified {typeLabel}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline">{typeLabel}</Badge>
-                )}
-              </div>
-              <p className="text-primary">{specialty}</p>
-              {live.subSpecialty ? (
-                <p className="text-sm text-muted-foreground">{live.subSpecialty}</p>
-              ) : null}
-              <p className="mt-1 text-sm text-muted-foreground">
-                {[live.city, live.country].filter(Boolean).join(", ")}
-                {live.yearsOfExperience
-                  ? ` · ${live.yearsOfExperience} years experience`
-                  : ""}
-              </p>
-              {live.languages?.length ? (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Languages: {live.languages.join(" · ")}
-                </p>
-              ) : null}
-              {live.healthId ? (
-                <p className="mt-1 font-mono text-xs font-semibold text-primary">
-                  Patient ID · {live.healthId}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="grid gap-2 rounded-2xl border border-blue-50 bg-[#F8FAFC] p-3 text-sm sm:grid-cols-3">
-            <div>
-              <p className="text-xs text-muted-foreground">Rating</p>
-              <p className="font-semibold text-brand-dark">
-                {(live.rating ?? 0) > 0
-                  ? `${Number(live.rating).toFixed(1)} (${live.reviews || 0})`
-                  : "New"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Patients</p>
-              <p className="font-semibold text-brand-dark">
-                {live.totalPatients ?? 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Consultation</p>
-              <p className="font-semibold text-brand-dark">
-                {live.fee != null
-                  ? `${live.currency || "USD"} ${live.fee}`
-                  : "—"}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-sm font-semibold text-brand-dark">About</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">
-              {live.bio || "Trusted clinician on Daryeel Health."}
-            </p>
-          </div>
-
-          {(live.workplace || live.facilityName) && (
-            <div>
-              <h2 className="text-sm font-semibold text-brand-dark">Workplace</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {live.workplace || live.facilityName}
-              </p>
-            </div>
-          )}
-
-          {isOwner ? (
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-brand-dark">
-                    Your professional profile
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Update the information patients see publicly.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-xl border border-primary/30 bg-white px-3 py-1.5 text-xs font-semibold text-primary"
-                  onClick={() => {
-                    setForm({
-                      specialization: specialty,
-                      subSpecialty: live.subSpecialty || "",
-                      publicBio: live.bio || "",
-                      workplace: live.workplace || live.facilityName || "",
-                      yearsOfExperience: String(live.yearsOfExperience || ""),
-                      languages: (live.languages || []).join(", "),
-                      publicPhone:
-                        (live as { publicPhone?: string }).publicPhone || "",
-                      publicEmail:
-                        (live as { publicEmail?: string }).publicEmail || "",
-                      website: (live as { website?: string }).website || "",
-                      consultationFee:
-                        live.fee != null ? String(live.fee) : "",
-                      isPubliclyVisible: true,
-                    })
-                    setEditing((v) => !v)
-                  }}
-                >
-                  {editing ? "Cancel" : "Edit profile info"}
-                </button>
-              </div>
-
-              {editing ? (
-                <form
-                  className="mt-3 space-y-2"
-                  onSubmit={async (e) => {
-                    e.preventDefault()
-                    try {
-                      const feeNum = Number(form.consultationFee)
-                      await updatePro({
-                        specialization: form.specialization || undefined,
-                        subSpecialty: form.subSpecialty || undefined,
-                        publicBio: form.publicBio || undefined,
-                        workplace: form.workplace || undefined,
-                        facilityName: form.workplace || undefined,
-                        yearsOfExperience: form.yearsOfExperience
-                          ? Number(form.yearsOfExperience)
-                          : undefined,
-                        languages: form.languages || undefined,
-                        publicPhone: form.publicPhone || undefined,
-                        publicEmail: form.publicEmail || undefined,
-                        website: form.website || undefined,
-                        consultationFee: Number.isFinite(feeNum)
-                          ? feeNum
-                          : undefined,
-                        isPubliclyVisible: form.isPubliclyVisible,
-                      }).unwrap()
-                      toast.success("Professional profile updated")
-                      setEditing(false)
-                    } catch (err: any) {
-                      toast.error(
-                        err?.data?.message || "Could not save profile",
-                      )
-                    }
-                  }}
-                >
-                  <p className="text-xs text-muted-foreground">
-                    All fields below are optional — fill what patients should
-                    see.
-                  </p>
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Specialization (optional)"
-                    value={form.specialization}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, specialization: e.target.value }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Sub-specialty (optional)"
-                    value={form.subSpecialty}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, subSpecialty: e.target.value }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Workplace / facility (optional)"
-                    value={form.workplace}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, workplace: e.target.value }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Years of experience (optional)"
-                    inputMode="numeric"
-                    value={form.yearsOfExperience}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        yearsOfExperience: e.target.value,
-                      }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Languages, comma separated (optional)"
-                    value={form.languages}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, languages: e.target.value }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Public phone (optional)"
-                    value={form.publicPhone}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, publicPhone: e.target.value }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Public email (optional)"
-                    value={form.publicEmail}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, publicEmail: e.target.value }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Website (optional)"
-                    value={form.website}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, website: e.target.value }))
-                    }
-                  />
-                  <input
-                    className="h-10 w-full rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                    placeholder="Consultation fee USD (optional)"
-                    inputMode="decimal"
-                    value={form.consultationFee}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        consultationFee: e.target.value,
-                      }))
-                    }
-                  />
-                  <textarea
-                    className="min-h-[88px] w-full rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm"
-                    placeholder="Professional bio (optional)"
-                    value={form.publicBio}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, publicBio: e.target.value }))
-                    }
-                  />
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.isPubliclyVisible}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          isPubliclyVisible: e.target.checked,
-                        }))
-                      }
-                    />
-                    Publicly visible in Doctors directory
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    {saving ? "Saving…" : "Save professional info"}
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={connecting || !isAuthenticated}
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  onClick={async () => {
-                    try {
-                      await requestConnection({
-                        professionalUserId: doctor.userId,
-                        reason: "Patient connection request",
-                      }).unwrap()
-                      toast.success("Connection request sent")
-                    } catch (e: any) {
-                      toast.error(e?.data?.message || "Could not connect")
-                    }
-                  }}
-                >
-                  Connect
-                </button>
-                <Link
-                  to={`/dashboard?section=messages&peer=${encodeURIComponent(doctor.userId)}&name=${encodeURIComponent(doctor.name)}`}
-                  className="rounded-xl border px-4 py-2 text-sm font-semibold"
-                >
-                  Message
-                </Link>
-                <button
-                  type="button"
-                  className="rounded-xl border border-dashed px-4 py-2 text-sm font-semibold text-muted-foreground"
-                  onClick={() => toast.message("Call — coming soon")}
-                >
-                  Call · Coming soon
-                </button>
-              </div>
-              <div className="rounded-2xl border border-blue-100 bg-[#F8FAFC] p-4">
-                <p className="text-sm font-semibold text-brand-dark">
-                  Book appointment
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  The doctor will see your name and Patient ID after you confirm.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <input
-                    type="datetime-local"
-                    value={when}
-                    onChange={(e) => setWhen(e.target.value)}
-                    className="h-10 rounded-xl border border-blue-100 bg-white px-3 text-sm"
-                  />
-                  <button
-                    type="button"
-                    disabled={booking || !isAuthenticated}
-                    className="rounded-xl bg-brand-dark px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                    onClick={async () => {
-                      if (!when) {
-                        toast.message("Choose a date and time")
-                        return
-                      }
-                      try {
-                        await createAppointment({
-                          doctorId: doctor.id,
-                          professionalUserId: doctor.userId,
-                          doctorName: doctor.name,
-                          specialty,
-                          scheduledAt: new Date(when).toISOString(),
-                          reason: "Consultation",
-                        }).unwrap()
-                        toast.success("Appointment booked — doctor notified")
-                        navigate("/dashboard?section=appointments")
-                      } catch (e: any) {
-                        toast.error(e?.data?.message || "Booking failed")
-                      }
-                    }}
-                  >
-                    Confirm booking
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

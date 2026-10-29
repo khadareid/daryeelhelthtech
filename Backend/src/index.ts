@@ -50,7 +50,7 @@ const allowedOrigins = [
   "http://localhost:8082",
   "http://localhost:3000",
   "http://localhost:3001",
-  "https://daryeel-healthtech.vercel.app",
+  "https://daryeel-healthtech-gamma.vercel.app",
   "https://daryeel-saas-healthtech.vercel.app",
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ORIGINS || "")

@@ -377,7 +377,7 @@ function HospitalDetailEmbedded({
           )}
         </div>
         <Button asChild className="mt-4 w-full" variant="outline">
-          <Link to="/dashboard?section=doctors">Browse Daryeel doctors</Link>
+          <Link to="/dashboard?section=doctors">Browse hospital doctors</Link>
         </Button>
       </section>
     </div>
