@@ -47,6 +47,7 @@ const SendCode_1 = __importDefault(require("./helpers/SendCode"));
 const UserRouter_1 = __importDefault(require("./Routes/UserRouter"));
 const dailyHealthLog_routes_1 = __importDefault(require("./Routes/dailyHealthLog.routes"));
 const AppointmentRouter_1 = __importDefault(require("./Routes/AppointmentRouter"));
+const HealthcareRouter_1 = __importDefault(require("./Routes/HealthcareRouter"));
 const MessageRouter_1 = __importDefault(require("./Routes/MessageRouter"));
 const AdminRouter_1 = __importDefault(require("./Routes/AdminRouter"));
 const NewsRouter_1 = __importDefault(require("./Routes/NewsRouter"));
@@ -61,8 +62,17 @@ const healthId_service_1 = require("./services/healthId.service");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
+const isProd = process.env.NODE_ENV === "production";
 if (!process.env.SESSION_SECRET) {
-    throw new Error("SESSION_SECRET is missing from .env file");
+    if (isProd || process.env.VERCEL) {
+        console.error("[Daryeel Healthtech] SESSION_SECRET is missing");
+    }
+    else {
+        throw new Error("SESSION_SECRET is missing from .env file");
+    }
+}
+function normalizeOrigin(value) {
+    return value.trim().replace(/\/$/, "");
 }
 const allowedOrigins = [
     "http://localhost:5173",
@@ -72,8 +82,16 @@ const allowedOrigins = [
     "http://localhost:8082",
     "http://localhost:3000",
     "http://localhost:3001",
-    "https://daryeel-healthtech.vercel.app"
-];
+    "https://daryeel-healthtech-gamma.vercel.app",
+    "https://daryeel-saas-healthtech.vercel.app",
+    process.env.FRONTEND_URL,
+    ...(process.env.CORS_ORIGINS || "")
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean),
+]
+    .filter(Boolean)
+    .map((o) => normalizeOrigin(String(o)));
 const isPrivateHost = (hostname) => {
     if (hostname === "localhost" || hostname === "127.0.0.1")
         return true;
@@ -85,10 +103,25 @@ const isPrivateHost = (hostname) => {
         return true;
     return false;
 };
-const isLocalOrigin = (origin) => {
+const isAllowedVercelPreview = (hostname) => {
+    // Allow this project's Vercel preview / alias hosts only
+    return (hostname === "daryeel-healthtech.vercel.app" ||
+        hostname.endsWith(".daryeel-healthtech.vercel.app") ||
+        /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname));
+};
+const isAllowedOrigin = (origin) => {
+    if (!origin)
+        return true; // same-origin / server / mobile
     try {
-        const url = new URL(origin);
-        return isPrivateHost(url.hostname);
+        const normalized = normalizeOrigin(origin);
+        if (allowedOrigins.includes(normalized))
+            return true;
+        const url = new URL(normalized);
+        if (isPrivateHost(url.hostname))
+            return true;
+        if (isAllowedVercelPreview(url.hostname))
+            return true;
+        return false;
     }
     catch (_a) {
         return false;
@@ -96,16 +129,25 @@ const isLocalOrigin = (origin) => {
 };
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin) || isLocalOrigin(origin)) {
+        // Never pass Error here — that turns browser OPTIONS preflight into HTTP 500
+        if (isAllowedOrigin(origin)) {
             callback(null, true);
         }
         else {
-            callback(new Error("Not allowed by CORS"));
+            console.warn("[CORS] blocked origin:", origin);
+            callback(null, false);
         }
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
+    allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-CSRF-Token",
+        "X-Requested-With",
+        "Idempotency-Key",
+    ],
+    optionsSuccessStatus: 204,
 }));
 app.use(express_1.default.json({ limit: "100mb" }));
 app.use(express_1.default.urlencoded({ limit: "100mb", extended: true }));
@@ -129,6 +171,7 @@ app.use("/api/v1/refresh", RefreshTokenRouter_1.default);
 app.use("/api/v1/user", UserRouter_1.default);
 app.use("/api/v1/daily-health-log", dailyHealthLog_routes_1.default);
 app.use("/api/v1/appointments", AppointmentRouter_1.default);
+app.use("/api/v1/healthcare", HealthcareRouter_1.default);
 app.use("/api/v1/messages", MessageRouter_1.default);
 app.use("/api/v1/admin", AdminRouter_1.default);
 app.use("/api/v1/news", NewsRouter_1.default);
@@ -143,13 +186,31 @@ void (0, healthId_service_1.backfillMissingHealthIds)()
         console.log(`Backfilled ${n} missing Patient/Health IDs`);
 })
     .catch((err) => console.error("Health ID backfill skipped:", (err === null || err === void 0 ? void 0 : err.message) || err));
-app.get("/", (req, res) => {
-    res.send("Hello World");
+app.get("/", (_req, res) => {
+    res.send("Daryeel Healthtech API");
 });
-app.all("/{*splat}", (req, res) => {
+app.get("/health", (_req, res) => {
+    res.status(200).json({ ok: true, service: "daryeel-healthtech-api" });
+});
+app.use((err, _req, res, _next) => {
+    console.error("[API Error]", (err === null || err === void 0 ? void 0 : err.message) || err);
+    const status = (err === null || err === void 0 ? void 0 : err.status) || (err === null || err === void 0 ? void 0 : err.statusCode) || 500;
+    if (res.headersSent)
+        return;
+    res.status(status).json({
+        isSuccess: false,
+        message: isProd ? "Internal server error" : (err === null || err === void 0 ? void 0 : err.message) || "Internal server error",
+        status,
+    });
+});
+app.all("/{*splat}", (_req, res) => {
     res.status(404).json({
         message: "API Not Found",
         status: 404,
     });
 });
-app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));
+// Vercel serverless needs the exported app; listen only for local/dev.
+exports.default = app;
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));
+}
