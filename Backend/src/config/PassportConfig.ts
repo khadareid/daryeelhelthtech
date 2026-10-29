@@ -17,7 +17,7 @@ const clean = (value?: string) => (value || "").replace(/"/g, "").trim();
  */
 const callbackURL =
   clean(process.env.GOOGLE_CALLBACK_URL) ||
-  "https://daryeel-healthtech-api.vercel.app/api/v1/auth/google/callback";
+  "https://daryeel-healthtech-gamma.vercel.app/api/v1/auth/google/callback";
 
 passport.use(
   new GoogleStrategy(
