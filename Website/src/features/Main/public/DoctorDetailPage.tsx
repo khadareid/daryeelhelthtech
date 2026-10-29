@@ -16,7 +16,10 @@ import {
   useGetPublicCareTeamQuery,
   type CareTeamDoctor,
 } from '@/Redex/service/hospitals/HospitalsApi'
-import { useCreateAppointmentMutation } from '@/Redex/service/appointments/AppointmentsApi'
+import {
+  useCreateHealthcareAppointmentMutation,
+  useGetDoctorAvailabilityQuery,
+} from '@/Redex/service/healthcare/HealthcareApi'
 import {
   useCreateMessageMutation,
   useGetThreadQuery,
@@ -26,15 +29,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { siteConfig } from '@/config/site'
 import type { RootState } from '@/Redex/store/store'
 
-const TIME_SLOTS = [
-  '09:00 AM',
-  '10:00 AM',
-  '11:00 AM',
-  '02:00 PM',
-  '03:00 PM',
-  '04:00 PM',
-]
-
 function nextDays(count: number) {
   return Array.from({ length: count }, (_, i) => {
     const d = new Date()
@@ -43,20 +37,8 @@ function nextDays(count: number) {
   })
 }
 
-function slotToDate(day: Date, slot: string) {
-  const match = slot.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
-  let h = 9
-  let m = 0
-  if (match) {
-    h = Number(match[1])
-    m = Number(match[2])
-    const ampm = (match[3] || '').toUpperCase()
-    if (ampm === 'PM' && h < 12) h += 12
-    if (ampm === 'AM' && h === 12) h = 0
-  }
-  const when = new Date(day)
-  when.setHours(h, m, 0, 0)
-  return when
+function dayIso(day: Date) {
+  return day.toISOString().slice(0, 10)
 }
 
 export default function DoctorDetailPage() {
@@ -76,16 +58,27 @@ export default function DoctorDetailPage() {
 
   const days = useMemo(() => nextDays(7), [])
   const [dayIndex, setDayIndex] = useState(0)
-  const [slot, setSlot] = useState(TIME_SLOTS[0])
+  const [slotIso, setSlotIso] = useState<string>('')
   const [visitType, setVisitType] = useState<'In-Person' | 'Video Call'>(
     (search.get('visit') as 'Video Call') || 'In-Person',
   )
+  const [consent, setConsent] = useState(false)
+  const [reason, setReason] = useState('')
   const [chatOpen, setChatOpen] = useState(search.get('chat') === '1')
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<string | null>(null)
 
+  const saasDoctorId =
+    doctor?.doctorId || doctor?.user?.userId || doctor?.professionalProfileId || doctorId
+  const selectedDay = days[dayIndex]
+  const { data: availability } = useGetDoctorAvailabilityQuery(
+    { doctorId: saasDoctorId, date: dayIso(selectedDay) },
+    { skip: !saasDoctorId },
+  )
+  const slots = availability?.slots || []
+
   const peerId = doctor?.professionalProfileId || doctorId
-  const [book, { isLoading: booking }] = useCreateAppointmentMutation()
+  const [book, { isLoading: booking }] = useCreateHealthcareAppointmentMutation()
   const [sendMessage, { isLoading: sending }] = useCreateMessageMutation()
   const { data: thread = [], refetch: refetchThread } = useGetThreadQuery(peerId, {
     skip: !signedIn || !peerId || !chatOpen,
@@ -102,25 +95,42 @@ export default function DoctorDetailPage() {
       requireSignIn(`/doctors/${doctorId}`)
       return
     }
+    if (!consent) {
+      setStatus('Please consent to share booking details with the hospital.')
+      return
+    }
+    if (!slotIso) {
+      setStatus('Select an available time slot from the hospital schedule.')
+      return
+    }
     setStatus(null)
     try {
-      const when = slotToDate(days[dayIndex], slot)
+      const when = new Date(slotIso)
       const appt = await book({
-        doctorId: doctor.professionalProfileId,
+        tenantId: doctor.hospitalId,
+        hospitalId: doctor.hospitalId,
+        doctorId: saasDoctorId,
         doctorName: doctorName(doctor),
         specialty: doctor.specialization || 'General Physician',
         facilityName: doctor.hospitalName,
         facilityId: doctor.hospitalId,
         scheduledAt: when.toISOString(),
-        reason: `${visitType} visit`,
-        visitType,
+        reason: reason || `${visitType} visit`,
+        type: visitType === 'Video Call' ? 'TELECONSULTATION' : 'IN_PERSON',
+        consentGranted: true,
+        consultationFee: doctor.consultationFee || undefined,
+        currency: doctor.currency || 'USD',
+        idempotencyKey: `web-${session.userId}-${saasDoctorId}-${slotIso}`,
       }).unwrap()
       setStatus(
-        `Booked ${when.toLocaleString()} · ${appt.appointmentCode || appt.appointmentid}`,
+        `Request sent for ${when.toLocaleString()}. Status: ${appt.status}. Track it in My Healthcare.`,
       )
-    } catch (err) {
+      navigate('/dashboard?section=healthcare')
+    } catch (err: any) {
       setStatus(
-        err instanceof Error ? err.message : 'Booking failed. Try again.',
+        err?.data?.message ||
+          err?.message ||
+          'We could not complete your appointment request. It was not confirmed. Please try again.',
       )
     }
   }
@@ -207,7 +217,9 @@ export default function DoctorDetailPage() {
                 </p>
                 <p className="mt-2 inline-flex items-center gap-1 text-sm text-amber-700">
                   <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                  Trusted clinician
+                  {typeof doctor.averageRating === 'number' && doctor.totalReviews
+                    ? `${doctor.averageRating.toFixed(1)} · ${doctor.totalReviews} reviews`
+                    : 'Trusted clinician'}
                   {doctor.consultationFee
                     ? ` · ${doctor.currency || 'USD'} ${doctor.consultationFee}`
                     : ''}
@@ -248,7 +260,7 @@ export default function DoctorDetailPage() {
               <Calendar className="h-5 w-5 text-primary" /> Book appointment
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Available for every signed-in patient.
+              Live slots from the hospital schedule. Requests stay pending until the hospital responds.
             </p>
 
             <form onSubmit={onBook} className="mt-4 space-y-4">
@@ -261,7 +273,10 @@ export default function DoctorDetailPage() {
                     <button
                       key={d.toISOString()}
                       type="button"
-                      onClick={() => setDayIndex(i)}
+                      onClick={() => {
+                        setDayIndex(i)
+                        setSlotIso('')
+                      }}
                       className={`min-w-[4.25rem] rounded-xl border px-2 py-2 text-center text-sm ${
                         i === dayIndex
                           ? 'border-primary bg-primary text-white'
@@ -279,23 +294,32 @@ export default function DoctorDetailPage() {
 
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Time
+                  Available times
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {TIME_SLOTS.map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setSlot(item)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                        slot === item
-                          ? 'border-primary bg-primary text-white'
-                          : 'border-blue-100 text-brand-dark'
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  ))}
+                  {slots.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No open slots for this day. Try another date.
+                    </p>
+                  ) : (
+                    slots.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setSlotIso(item)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                          slotIso === item
+                            ? 'border-primary bg-primary text-white'
+                            : 'border-blue-100 text-brand-dark'
+                        }`}
+                      >
+                        {new Date(item).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -316,17 +340,41 @@ export default function DoctorDetailPage() {
                 ))}
               </div>
 
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Reason for visit (optional)"
+                rows={2}
+              />
+
+              <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                />
+                <span>
+                  I consent to share my booking and contact details with{' '}
+                  <strong>{doctor.hospitalName}</strong> for this appointment.
+                </span>
+              </label>
+
               {status ? (
-                <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800">
                   {status}
                 </p>
               ) : null}
 
-              <Button type="submit" className="w-full" disabled={booking}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={booking || (signedIn && (!slotIso || !consent))}
+              >
                 {booking ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                {signedIn ? 'Confirm booking' : 'Sign in to book'}
+                {signedIn ? 'Request appointment' : 'Sign in to book'}
               </Button>
             </form>
           </section>

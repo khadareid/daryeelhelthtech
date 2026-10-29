@@ -9,6 +9,7 @@ import uiSlice from '@/components/ui/uiSlice';
 import { dailyHealthLogApi } from '../service/DailyHealthLog/DailyHealthLog';
 import { hospitalsApi } from '../service/hospitals/HospitalsApi';
 import { appointmentsApi } from '../service/appointments/AppointmentsApi';
+import { healthcareApi } from '../service/healthcare/HealthcareApi';
 import { MessagesApi } from '../service/messages/MessagesApi';
 import { adminApi } from '../service/admin/AdminApi';
 import { newsApi } from '../service/news/NewsApi';
@@ -26,6 +27,7 @@ export const store = configureStore({
     [notificationsApi.reducerPath]: notificationsApi.reducer,
     [hospitalsApi.reducerPath]: hospitalsApi.reducer,
     [appointmentsApi.reducerPath]: appointmentsApi.reducer,
+    [healthcareApi.reducerPath]: healthcareApi.reducer,
     [MessagesApi.reducerPath]: MessagesApi.reducer,
     [adminApi.reducerPath]: adminApi.reducer,
     [newsApi.reducerPath]: newsApi.reducer,
@@ -41,6 +43,7 @@ export const store = configureStore({
       notificationsApi.middleware,
       hospitalsApi.middleware,
       appointmentsApi.middleware,
+      healthcareApi.middleware,
       MessagesApi.middleware,
       adminApi.middleware,
       newsApi.middleware,

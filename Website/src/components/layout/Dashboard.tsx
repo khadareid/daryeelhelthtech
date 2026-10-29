@@ -42,6 +42,7 @@ import SuperAdminPanel from "@/pages/dashboard/admin/SuperAdminPanel"
 import ApplyProfessional from "@/pages/dashboard/ApplyProfessional"
 import HospitalsSection from "@/components/layout/HospitalsSection"
 import MessagesSection from "@/components/layout/MessagesSection"
+import MyHealthcareSection from "@/components/healthcare/MyHealthcareSection"
 import { useGetNewsFeedQuery } from "@/Redex/service/news/NewsApi"
 import {
   professionalPhoto,
@@ -129,6 +130,11 @@ export function Dashboard() {
         <HospitalsSection />
       ) : section === "appointments" ? (
         <AppointmentsSection data={data} loading={isLoading} />
+      ) : section === "healthcare" ||
+        section === "opd-tickets" ||
+        section === "visits" ||
+        section === "healthcare-activity" ? (
+        <MyHealthcareSection />
       ) : section === "connections" ? (
         <ConnectionsSection />
       ) : section === "messages" ? (

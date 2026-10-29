@@ -135,6 +135,13 @@ const QUICK_ACTIONS: DashLink[] = [
     icon: CalendarPlus,
   },
   {
+    id: "healthcare",
+    label: "My Healthcare",
+    description: "Hospital bookings, OPD tickets & reviews",
+    to: "/dashboard?section=healthcare",
+    icon: ShieldCheck,
+  },
+  {
     id: "appointments",
     label: "Appointments",
     description: "Upcoming and history",

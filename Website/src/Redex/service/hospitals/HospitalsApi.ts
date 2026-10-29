@@ -3,6 +3,8 @@ import { saasBaseQuery } from '@/lib/saasBaseQuery'
 
 export type PublicHospitalDoctor = {
   professionalProfileId: string
+  /** SaaS User.userId — required for Healthtech → SaaS booking */
+  doctorId?: string | null
   specialization?: string | null
   subSpecialty?: string | null
   publicBio?: string | null
@@ -11,11 +13,13 @@ export type PublicHospitalDoctor = {
   languages?: string[] | null
   publicPhone?: string | null
   website?: string | null
-  consultationFee?: string | null
+  consultationFee?: string | number | null
   currency?: string | null
+  averageRating?: number | null
+  totalReviews?: number | null
   isVerified?: boolean
   department?: { name?: string | null } | null
-  user?: { name?: string | null; picture?: string | null } | null
+  user?: { name?: string | null; picture?: string | null; userId?: string | null } | null
 }
 
 export type PublicHospital = {
@@ -187,6 +191,10 @@ export const hospitalsApi = createApi({
             for (const doctor of hospital.doctors ?? []) {
               doctors.push({
                 ...doctor,
+                doctorId:
+                  doctor.doctorId ||
+                  doctor.user?.userId ||
+                  doctor.professionalProfileId,
                 hospitalId: hospital.tenantId,
                 hospitalName: hospital.companyName,
                 city: hospital.city,

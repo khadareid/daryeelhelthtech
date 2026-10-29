@@ -345,10 +345,55 @@ export type BookAppointmentInput = {
   visitType?: string;
 };
 
+export type BookHealthcareInput = BookAppointmentInput & {
+  tenantId?: string;
+  hospitalId?: string;
+  consentGranted: boolean;
+  type?: string;
+  idempotencyKey?: string;
+  consultationFee?: number | string;
+  currency?: string;
+};
+
+/** Hospital booking via Healthtech → SaaS integration (authoritative). */
+export async function createHealthcareAppointmentRequest(
+  input: BookHealthcareInput,
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<AppointmentItem>>(
+    '/healthcare/appointments',
+    {
+      method: 'POST',
+      body: {
+        ...input,
+        tenantId: input.tenantId || input.facilityId || input.hospitalId,
+        hospitalId: input.hospitalId || input.facilityId,
+        consentGranted: input.consentGranted !== false,
+      },
+      token,
+    },
+  );
+  const result = data.result ?? data.data;
+  if (!result) {
+    throw new Error(
+      data.message ||
+        "We couldn't complete your appointment request. It was not confirmed.",
+    );
+  }
+  return result;
+}
+
 export async function createAppointmentRequest(
   input: BookAppointmentInput,
   token: string,
 ) {
+  // Prefer integrated hospital booking when a facility/hospital id is present
+  if (input.facilityId || (input as BookHealthcareInput).hospitalId) {
+    return createHealthcareAppointmentRequest(
+      { ...input, consentGranted: true },
+      token,
+    );
+  }
   const data = await apiRequest<ApiSuccess<AppointmentItem>>('/appointments', {
     method: 'POST',
     body: input,
@@ -360,6 +405,16 @@ export async function createAppointmentRequest(
 }
 
 export async function listAppointmentsRequest(token: string) {
+  try {
+    const healthcare = await apiRequest<ApiSuccess<AppointmentItem[]>>(
+      '/healthcare/appointments',
+      { method: 'GET', token, skipCsrf: true },
+    );
+    const ht = healthcare.result ?? healthcare.data ?? [];
+    if (Array.isArray(ht) && ht.length > 0) return ht;
+  } catch {
+    /* fall through to local appointments */
+  }
   const data = await apiRequest<ApiSuccess<AppointmentItem[]>>('/appointments', {
     method: 'GET',
     token,
@@ -367,6 +422,29 @@ export async function listAppointmentsRequest(token: string) {
   });
   const list = data.result ?? data.data ?? [];
   return Array.isArray(list) ? list : [];
+}
+
+export async function listOpdTicketsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<AppointmentItem[]>>(
+    '/healthcare/opd-tickets',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  const list = data.result ?? data.data ?? [];
+  return Array.isArray(list) ? list : [];
+}
+
+export async function getDoctorAvailabilityRequest(
+  doctorId: string,
+  date: string,
+  token?: string | null,
+) {
+  const data = await apiRequest<
+    ApiSuccess<{ windows: unknown[]; slots: string[] }>
+  >(
+    `/healthcare/doctors/${encodeURIComponent(doctorId)}/availability?date=${encodeURIComponent(date)}`,
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return data.result ?? data.data ?? { windows: [], slots: [] };
 }
 
 export type ChatMessage = {

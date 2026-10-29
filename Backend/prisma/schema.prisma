@@ -60,11 +60,28 @@ enum ConsentStatus {
 
 enum AppointmentStatus {
   SCHEDULED
+  PENDING
+  ACCEPTED
+  REJECTED
+  RESCHEDULE_REQUESTED
   CONFIRMED
-  CHECKED_IN
-  COMPLETED
   CANCELLED
+  CANCELLED_BY_PATIENT
+  CANCELLED_BY_HOSPITAL
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
   NO_SHOW
+}
+
+enum PaymentStatusMirror {
+  UNPAID
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  WAIVED
+  REFUNDED
+  NOT_REQUIRED
 }
 
 enum PrescriptionStatus {
@@ -112,6 +129,12 @@ enum NotificationType {
   CONNECTION
   MESSAGE
   APPOINTMENT
+  APPOINTMENT_ACCEPTED
+  APPOINTMENT_REJECTED
+  APPOINTMENT_RESCHEDULE
+  OPD_TICKET
+  VISIT_UPDATE
+  REVIEW_REMINDER
 }
 
 enum ConnectionStatus {
@@ -312,6 +335,8 @@ model User {
   professionalAvailability ProfessionalAvailability[]
   messagesReceived         Message[]                      @relation("MessageRecipient")
   appointmentsAsProfessional Appointment[]                @relation("ProfessionalAppointments")
+  doctorReviews              DoctorReview[]
+  healthcareActivityEvents   HealthcareActivityEvent[]
 
   @@index([email])
   @@index([phone])
@@ -839,6 +864,17 @@ model Appointment {
   doctorName   String?
   doctorId     String?
   specialty    String?
+  department   String?
+
+  /// SaaS cross-system references (SaaS is source of truth for hospital ops)
+  saasAppointmentId String? @unique
+  saasTenantId      String?
+  saasDoctorId      String?
+  saasTicketId      String?
+  saasTicketNumber  String?
+  saasVisitId       String?
+  idempotencyKey    String? @unique
+  source            String  @default("HEALTHTECH")
 
   scheduledAt DateTime
   duration    Int      @default(30)
@@ -847,7 +883,17 @@ model Appointment {
   notes       String?
   meetingLink String?
 
-  status AppointmentStatus @default(SCHEDULED)
+  status AppointmentStatus @default(PENDING)
+
+  proposedScheduledAt DateTime?
+  proposedMessage     String?
+  rejectionReason     String?
+
+  paymentStatus PaymentStatusMirror @default(UNPAID)
+  consultationFee Decimal? @db.Decimal(10, 2)
+  currency        String?  @default("USD")
+
+  consentId String?
 
   reminderSent Boolean   @default(false)
   reminderAt   DateTime?
@@ -855,16 +901,72 @@ model Appointment {
   cancelledAt     DateTime?
   cancelledReason String?
 
+  confirmedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user         User  @relation(fields: [userId], references: [userid], onDelete: Cascade)
   professional User? @relation("ProfessionalAppointments", fields: [professionalUserId], references: [userid], onDelete: SetNull)
+  doctorReview DoctorReview?
+  activityEvents HealthcareActivityEvent[]
 
   @@index([userId, scheduledAt])
   @@index([professionalUserId, scheduledAt])
   @@index([status])
   @@index([appointmentCode])
+  @@index([saasTenantId])
+  @@index([saasDoctorId])
+  @@index([paymentStatus])
+}
+
+model DoctorReview {
+  reviewid String @id @default(cuid())
+
+  appointmentId String @unique
+  userId        String
+  saasDoctorId  String
+  saasTenantId  String?
+  saasReviewId  String?
+
+  rating  Int
+  comment String?
+
+  professionalism   Int?
+  communication     Int?
+  waitingTime       Int?
+  careQuality       Int?
+  overallExperience Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointment Appointment @relation(fields: [appointmentId], references: [appointmentid], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([saasDoctorId])
+  @@index([rating])
+}
+
+model HealthcareActivityEvent {
+  eventid String @id @default(cuid())
+
+  userId        String
+  appointmentId String?
+  type          String
+  title         String
+  body          String?
+  metadata      Json?
+  occurredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [appointmentid], onDelete: SetNull)
+
+  @@index([userId, occurredAt])
+  @@index([appointmentId])
+  @@index([type])
 }
 
 // ═══════════════════════════════════════════════════════════

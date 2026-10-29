@@ -96,41 +96,55 @@ export default function DoctorDetailScreen() {
     const when = new Date(day);
     when.setHours(h, m, 0, 0);
 
-    setBooking(true);
-    try {
-      const appt = await createAppointmentRequest(
+    Alert.alert(
+      'Share booking details?',
+      `Allow Daryeel to share your booking and contact information with ${doctor.hospitalName || 'this hospital'} for this appointment?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
         {
-          doctorId: doctor.id,
-          doctorName: doctor.name,
-          specialty: doctor.specialty,
-          facilityName: doctor.hospitalName,
-          facilityId: doctor.hospitalId,
-          scheduledAt: when.toISOString(),
-          reason: `${visitType} visit`,
-          visitType,
-        },
-        accessToken,
-      );
-      await refreshProfile();
-      Alert.alert(
-        'Booking confirmed',
-        `${doctor.name}\n${when.toLocaleString()}\n${visitType}\nCode: ${appt.appointmentCode || appt.appointmentid}`,
-        [
-          {
-            text: 'My appointments',
-            onPress: () => router.push('/(tabs)/appointments' as Href),
+          text: 'Agree & request',
+          onPress: async () => {
+            setBooking(true);
+            try {
+              const appt = await createAppointmentRequest(
+                {
+                  doctorId: doctor.id,
+                  doctorName: doctor.name,
+                  specialty: doctor.specialty,
+                  facilityName: doctor.hospitalName,
+                  facilityId: doctor.hospitalId,
+                  scheduledAt: when.toISOString(),
+                  reason: `${visitType} visit`,
+                  visitType,
+                },
+                accessToken,
+              );
+              await refreshProfile();
+              Alert.alert(
+                'Request sent',
+                `${doctor.name}\n${when.toLocaleString()}\n${visitType}\nStatus: ${appt.status}\nCode: ${appt.appointmentCode || appt.appointmentid}\n\nThe hospital will respond in My Healthcare / Appointments.`,
+                [
+                  {
+                    text: 'My appointments',
+                    onPress: () => router.push('/(tabs)/appointments' as Href),
+                  },
+                  { text: 'OK', onPress: () => router.back() },
+                ],
+              );
+            } catch (error) {
+              Alert.alert(
+                'Request not confirmed',
+                error instanceof Error
+                  ? error.message
+                  : "We couldn't complete your appointment request. Please try again.",
+              );
+            } finally {
+              setBooking(false);
+            }
           },
-          { text: 'OK', onPress: () => router.back() },
-        ],
-      );
-    } catch (error) {
-      Alert.alert(
-        'Booking failed',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
-    } finally {
-      setBooking(false);
-    }
+        },
+      ],
+    );
   }
 
   function onChat() {
