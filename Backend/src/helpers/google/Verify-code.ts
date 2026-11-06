@@ -1,144 +1,97 @@
-import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { generateTokens } from '../GenerateToken';
- 
-
-const prisma = new PrismaClient();
+import { AuditAction } from "@prisma/client";
+import { Request, Response } from "express";
+import { generateTokens } from "../GenerateToken";
+import { prisma } from "../../lib/prisma";
+import { createAuditLog, getClientMeta } from "../../services/audit.service";
+import { consumeOtp } from "../../services/otp.service";
 
 export const verifyCode = async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body;
 
-    // --------------------------------------------------------
-    // Validate input
-    // --------------------------------------------------------
-
     if (!email || !code) {
       res.status(400).json({
-        message: 'Email and verification code are required',
+        message: "Email and verification code are required",
         isSuccess: false,
       });
       return;
     }
 
-    // --------------------------------------------------------
-    // Find verification code
-    // --------------------------------------------------------
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const entry = consumeOtp(normalizedEmail, String(code));
 
-    const record = await prisma.verificationCode.findFirst({
-      where: {
-        email,
-        code,
-        purpose: 'EMAIL_VERIFICATION',
-        isUsed: false,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    // --------------------------------------------------------
-    // Check code
-    // --------------------------------------------------------
-
-    if (!record) {
+    if (!entry) {
       res.status(401).json({
-        message: 'Invalid verification code',
+        message: "Invalid or expired verification code",
         isSuccess: false,
       });
       return;
     }
-
-    if (record.expiresAt < new Date()) {
-      res.status(401).json({
-        message: 'Verification code has expired',
-        isSuccess: false,
-      });
-      return;
-    }
-
-    // --------------------------------------------------------
-    // Find user
-    // --------------------------------------------------------
 
     const user = await prisma.user.findUnique({
-      where: {
-        email,
-      },
+      where: { email: normalizedEmail },
     });
 
-    if (!user) {
-      res.status(404).json({
-        message: 'User not found',
-        isSuccess: false,
-      });
+    if (!user || user.deletedAt) {
+      res.status(404).json({ message: "User not found", isSuccess: false });
       return;
     }
 
-    // --------------------------------------------------------
-    // Generate tokens
-    // --------------------------------------------------------
-
-    const { accessToken, refreshToken } = await generateTokens({
-      userId: user.userid,
-      email: user.email,
-      role: user.role,
-    });
-
-    // --------------------------------------------------------
-    // Mark verification code as used
-    // --------------------------------------------------------
-
-    await prisma.verificationCode.update({
-      where: {
-        verificationcodeid: record.verificationcodeid,
-      },
-      data: {
-        isUsed: true,
-      },
-    });
-
-    // --------------------------------------------------------
-    // Mark email as verified
-    // --------------------------------------------------------
-
-    await prisma.user.update({
-      where: {
-        userid: user.userid,
-      },
+    const updated = await prisma.user.update({
+      where: { userid: user.userid },
       data: {
         emailVerified: true,
         lastLoginAt: new Date(),
       },
     });
 
-    // --------------------------------------------------------
-    // Response
-    // --------------------------------------------------------
+    const { accessToken, refreshToken } = await generateTokens({
+      userId: updated.userid,
+      email: updated.email,
+      role: updated.role,
+    });
+
+    const meta = getClientMeta(req);
+    await createAuditLog({
+      action: AuditAction.LOGIN,
+      entity: "User",
+      entityId: updated.userid,
+      description: "Email OTP verification login",
+      userId: updated.userid,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
 
     res.status(200).json({
-      message: 'Verification successful',
+      message: "Verification successful",
       isSuccess: true,
-
+      result: {
+        user: {
+          userId: updated.userid,
+          name: updated.fullName,
+          email: updated.email,
+          phone: updated.phone,
+          image: updated.picture,
+          role: updated.role,
+          emailVerified: true,
+        },
+        accessToken,
+        refreshToken,
+      },
       user: {
-        userId: user.userid,
-        name: user.fullName,
-        email: user.email,
-        phone: user.phone,
-        image: user.picture,
-        role: user.role,
+        userId: updated.userid,
+        name: updated.fullName,
+        email: updated.email,
+        phone: updated.phone,
+        image: updated.picture,
+        role: updated.role,
         emailVerified: true,
       },
-
       accessToken,
       refreshToken,
     });
   } catch (error) {
-    console.error('Verify code error:', error);
-
-    res.status(500).json({
-      message: 'Server error',
-      isSuccess: false,
-    });
+    console.error("Verify code error:", error);
+    res.status(500).json({ message: "Server error", isSuccess: false });
   }
 };

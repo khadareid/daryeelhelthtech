@@ -34,7 +34,7 @@ export default function StepTrackerScreen() {
     (async () => {
       if (!accessToken) return;
       const res = await getTodayHealthLog(accessToken);
-      const log = (res?.result ?? res?.data) as {
+      const log = (res?.result ?? null) as {
         steps?: number;
         stepsGoal?: number;
       } | null;

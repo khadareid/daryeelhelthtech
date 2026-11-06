@@ -1,90 +1,110 @@
-import { createApi } from '@reduxjs/toolkit/query/react'
-import { apiBaseQuery } from '@/lib/apiBaseQuery'
-
-export type AppointmentRecord = {
-  appointmentid: string
-  appointmentCode?: string
-  scheduledAt: string
-  status: string
-  doctorName?: string | null
-  doctorId?: string | null
-  professionalUserId?: string | null
-  specialty?: string | null
-  facilityName?: string | null
-  facilityId?: string | null
-  reason?: string | null
-  notes?: string | null
-  meetingLink?: string | null
-  duration?: number
-  patientName?: string | null
-  patientUserId?: string | null
-  patientHealthId?: string | null
-  patientPhone?: string | null
-  patientEmail?: string | null
-  professionalName?: string | null
-  isMineAsPatient?: boolean
-  isMineAsProfessional?: boolean
-}
+import { createApi } from "@reduxjs/toolkit/query/react"
+import { apiBaseQuery } from "@/lib/apiBaseQuery"
+import { unwrapList, unwrapPaginated, unwrapResult } from "@/Redex/lib/ownedApi"
+import type { ApiResponse, Appointment, Paginated } from "@/Redex/types/Types"
 
 export type BookAppointmentBody = {
   doctorId?: string
-  professionalUserId?: string
-  doctorName: string
-  specialty?: string
-  facilityName?: string
-  facilityId?: string
   scheduledAt: string
   duration?: number
   reason?: string
   notes?: string
-  visitType?: string
-}
-
-type OneResponse = {
-  isSuccess: boolean
-  message?: string
-  result?: AppointmentRecord
-  data?: AppointmentRecord
-}
-
-type ListResponse = {
-  isSuccess: boolean
-  result?: AppointmentRecord[]
-  data?: AppointmentRecord[]
+  meetingLink?: string
+  paymentRequired?: boolean
+  consultationFee?: number
+  currency?: string
+  userId?: string
 }
 
 export const appointmentsApi = createApi({
-  reducerPath: 'appointmentsApi',
+  reducerPath: "appointmentsApi",
   baseQuery: apiBaseQuery,
-  tagTypes: ['Appointments'],
+  tagTypes: ["Appointments"],
   endpoints: (builder) => ({
-    createAppointment: builder.mutation<AppointmentRecord, BookAppointmentBody>({
+    createAppointment: builder.mutation<Appointment, BookAppointmentBody>({
       query: (body) => ({
-        url: '/appointments',
-        method: 'POST',
+        url: "/appointments",
+        method: "POST",
         body,
       }),
-      transformResponse: (res: OneResponse) =>
-        (res.result ?? res.data) as AppointmentRecord,
-      invalidatesTags: ['Appointments'],
+      transformResponse: (res: ApiResponse<Appointment>) => unwrapResult(res),
+      invalidatesTags: ["Appointments"],
     }),
-    getMyAppointments: builder.query<AppointmentRecord[], void>({
-      query: () => ({ url: '/appointments', method: 'GET' }),
-      transformResponse: (res: ListResponse) => {
-        const list = res.result ?? res.data ?? []
-        return Array.isArray(list) ? list : []
-      },
-      providesTags: ['Appointments'],
-    }),
-    cancelAppointment: builder.mutation<AppointmentRecord, { id: string; reason?: string }>({
-      query: ({ id, reason }) => ({
-        url: `/appointments/${id}/cancel`,
-        method: 'PATCH',
-        body: { reason },
+
+    getMyAppointments: builder.query<
+      Appointment[],
+      { page?: number; limit?: number; status?: string; as?: string } | void
+    >({
+      query: (params) => ({
+        url: "/appointments",
+        method: "GET",
+        params: params ?? undefined,
       }),
-      transformResponse: (res: OneResponse) =>
-        (res.result ?? res.data) as AppointmentRecord,
-      invalidatesTags: ['Appointments'],
+      transformResponse: (res: ApiResponse<Paginated<Appointment> | Appointment[]>) =>
+        unwrapList(res),
+      providesTags: ["Appointments"],
+    }),
+
+    getAppointmentsPage: builder.query<
+      Paginated<Appointment>,
+      { page?: number; limit?: number; status?: string } | void
+    >({
+      query: (params) => ({
+        url: "/appointments",
+        method: "GET",
+        params: params ?? undefined,
+      }),
+      transformResponse: (res: ApiResponse<Paginated<Appointment>>) =>
+        unwrapPaginated(res),
+      providesTags: ["Appointments"],
+    }),
+
+    getAppointment: builder.query<Appointment, string>({
+      query: (id) => ({ url: `/appointments/${id}`, method: "GET" }),
+      transformResponse: (res: ApiResponse<Appointment>) => unwrapResult(res),
+      providesTags: (_r, _e, id) => [{ type: "Appointments", id }],
+    }),
+
+    updateAppointment: builder.mutation<
+      Appointment,
+      {
+        id: string
+        data: Partial<BookAppointmentBody> & {
+          status?: string
+          cancellationReason?: string
+          paymentStatus?: string
+          paymentRequired?: boolean
+        }
+      }
+    >({
+      query: ({ id, data }) => ({
+        url: `/appointments/${id}`,
+        method: "PATCH",
+        body: data,
+      }),
+      transformResponse: (res: ApiResponse<Appointment>) => unwrapResult(res),
+      invalidatesTags: ["Appointments"],
+    }),
+
+    cancelAppointment: builder.mutation<
+      Appointment,
+      { id: string; reason?: string }
+    >({
+      query: ({ id, reason }) => ({
+        url: `/appointments/${id}`,
+        method: "PATCH",
+        body: { status: "CANCELLED", cancellationReason: reason },
+      }),
+      transformResponse: (res: ApiResponse<Appointment>) => unwrapResult(res),
+      invalidatesTags: ["Appointments"],
+    }),
+
+    deleteAppointment: builder.mutation<{ isSuccess: boolean }, string>({
+      query: (id) => ({
+        url: `/appointments/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Appointments"],
     }),
   }),
 })
@@ -92,5 +112,9 @@ export const appointmentsApi = createApi({
 export const {
   useCreateAppointmentMutation,
   useGetMyAppointmentsQuery,
+  useGetAppointmentsPageQuery,
+  useGetAppointmentQuery,
+  useUpdateAppointmentMutation,
   useCancelAppointmentMutation,
+  useDeleteAppointmentMutation,
 } = appointmentsApi

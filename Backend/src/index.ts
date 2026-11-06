@@ -1,4 +1,3 @@
-// src/index.ts
 import express from "express";
 import cors from "cors";
 import session from "express-session";
@@ -6,18 +5,6 @@ import dotenv from "dotenv";
 import googleAuth from "./helpers/PassportRouter";
 import passport from "./config/PassportConfig";
 import email from "./helpers/SendCode";
-import UserRoute from "./Routes/UserRouter";
-import dailyHealthLogRouter from "./Routes/dailyHealthLog.routes";
-import appointmentRouter from "./Routes/AppointmentRouter";
-import healthcareRouter from "./Routes/HealthcareRouter";
-import messageRouter from "./Routes/MessageRouter";
-import adminRouter from "./Routes/AdminRouter";
-import newsRouter from "./Routes/NewsRouter";
-import professionalApplicationRouter from "./Routes/ProfessionalApplicationRouter";
-import connectionRouter from "./Routes/ConnectionRouter";
-import professionalsRouter, {
-  professionalSelfRouter,
-} from "./Routes/ProfessionalsRouter";
 import refreshTokenRouter from "./helpers/secure/RefreshTokenRouter";
 import { auditMiddleware } from "./helpers/middleware/auditMiddleware";
 import {
@@ -25,15 +12,40 @@ import {
   csrfProtection,
   currentOrNewCsrf,
 } from "./helpers/middleware/csrf";
-import { ensureDefaultFeatureFlags } from "./services/featureFlag.service";
-import { backfillMissingHealthIds } from "./services/healthId.service";
+
+import authRouter from "./Routes/AuthRouter";
+import userRouter from "./Routes/UserRouter";
+import medicalProfileRouter from "./Routes/MedicalProfileRouter";
+import emergencyContactRouter from "./Routes/EmergencyContactRouter";
+import emergencyCardRouter from "./Routes/EmergencyCardRouter";
+import familyMemberRouter from "./Routes/FamilyMemberRouter";
+import allergyRouter from "./Routes/AllergyRouter";
+import chronicConditionRouter from "./Routes/ChronicConditionRouter";
+import medicationRouter from "./Routes/MedicationRouter";
+import medicalRecordRouter from "./Routes/MedicalRecordRouter";
+import medicalDocumentRouter from "./Routes/MedicalDocumentRouter";
+import diagnosisRouter from "./Routes/DiagnosisRouter";
+import vitalSignRouter from "./Routes/VitalSignRouter";
+import labResultRouter from "./Routes/LabResultRouter";
+import prescriptionRouter from "./Routes/PrescriptionRouter";
+import dailyHealthLogRouter from "./Routes/DailyHealthLogRouter";
+import healthDeviceRouter from "./Routes/HealthDeviceRouter";
+import publicDoctorRouter, { doctorSelfRouter } from "./Routes/DoctorRouter";
+import appointmentRouter from "./Routes/AppointmentRouter";
+import consultationRouter from "./Routes/ConsultationRouter";
+import doctorReviewRouter from "./Routes/DoctorReviewRouter";
+import paymentRouter from "./Routes/PaymentRouter";
+import notificationRouter from "./Routes/NotificationRouter";
+import consentRouter from "./Routes/ConsentRouter";
+import accessRequestRouter from "./Routes/AccessRequestRouter";
+import adminRouter from "./Routes/AdminRouter";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const isProd = process.env.NODE_ENV === "production";
-// done 
+
 const sessionSecret =
   process.env.SESSION_SECRET ||
   process.env.JWT_SECRET ||
@@ -85,19 +97,15 @@ const isPrivateHost = (hostname: string) => {
   return false;
 };
 
-const isAllowedVercelPreview = (hostname: string) => {
-  // Allow this project's Vercel production + preview / alias hosts
-  return (
-    hostname === "daryeel-healthtech.vercel.app" ||
-    hostname === "daryeel-healthtech-gamma.vercel.app" ||
-    hostname.endsWith(".daryeel-healthtech.vercel.app") ||
-    hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
-    /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname)
-  );
-};
+const isAllowedVercelPreview = (hostname: string) =>
+  hostname === "daryeel-healthtech.vercel.app" ||
+  hostname === "daryeel-healthtech-gamma.vercel.app" ||
+  hostname.endsWith(".daryeel-healthtech.vercel.app") ||
+  hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
+  /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
 
 const isAllowedOrigin = (origin?: string | null) => {
-  if (!origin) return true; // same-origin / server / mobile
+  if (!origin) return true;
   try {
     const normalized = normalizeOrigin(origin);
     if (allowedOrigins.includes(normalized)) return true;
@@ -113,10 +121,8 @@ const isAllowedOrigin = (origin?: string | null) => {
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Never pass Error here — that turns browser OPTIONS preflight into HTTP 500
-      if (isAllowedOrigin(origin)) {
-        callback(null, true);
-      } else {
+      if (isAllowedOrigin(origin)) callback(null, true);
+      else {
         console.warn("[CORS] blocked origin:", origin);
         callback(null, false);
       }
@@ -161,7 +167,6 @@ app.get("/api/v1/csrf", (req, res) => {
     res.status(200).json({ isSuccess: true, result: { csrfToken } });
   } catch (error: any) {
     console.error("[csrf]", error?.message || error);
-    // Still return a usable signed token so the SPA can sign in
     try {
       const csrfToken = createSignedCsrfToken();
       res.status(200).json({ isSuccess: true, result: { csrfToken } });
@@ -174,33 +179,44 @@ app.get("/api/v1/csrf", (req, res) => {
   }
 });
 
-// Routes
+// Auth
+app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/auth", googleAuth);
 app.use("/api/v1/auth/email", email);
 app.use("/api/v1/refresh", refreshTokenRouter);
-app.use("/api/v1/user", UserRoute);
-app.use("/api/v1/daily-health-log", dailyHealthLogRouter);
+
+// Core
+app.use("/api/v1/users", userRouter);
+app.use("/api/v1/user", userRouter); // backward-compatible alias
+app.use("/api/v1/medical-profile", medicalProfileRouter);
+app.use("/api/v1/emergency-contacts", emergencyContactRouter);
+app.use("/api/v1/emergency-card", emergencyCardRouter);
+app.use("/api/v1/family-members", familyMemberRouter);
+app.use("/api/v1/allergies", allergyRouter);
+app.use("/api/v1/chronic-conditions", chronicConditionRouter);
+app.use("/api/v1/medications", medicationRouter);
+app.use("/api/v1/medical-records", medicalRecordRouter);
+app.use("/api/v1/medical-documents", medicalDocumentRouter);
+app.use("/api/v1/diagnoses", diagnosisRouter);
+app.use("/api/v1/vital-signs", vitalSignRouter);
+app.use("/api/v1/lab-results", labResultRouter);
+app.use("/api/v1/prescriptions", prescriptionRouter);
+app.use("/api/v1/daily-health-logs", dailyHealthLogRouter);
+app.use("/api/v1/health-devices", healthDeviceRouter);
+
+// Care delivery
+app.use("/api/v1/doctors", publicDoctorRouter);
+app.use("/api/v1/doctor", doctorSelfRouter);
 app.use("/api/v1/appointments", appointmentRouter);
-app.use("/api/v1/healthcare", healthcareRouter);
-app.use("/api/v1/messages", messageRouter);
+app.use("/api/v1/consultations", consultationRouter);
+app.use("/api/v1/doctor-reviews", doctorReviewRouter);
+app.use("/api/v1/payments", paymentRouter);
+app.use("/api/v1/notifications", notificationRouter);
+app.use("/api/v1/consents", consentRouter);
+app.use("/api/v1/access-requests", accessRequestRouter);
+
+// Admin
 app.use("/api/v1/admin", adminRouter);
-app.use("/api/v1/news", newsRouter);
-app.use("/api/v1/professional-applications", professionalApplicationRouter);
-app.use("/api/v1/connections", connectionRouter);
-app.use("/api/v1/professionals", professionalsRouter);
-app.use("/api/v1/professional", professionalSelfRouter);
-
-void ensureDefaultFeatureFlags().catch((err) =>
-  console.error("Feature flag seed skipped:", err?.message || err)
-);
-
-void backfillMissingHealthIds()
-  .then((n) => {
-    if (n > 0) console.log(`Backfilled ${n} missing Patient/Health IDs`);
-  })
-  .catch((err) =>
-    console.error("Health ID backfill skipped:", err?.message || err)
-  );
 
 app.get("/", (_req, res) => {
   res.send("Daryeel Healthtech API");
@@ -222,7 +238,9 @@ app.use(
     if (res.headersSent) return;
     res.status(status).json({
       isSuccess: false,
-      message: isProd ? "Internal server error" : err?.message || "Internal server error",
+      message: isProd
+        ? "Internal server error"
+        : err?.message || "Internal server error",
       status,
     });
   }
@@ -235,9 +253,27 @@ app.all("/{*splat}", (_req, res) => {
   });
 });
 
-// Vercel serverless needs the exported app; listen only for local/dev.
 export default app;
 
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));
+  const server = app.listen(PORT, () =>
+    console.log(`🚀 Server is running on PORT ${PORT}`)
+  );
+
+  const shutdown = async (signal: string) => {
+    console.log(`${signal} received — closing server & Prisma…`);
+    server.close(async () => {
+      try {
+        const { disconnectPrisma } = await import("./lib/prisma");
+        await disconnectPrisma();
+      } catch {
+        /* ignore */
+      }
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+
+  process.once("SIGINT", () => void shutdown("SIGINT"));
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
 }

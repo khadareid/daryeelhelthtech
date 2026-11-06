@@ -1,15 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PayInvoiceSheet } from '@/components/pay-invoice-sheet';
 import { Screen } from '@/components/screen';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
+  createPaymentRequest,
+  getMyDoctorRequest,
   listAppointmentsRequest,
+  updateAppointmentRequest,
   type AppointmentItem,
+  type DoctorMe,
 } from '@/lib/api';
+import { enumLabel } from '@/lib/enums';
+import { localPayLabel, type InvoiceDraft } from '@/lib/payments';
 
 const TABS = ['Upcoming', 'Past', 'All'] as const;
+
+const DOCTOR_STATUSES = [
+  'PENDING',
+  'CONFIRMED',
+  'CHECKED_IN',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+  'REJECTED',
+  'NO_SHOW',
+] as const;
 
 type ApptRow = {
   id: string;
@@ -18,43 +36,80 @@ type ApptRow = {
   status: string;
   detail?: string;
   isPast: boolean;
+  rawStatus: string;
+  feeLabel: string;
+  needsPay: boolean;
+  raw: AppointmentItem;
 };
 
+function feeOf(a: AppointmentItem) {
+  const amount = Number(a.consultationFee || 0);
+  if (!a.paymentRequired || amount <= 0) return 'Free';
+  return `${a.currency || 'USD'} ${amount.toFixed(2)}`;
+}
+
 export default function AppointmentsScreen() {
-  const { profile, refreshProfile, accessToken, isAuthenticated } = useAuth();
+  const { accessToken, isAuthenticated, refreshProfile, user } = useAuth();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Upcoming');
+  const [mode, setMode] = useState<'patient' | 'doctor'>('patient');
+  const [doctor, setDoctor] = useState<DoctorMe | null>(null);
   const [remote, setRemote] = useState<AppointmentItem[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [invoice, setInvoice] = useState<InvoiceDraft | null>(null);
+  const [paying, setPaying] = useState(false);
+
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(
+    String(user?.role || '').toUpperCase(),
+  );
 
   const loadRemote = useCallback(async () => {
     if (!isAuthenticated || !accessToken) {
       setRemote([]);
+      setDoctor(null);
       return;
     }
     try {
-      setRemote(await listAppointmentsRequest(accessToken));
+      const me = await getMyDoctorRequest(accessToken);
+      setDoctor(me);
+      const asDoctor = Boolean(me?.id) && mode === 'doctor';
+      setRemote(
+        await listAppointmentsRequest(
+          accessToken,
+          asDoctor ? { as: 'doctor' } : undefined,
+        ),
+      );
     } catch {
       setRemote([]);
     }
-  }, [accessToken, isAuthenticated]);
+  }, [accessToken, isAuthenticated, mode]);
 
   useEffect(() => {
     loadRemote();
   }, [loadRemote]);
 
-  const appointments = useMemo(() => {
-    const live =
-      remote.length > 0 ? remote : profile?.appointments ?? [];
-    const now = Date.now();
+  useEffect(() => {
+    if (doctor?.id) setMode('doctor');
+  }, [doctor?.id]);
 
-    const rows: ApptRow[] = live.map((item) => {
+  const appointments = useMemo(() => {
+    const now = Date.now();
+    const terminal = new Set(['COMPLETED', 'CANCELLED', 'NO_SHOW', 'REJECTED']);
+
+    const rows: ApptRow[] = remote.map((item) => {
       const time = new Date(item.scheduledAt).getTime();
+      const past = time < now || terminal.has(item.status);
+      const title =
+        mode === 'doctor'
+          ? item.user?.fullName || item.appointmentCode || 'Patient'
+          : item.doctor?.fullName || item.appointmentCode || 'Visit';
+      const needsPay =
+        mode === 'patient' &&
+        Boolean(item.paymentRequired) &&
+        Number(item.consultationFee || 0) > 0 &&
+        !['PAID', 'REFUNDED'].includes(String(item.paymentStatus || ''));
       return {
-        id: item.appointmentid,
-        title:
-          item.doctorName ||
-          item.facilityName ||
-          item.appointmentCode ||
-          'Visit',
+        id: item.id,
+        title,
         when: new Date(item.scheduledAt).toLocaleString(undefined, {
           weekday: 'short',
           month: 'short',
@@ -63,29 +118,91 @@ export default function AppointmentsScreen() {
           hour: 'numeric',
           minute: '2-digit',
         }),
-        status: item.status.replace(/_/g, ' '),
-        detail: item.reason || undefined,
-        isPast: time < now,
+        status: enumLabel(item.status),
+        rawStatus: item.status,
+        detail:
+          item.reason ||
+          item.doctor?.specialty ||
+          item.doctor?.clinicName ||
+          undefined,
+        isPast: past,
+        feeLabel: feeOf(item),
+        needsPay,
+        raw: item,
       };
     });
 
     if (tab === 'Upcoming') return rows.filter((item) => !item.isPast);
     if (tab === 'Past') return rows.filter((item) => item.isPast);
     return rows;
-  }, [profile?.appointments, remote, tab]);
+  }, [remote, tab, mode]);
+
+  const setStatus = async (id: string, status: string) => {
+    if (!accessToken) return;
+    setBusyId(id);
+    try {
+      await updateAppointmentRequest(id, { status }, accessToken);
+      await loadRemote();
+    } catch {
+      Alert.alert('Update failed', 'Could not update this visit.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openPayInvoice = (item: ApptRow) => {
+    const a = item.raw;
+    setInvoice({
+      appointmentId: a.id,
+      appointmentCode: a.appointmentCode,
+      doctorName: a.doctor?.fullName || 'Doctor',
+      patientName: a.user?.fullName,
+      scheduledAt: a.scheduledAt,
+      amount: Number(a.consultationFee || 0),
+      currency: a.currency || 'USD',
+      reason: a.reason,
+    });
+  };
 
   return (
     <Screen
       onRefresh={async () => {
         await Promise.all([refreshProfile(), loadRemote()]);
       }}
-      headerTitle="Appointments">
+      headerTitle="Visits">
       <View>
-        <Text style={styles.title}>Appointments</Text>
+        <Text style={styles.title}>Visits</Text>
         <Text style={styles.subtitle}>
-          Your booked visits — book from a doctor profile
+          Free doctors need no payment. Pay now opens invoice (Zaad, eDahab…).
         </Text>
       </View>
+
+      {doctor ? (
+        <View style={styles.modeRow}>
+          <Pressable
+            onPress={() => setMode('doctor')}
+            style={[styles.modeChip, mode === 'doctor' && styles.modeChipOn]}>
+            <Text
+              style={[
+                styles.modeText,
+                mode === 'doctor' && styles.modeTextOn,
+              ]}>
+              Doctor inbox
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setMode('patient')}
+            style={[styles.modeChip, mode === 'patient' && styles.modeChipOn]}>
+            <Text
+              style={[
+                styles.modeText,
+                mode === 'patient' && styles.modeTextOn,
+              ]}>
+              My bookings
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.tabs}>
         {TABS.map((item) => {
@@ -104,27 +221,123 @@ export default function AppointmentsScreen() {
       </View>
 
       <View style={styles.list}>
-        {appointments.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <View style={styles.cardTop}>
-              <Text style={styles.doctor}>{item.title}</Text>
-              <Text style={styles.status}>{item.status}</Text>
+        {appointments.map((item) => {
+          const pending = ['PENDING', 'RESCHEDULE_REQUESTED'].includes(
+            item.rawStatus,
+          );
+          const canManage = mode === 'doctor' || isAdmin;
+          return (
+            <View key={item.id} style={styles.card}>
+              <View style={styles.cardTop}>
+                <Text style={styles.doctor}>{item.title}</Text>
+                <Text style={styles.status}>{item.status}</Text>
+              </View>
+              <Text style={styles.when}>{item.when}</Text>
+              <Text style={styles.fee}>
+                {item.feeLabel} · {item.raw.paymentStatus || 'PENDING'}
+              </Text>
+              {item.detail ? (
+                <Text style={styles.reason}>{item.detail}</Text>
+              ) : null}
+
+              {canManage ? (
+                <View style={styles.statusRow}>
+                  {DOCTOR_STATUSES.map((s) => (
+                    <Pressable
+                      key={s}
+                      disabled={busyId === item.id || item.rawStatus === s}
+                      onPress={() => setStatus(item.id, s)}
+                      style={[
+                        styles.statusChip,
+                        item.rawStatus === s && styles.statusChipOn,
+                      ]}>
+                      <Text
+                        style={[
+                          styles.statusChipText,
+                          item.rawStatus === s && styles.statusChipTextOn,
+                        ]}>
+                        {s.replace(/_/g, ' ')}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.actions}>
+                {mode === 'doctor' && pending ? (
+                  <Pressable
+                    disabled={busyId === item.id}
+                    onPress={() => setStatus(item.id, 'CONFIRMED')}
+                    style={[styles.actionBtn, styles.confirmBtn]}>
+                    <Text style={styles.confirmText}>Confirm</Text>
+                  </Pressable>
+                ) : null}
+                {item.needsPay ? (
+                  <Pressable
+                    disabled={busyId === item.id || paying}
+                    onPress={() => openPayInvoice(item)}
+                    style={[styles.actionBtn, styles.confirmBtn]}>
+                    <Text style={styles.confirmText}>Pay {item.feeLabel}</Text>
+                  </Pressable>
+                ) : null}
+                {mode === 'patient' &&
+                !['CANCELLED', 'COMPLETED', 'REJECTED'].includes(
+                  item.rawStatus,
+                ) ? (
+                  <Pressable
+                    disabled={busyId === item.id}
+                    onPress={() => setStatus(item.id, 'CANCELLED')}
+                    style={[styles.actionBtn, styles.declineBtn]}>
+                    <Text style={styles.declineText}>Cancel</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
-            <Text style={styles.when}>{item.when}</Text>
-            {item.detail ? <Text style={styles.reason}>{item.detail}</Text> : null}
-          </View>
-        ))}
+          );
+        })}
 
         {appointments.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No appointments in this tab</Text>
+            <Text style={styles.emptyTitle}>No visits in this tab</Text>
             <Text style={styles.emptyText}>
-              Book a doctor from the Doctors tab. Confirmed visits from your
-              account will show here automatically.
+              Book a doctor from Doctors. Free doctors auto-mark payment as Free;
+              paid doctors need Pay now.
             </Text>
           </View>
         ) : null}
       </View>
+
+      <PayInvoiceSheet
+        open={Boolean(invoice)}
+        invoice={invoice}
+        busy={paying}
+        onClose={() => setInvoice(null)}
+        onPay={async ({ method, provider, phone }) => {
+          if (!accessToken || !invoice) return;
+          setPaying(true);
+          try {
+            await createPaymentRequest(
+              {
+                appointmentId: invoice.appointmentId,
+                amount: invoice.amount,
+                currency: invoice.currency,
+                method,
+                status: 'PAID',
+                provider,
+                transactionId: phone,
+              },
+              accessToken,
+            );
+            setInvoice(null);
+            await loadRemote();
+            Alert.alert('Paid', `Paid with ${localPayLabel(provider, method)}`);
+          } catch {
+            Alert.alert('Payment failed');
+          } finally {
+            setPaying(false);
+          }
+        }}
+      />
     </Screen>
   );
 }
@@ -140,6 +353,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Brand.muted,
     marginTop: 4,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeChip: {
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    backgroundColor: Brand.white,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  modeChipOn: {
+    backgroundColor: Brand.primary,
+    borderColor: Brand.primary,
+  },
+  modeText: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    color: Brand.muted,
+  },
+  modeTextOn: {
+    color: Brand.white,
   },
   tabs: {
     flexDirection: 'row',
@@ -203,10 +440,70 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Brand.muted,
   },
+  fee: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    color: Brand.dark,
+  },
   reason: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    color: Brand.text,
+    color: Brand.dark,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  statusChip: {
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: Brand.bg,
+  },
+  statusChipOn: {
+    backgroundColor: Brand.primary,
+    borderColor: Brand.primary,
+  },
+  statusChipText: {
+    fontFamily: Fonts.medium,
+    fontSize: 10,
+    color: Brand.muted,
+  },
+  statusChipTextOn: {
+    color: Brand.white,
+  },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  actionBtn: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  confirmBtn: {
+    backgroundColor: Brand.primary,
+  },
+  confirmText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    color: Brand.white,
+  },
+  declineBtn: {
+    backgroundColor: Brand.light,
+    borderWidth: 1,
+    borderColor: Brand.border,
+  },
+  declineText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    color: Brand.dark,
   },
   emptyCard: {
     backgroundColor: Brand.white,
@@ -214,7 +511,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Brand.border,
     padding: Spacing.four,
-    gap: Spacing.two,
+    gap: 6,
   },
   emptyTitle: {
     fontFamily: Fonts.semibold,
@@ -223,8 +520,8 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontFamily: Fonts.regular,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
     color: Brand.muted,
+    lineHeight: 18,
   },
 });

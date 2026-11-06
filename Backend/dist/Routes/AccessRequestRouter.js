@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const AccessRequestController_1 = require("../Controllers/AccessRequestController");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const router = (0, express_1.Router)();
+router.use(VerifyToken_1.decodeToken);
+router.get("/", AccessRequestController_1.list);
+router.post("/", AccessRequestController_1.create);
+router.patch("/:id", AccessRequestController_1.respond);
+router.put("/:id", AccessRequestController_1.respond);
+exports.default = router;

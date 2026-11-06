@@ -37,7 +37,7 @@ export default function DoctorsScreen() {
         doctor.name.toLowerCase().includes(q) ||
         doctor.specialty.toLowerCase().includes(q) ||
         doctor.city.toLowerCase().includes(q) ||
-        doctor.hospitalName.toLowerCase().includes(q);
+        doctor.clinicName.toLowerCase().includes(q);
 
       return (
         matchesQuery && specialtyMatchesCategory(doctor.specialty, category)
@@ -48,10 +48,7 @@ export default function DoctorsScreen() {
   const availableCount = doctors.filter((d) => d.availableToday).length;
 
   return (
-    <Screen
-      onRefresh={refresh}
-      refreshing={loading}
-      headerTitle="Doctors">
+    <Screen onRefresh={refresh} refreshing={loading} headerTitle="Doctors">
       <View
         style={[
           styles.heroCard,
@@ -64,7 +61,7 @@ export default function DoctorsScreen() {
           Find a doctor
         </Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Browse live clinicians by specialty, hospital, and availability.
+          Browse verified clinicians by specialty, clinic, and availability.
         </Text>
         <View style={styles.statsRow}>
           <MiniStat
@@ -99,7 +96,7 @@ export default function DoctorsScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Search name, specialty, hospital"
+          placeholder="Search name, specialty, clinic"
           placeholderTextColor={theme.textSecondary}
           style={[styles.searchInput, { color: theme.text }]}
         />
@@ -143,13 +140,19 @@ export default function DoctorsScreen() {
         <Text style={[styles.sectionLabel, { color: theme.brandDark }]}>
           Profiles & ratings
         </Text>
-        <Text style={{ color: theme.textSecondary, fontFamily: Fonts.medium, fontSize: 12 }}>
+        <Text
+          style={{
+            color: theme.textSecondary,
+            fontFamily: Fonts.medium,
+            fontSize: 12,
+          }}>
           {filtered.length} found
         </Text>
       </View>
 
+      {loading && doctors.length === 0 ? <ListSkeleton rows={4} /> : null}
+
       <View style={styles.list}>
-        {loading && filtered.length === 0 ? <ListSkeleton rows={5} /> : null}
         {filtered.map((doctor) => (
           <DoctorListCard
             key={doctor.id}
@@ -181,14 +184,14 @@ function MiniStat({
   return (
     <View
       style={[
-        styles.miniStat,
+        styles.stat,
         {
           backgroundColor: theme.backgroundSelected,
-          paddingVertical: compact ? 8 : 10,
+          paddingHorizontal: compact ? 10 : 14,
         },
       ]}>
-      <Text style={[styles.miniValue, { color: theme.brandDark }]}>{value}</Text>
-      <Text style={[styles.miniLabel, { color: theme.textSecondary }]}>
+      <Text style={[styles.statValue, { color: theme.brandDark }]}>{value}</Text>
+      <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
         {label}
       </Text>
     </View>
@@ -197,107 +200,46 @@ function MiniStat({
 
 const styles = StyleSheet.create({
   heroCard: {
-    borderWidth: 1,
     borderRadius: Radius.xl,
+    borderWidth: 1,
     padding: Spacing.four,
-    gap: Spacing.two,
+    gap: 6,
   },
-  title: {
-    fontFamily: Fonts.bold,
-    fontSize: 26,
-  },
-  subtitle: {
-    fontFamily: Fonts.regular,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-  },
-  miniStat: {
+  title: { fontFamily: Fonts.bold, fontSize: 24 },
+  subtitle: { fontFamily: Fonts.regular, fontSize: 13, lineHeight: 18 },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  stat: {
     flex: 1,
     borderRadius: Radius.md,
+    paddingVertical: 10,
     alignItems: 'center',
-    gap: 2,
   },
-  miniValue: {
-    fontFamily: Fonts.bold,
-    fontSize: 18,
-  },
-  miniLabel: {
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-  },
+  statValue: { fontFamily: Fonts.bold, fontSize: 16 },
+  statLabel: { fontFamily: Fonts.medium, fontSize: 11, marginTop: 2 },
   searchBox: {
     borderRadius: Radius.full,
     borderWidth: 1,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.four,
   },
   searchInput: {
-    minHeight: 48,
     fontFamily: Fonts.regular,
-    fontSize: 14,
+    fontSize: 15,
+    paddingVertical: 12,
   },
-  sectionLabel: {
-    fontFamily: Fonts.semibold,
-    fontSize: 16,
-  },
-  filters: {
-    gap: Spacing.two,
-    paddingRight: Spacing.two,
-  },
+  sectionLabel: { fontFamily: Fonts.semibold, fontSize: 15 },
+  filters: { gap: 8, paddingVertical: 2 },
   chip: {
     borderRadius: Radius.full,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  chipText: {
-    fontFamily: Fonts.medium,
-    fontSize: 13,
-  },
-  apptRow: {
-    gap: Spacing.three,
-    paddingRight: Spacing.two,
-  },
-  apptCard: {
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-    padding: Spacing.three,
-    gap: 3,
-  },
-  apptName: {
-    fontFamily: Fonts.semibold,
-    fontSize: 14,
-  },
-  apptMeta: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  apptStatus: {
-    marginTop: 6,
-    alignSelf: 'flex-start',
-    fontFamily: Fonts.medium,
-    fontSize: 11,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-  },
+  chipText: { fontFamily: Fonts.medium, fontSize: 12 },
   listHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  list: {
-    gap: Spacing.three,
-  },
-  empty: {
-    fontFamily: Fonts.regular,
-    textAlign: 'center',
-    marginTop: Spacing.four,
-  },
+  list: { gap: Spacing.three },
+  empty: { fontFamily: Fonts.regular, fontSize: 13, paddingVertical: 12 },
 });

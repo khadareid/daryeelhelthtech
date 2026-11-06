@@ -10,11 +10,7 @@ import {
   ClipboardList,
   FlaskConical,
   HeartPulse,
-  LayoutDashboard,
-  MapPin,
-  Phone,
   Pill,
-  Settings,
   ShieldCheck,
   Star,
   Stethoscope,
@@ -24,44 +20,41 @@ import { Button } from "@/components/ui/button"
 import { siteConfig } from "@/config/site"
 import { RootState } from "@/Redex/store/store"
 import {
-  doctorName,
+  doctorDisplayName,
   doctorPhoto,
-  hospitalCover,
-  useGetPublicCareTeamQuery,
-  useGetPublicHospitalsQuery,
-} from "@/Redex/service/hospitals/HospitalsApi"
-import { useGetPublicCmsQuery } from "@/Redex/service/admin/AdminApi"
+  useListDoctorsQuery,
+} from "@/Redex/service/doctors/DoctorsApi"
 
 const SERVICES = [
   {
     icon: Stethoscope,
-    title: "General Medicine",
-    desc: "Primary care, check-ups, and long-term condition support.",
+    title: "Find doctors",
+    desc: "Browse verified clinicians and book visits in minutes.",
   },
   {
-    icon: Baby,
-    title: "Maternity & Midwifery",
-    desc: "Antenatal, delivery, and postnatal care with certified midwives.",
+    icon: HeartPulse,
+    title: "Health records",
+    desc: "Allergies, meds, vitals, labs, and prescriptions in one place.",
   },
   {
     icon: FlaskConical,
-    title: "Laboratory",
-    desc: "Clear diagnostics with quick turnaround for common tests.",
+    title: "Daily wellness",
+    desc: "Log mood, sleep, steps, and water from your dashboard.",
   },
   {
     icon: Pill,
-    title: "Pharmacy",
-    desc: "Prescriptions, refill reminders, and on-site medication support.",
+    title: "Medications",
+    desc: "Track what you take and keep prescriptions handy.",
   },
   {
-    icon: Activity,
-    title: "Health Tracking",
-    desc: "Log mood, sleep, steps, and water from your personal dashboard.",
+    icon: Baby,
+    title: "Family care",
+    desc: "Add family members and manage care for dependents.",
   },
   {
     icon: ShieldCheck,
-    title: "Emergency Support",
-    desc: "Reach the care line quickly when you need help right away.",
+    title: "Emergency card",
+    desc: "Critical allergies and contacts ready when it matters.",
   },
 ]
 
@@ -74,7 +67,7 @@ const STEPS = [
   {
     icon: Calendar,
     title: "Book your visit",
-    desc: "Pick the care you need and a time that works for your family.",
+    desc: "Pick a doctor and a time that works for your family.",
   },
   {
     icon: ClipboardList,
@@ -86,7 +79,7 @@ const STEPS = [
 const STORIES = [
   {
     name: "Fadumo A.",
-    role: "Patient",
+    role: "Member",
     image: "/images/patient-fadumo.jpg",
     text: "Booking was simple, and I could see my results without waiting around.",
   },
@@ -100,7 +93,7 @@ const STORIES = [
     name: "Khadra Y.",
     role: "New mother",
     image: "/images/patient-khadra.jpg",
-    text: "The midwifery support stayed with me through every step of pregnancy.",
+    text: "Having my emergency card and allergies ready gave me peace of mind.",
   },
 ]
 
@@ -108,22 +101,9 @@ export default function HomePage() {
   const location = useLocation()
   const session = useSelector((state: RootState) => state.userInfo)
   const signedIn = Boolean(session.isAuthenticated && session.userId)
-  const { data: careTeam = [], isLoading: careLoading } =
-    useGetPublicCareTeamQuery()
-  const { data: hospitalsData, isLoading: hospitalsLoading } =
-    useGetPublicHospitalsQuery({ page: 1, limit: 9 })
-  const hospitals = hospitalsData?.data ?? []
-  const { data: cmsRow } = useGetPublicCmsQuery("homepage")
-  const cms = (cmsRow?.data || {}) as {
-    brand?: string
-    headline?: string
-    subheadline?: string
-    heroImageUrl?: string
-    ctaPrimary?: { label?: string; href?: string }
-    ctaSecondary?: { label?: string; href?: string }
-    servicesTitle?: string
-    services?: { title: string; desc: string }[]
-  }
+  const { data: doctors = [], isLoading: careLoading } = useListDoctorsQuery({
+    limit: 8,
+  })
 
   useEffect(() => {
     if (!location.hash) return
@@ -132,31 +112,11 @@ export default function HomePage() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
   }, [location.hash])
 
-  const brand = cms.brand || siteConfig.appName
-  const headline = cms.headline || "Better care, closer to home."
-  const subheadline =
-    cms.subheadline ||
-    "Book visits, meet trusted clinicians, and keep your health record in one simple place — built for families across Somaliland."
-  const heroSrc = cms.heroImageUrl || "/images/hero-care.jpg"
-  const primaryCta = {
-    label:
-      cms.ctaPrimary?.label ||
-      (signedIn ? "Open dashboard" : "Create free account"),
-    href:
-      cms.ctaPrimary?.href || (signedIn ? "/dashboard" : "/SignUp"),
-  }
-  const secondaryCta = {
-    label: cms.ctaSecondary?.label || "Meet the care team",
-    href: cms.ctaSecondary?.href || "/doctors",
-  }
-  const cmsServices = Array.isArray(cms.services) ? cms.services : []
-
   return (
     <div className="bg-brand-bg">
-      {/* Hero — brand + one message + CTAs over a full-bleed photo */}
       <section className="relative min-h-[78vh] overflow-hidden text-white">
         <img
-          src={heroSrc}
+          src="/images/hero-care.jpg"
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
           loading="eager"
@@ -166,13 +126,14 @@ export default function HomePage() {
 
         <div className="container-page relative flex min-h-[78vh] flex-col justify-center py-16 sm:py-20">
           <p className="font-heading text-sm font-semibold tracking-[0.22em] text-blue-100 uppercase">
-            {brand}
+            {siteConfig.appName}
           </p>
           <h1 className="mt-4 max-w-3xl font-heading text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-            {headline}
+            Better care, closer to home.
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-blue-50/90 sm:text-lg">
-            {subheadline}
+            Book visits, meet trusted clinicians, and keep your health record in
+            one simple place — built for families across Somaliland.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -181,8 +142,8 @@ export default function HomePage() {
               size="lg"
               className="h-12 bg-white px-6 text-primary hover:bg-blue-50"
             >
-              <Link to={primaryCta.href}>
-                {primaryCta.label}
+              <Link to={signedIn ? "/dashboard" : "/SignUp"}>
+                {signedIn ? "Open dashboard" : "Create free account"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -192,7 +153,7 @@ export default function HomePage() {
               variant="outline"
               className="h-12 border-white/40 bg-white/10 px-6 text-white hover:bg-white/15 hover:text-white"
             >
-              <Link to={secondaryCta.href}>{secondaryCta.label}</Link>
+              <Link to="/doctors">Meet the care team</Link>
             </Button>
           </div>
 
@@ -220,23 +181,15 @@ export default function HomePage() {
               Services
             </p>
             <h2 className="mt-2 font-heading text-3xl font-bold text-brand-dark sm:text-4xl">
-              {cms.servicesTitle || "Care for every stage of life"}
+              Care for every stage of life
             </h2>
             <p className="mt-3 text-muted-foreground">
-              From first check-ups to maternity, labs, pharmacy, and daily health
-              tracking — one clear platform.
+              From first check-ups to daily health tracking — one clear platform.
             </p>
           </div>
 
           <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {(cmsServices.length > 0
-              ? cmsServices.map((s) => ({
-                  icon: Stethoscope,
-                  title: s.title,
-                  desc: s.desc,
-                }))
-              : SERVICES
-            ).map(({ icon: Icon, title, desc }) => (
+            {SERVICES.map(({ icon: Icon, title, desc }) => (
               <div key={title} className="group">
                 <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-light text-primary transition group-hover:bg-primary group-hover:text-white">
                   <Icon className="h-6 w-6" />
@@ -262,9 +215,6 @@ export default function HomePage() {
             <h2 className="mt-2 font-heading text-3xl font-bold text-brand-dark sm:text-4xl">
               Three clear steps
             </h2>
-            <p className="mt-3 text-muted-foreground">
-              Start today. No paperwork pile. No confusing clinic apps.
-            </p>
           </div>
 
           <div className="mt-12 grid gap-10 md:grid-cols-3">
@@ -288,74 +238,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="hospitals" className="scroll-mt-20 border-y border-blue-100 bg-white py-20">
-        <div className="container-page">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-sm font-semibold tracking-wide text-primary uppercase">
-                Hospitals
-              </p>
-              <h2 className="mt-2 font-heading text-3xl font-bold text-brand-dark sm:text-4xl">
-                Facilities on Daryeel
-              </h2>
-              <p className="mt-3 text-muted-foreground">
-                Live hospitals from the SaaS network — open a facility to see its
-                clinicians.
-              </p>
-            </div>
-            <Button asChild variant="outline" className="border-primary/20">
-              <Link to="/hospitals">
-                View all hospitals
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {hospitalsLoading
-              ? Array.from({ length: 3 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-64 animate-pulse rounded-3xl bg-slate-100"
-                  />
-                ))
-              : hospitals.slice(0, 6).map((hospital) => (
-                  <Link
-                    key={hospital.tenantId}
-                    to={`/hospitals/${hospital.tenantId}`}
-                    className="group overflow-hidden rounded-3xl border border-blue-100 bg-brand-bg transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <img
-                      src={hospitalCover(hospital)}
-                      alt={hospital.companyName}
-                      className="h-40 w-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="space-y-1 p-4">
-                      <h3 className="font-heading text-lg font-semibold text-brand-dark group-hover:text-primary">
-                        {hospital.companyName}
-                      </h3>
-                      <p className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {[hospital.city, hospital.country]
-                          .filter(Boolean)
-                          .join(", ") || "Somaliland"}
-                      </p>
-                      <p className="text-sm font-medium text-primary">
-                        ★ {Number(hospital.rating || 0).toFixed(1)}
-                        {typeof hospital._count?.professionalProfiles ===
-                        "number"
-                          ? ` · ${hospital._count.professionalProfiles} doctors`
-                          : ""}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="team" className="scroll-mt-20 py-20">
+      <section id="doctors" className="scroll-mt-20 py-20">
         <div className="container-page">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="max-w-2xl">
@@ -363,80 +246,51 @@ export default function HomePage() {
                 Care team
               </p>
               <h2 className="mt-2 font-heading text-3xl font-bold text-brand-dark sm:text-4xl">
-                Clinicians you can trust
+                Doctors on Daryeel
               </h2>
-              <p className="mt-3 text-muted-foreground">
-                Real clinicians from Daryeel hospitals — specialty, hospital, and
-                visit fees from the live API.
-              </p>
             </div>
-            <Button asChild variant="outline" className="border-primary/20">
-              <Link to="/doctors">
-                See all clinicians
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+            <Button asChild variant="outline">
+              <Link to="/doctors">View all</Link>
             </Button>
           </div>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {careLoading
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="aspect-[4/5] animate-pulse rounded-3xl bg-brand-light"
-                  />
-                ))
-              : careTeam.slice(0, 8).map((doctor) => (
-                  <Link
-                    key={doctor.professionalProfileId || doctor.doctorId}
-                    to={`/doctors/${encodeURIComponent(
-                      doctor.doctorId ||
-                        doctor.user?.userId ||
-                        doctor.professionalProfileId,
-                    )}?hospital=${encodeURIComponent(doctor.hospitalId)}`}
-                    className="group"
-                  >
-                    <article className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-brand-light">
+          {careLoading ? (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-48 animate-pulse rounded-3xl bg-white" />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {doctors.slice(0, 4).map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/doctors/${d.id}`}
+                  className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm transition hover:border-primary/30"
+                >
+                  <div className="aspect-[4/3] bg-brand-light">
+                    {doctorPhoto(d) ? (
                       <img
-                        src={doctorPhoto(doctor)}
-                        alt={doctorName(doctor)}
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-                        loading="lazy"
+                        src={doctorPhoto(d)}
+                        alt=""
+                        className="h-full w-full object-cover"
                       />
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-brand-dark/85 via-brand-dark/35 to-transparent p-4 pt-16 text-white">
-                        <h3 className="font-heading text-base font-semibold">
-                          {doctorName(doctor)}
-                        </h3>
-                        <p className="text-sm text-blue-100">
-                          {doctor.specialization || "General Physician"}
-                        </p>
-                        <p className="mt-1 inline-flex items-center gap-1 text-xs text-blue-100/90">
-                          <MapPin className="h-3 w-3" />
-                          {doctor.city || "Somaliland"} · {doctor.hospitalName}
-                        </p>
-                        {doctor.consultationFee ? (
-                          <p className="mt-1 text-xs text-amber-200">
-                            {doctor.currency || "USD"} {doctor.consultationFee}
-                            {doctor.yearsOfExperience
-                              ? ` · ${doctor.yearsOfExperience}+ yrs`
-                              : ""}
-                          </p>
-                        ) : null}
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-3xl font-bold text-primary/30">
+                        {doctorDisplayName(d).slice(0, 1)}
                       </div>
-                    </article>
-                  </Link>
-                ))}
-          </div>
-
-          {!careLoading && careTeam.length === 0 ? (
-            <p className="mt-10 text-center text-sm text-muted-foreground">
-              No public clinicians published yet. Browse{" "}
-              <Link to="/hospitals" className="font-medium text-primary">
-                hospitals
-              </Link>{" "}
-              to explore facilities.
-            </p>
-          ) : null}
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <p className="font-heading font-bold text-brand-dark">
+                      {doctorDisplayName(d)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{d.specialty}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -444,40 +298,28 @@ export default function HomePage() {
         <div className="container-page">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold tracking-wide text-primary uppercase">
-              Patient stories
+              Stories
             </p>
-            <h2 className="mt-2 font-heading text-3xl font-bold text-brand-dark sm:text-4xl">
-              Families feel the difference
+            <h2 className="mt-2 font-heading text-3xl font-bold text-brand-dark">
+              Families trust Daryeel
             </h2>
-            <p className="mt-3 text-muted-foreground">
-              Sample stories that reflect the tone of care we aim for.
-            </p>
           </div>
-
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {STORIES.map((story) => (
-              <blockquote key={story.name} className="flex flex-col">
-                <div className="mb-4 flex gap-0.5 text-amber-400">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <p className="flex-1 text-base leading-relaxed text-brand-text">
-                  “{story.text}”
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {STORIES.map((s) => (
+              <blockquote
+                key={s.name}
+                className="rounded-3xl border border-blue-100 bg-brand-bg/60 p-6"
+              >
+                <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                <p className="mt-4 text-sm leading-relaxed text-brand-dark">
+                  “{s.text}”
                 </p>
-                <footer className="mt-6 flex items-center gap-3">
-                  <img
-                    src={story.image}
-                    alt=""
-                    className="h-11 w-11 rounded-full object-cover ring-2 ring-brand-light"
-                    loading="lazy"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-brand-dark">
-                      {story.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{story.role}</p>
-                  </div>
+                <footer className="mt-4 text-sm font-semibold text-brand-dark">
+                  {s.name}
+                  <span className="font-normal text-muted-foreground">
+                    {" "}
+                    · {s.role}
+                  </span>
                 </footer>
               </blockquote>
             ))}
@@ -487,64 +329,40 @@ export default function HomePage() {
 
       <section id="contact" className="scroll-mt-20 py-20">
         <div className="container-page">
-          <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand-dark via-[#0d4cb8] to-primary px-6 py-12 text-white sm:px-12 sm:py-16">
-            <div className="pointer-events-none absolute -right-16 top-0 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-            <div className="pointer-events-none absolute -left-10 bottom-0 h-48 w-48 rounded-full bg-blue-300/20 blur-3xl" />
-
-            <div className="relative grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
-              <div>
-                <p className="text-sm font-semibold tracking-wide text-blue-100 uppercase">
+          <div className="overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand-dark to-primary px-6 py-12 text-white sm:px-12">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-xl">
+                <p className="text-sm font-semibold uppercase tracking-wide text-blue-100">
                   Ready when you are
                 </p>
-                <h2 className="mt-2 font-heading text-3xl font-bold text-white sm:text-4xl">
-                  Put your health first with {siteConfig.appName}
+                <h2 className="mt-2 font-heading text-3xl font-bold sm:text-4xl">
+                  Start your health journey today
                 </h2>
-                <p className="mt-4 max-w-xl text-blue-50/90">
-                  Create an account, open your dashboard, and keep appointments,
-                  care notes, and daily health logs together.
+                <p className="mt-3 text-blue-50/90">
+                  Create an account, book a doctor, and keep your records close.
                 </p>
-
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Button
-                    asChild
-                    size="lg"
-                    className="h-12 bg-white text-primary hover:bg-blue-50"
-                  >
-                    <Link to={signedIn ? "/dashboard" : "/SignUp"}>
-                      {signedIn ? "Go to dashboard" : "Get started"}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    size="lg"
-                    variant="outline"
-                    className="h-12 border-white/40 bg-white/10 text-white hover:bg-white/15 hover:text-white"
-                  >
-                    <a href="tel:+25261000000">
-                      <Phone className="mr-2 h-4 w-4" />
-                      Call support
-                    </a>
-                  </Button>
-                </div>
               </div>
-
-              <div className="space-y-4 text-sm text-blue-50">
-                <p className="inline-flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-blue-200" />
-                  Gabiley & Hargeisa, Somaliland
-                </p>
-                <p className="inline-flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-blue-200" />
-                  +252 61 000 000
-                </p>
-                <a
-                  href={`mailto:${siteConfig.supportEmail}`}
-                  className="inline-flex items-center gap-2 underline-offset-4 hover:underline"
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  asChild
+                  size="lg"
+                  className="bg-white text-primary hover:bg-blue-50"
                 >
-                  <HeartPulse className="h-4 w-4 text-blue-200" />
-                  {siteConfig.supportEmail}
-                </a>
+                  <Link to={signedIn ? "/dashboard" : "/SignUp"}>
+                    {signedIn ? "Go to dashboard" : "Get started"}
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                >
+                  <a href={`tel:${siteConfig.supportPhone}`}>
+                    <Activity className="mr-2 h-4 w-4" />
+                    Call support
+                  </a>
+                </Button>
               </div>
             </div>
           </div>

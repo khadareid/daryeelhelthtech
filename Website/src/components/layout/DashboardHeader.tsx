@@ -25,9 +25,7 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   const navigate = useNavigate()
   const { data: profile } = useGetMyProfileQuery()
-  const healthId =
-    (profile as { profile?: { healthId?: string | null } } | undefined)?.profile
-      ?.healthId || null
+  const healthId = profile?.healthId || null
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-blue-100/60 bg-white/80 backdrop-blur-xl">

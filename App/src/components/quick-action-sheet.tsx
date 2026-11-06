@@ -13,6 +13,7 @@ type Props = {
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
+/** Mirrors Website care-app Actions sheet */
 const ACTIONS: {
   id: string;
   title: string;
@@ -31,76 +32,84 @@ const ACTIONS: {
     href: '/(tabs)/doctors',
   },
   {
-    id: 'chat',
-    title: 'Doctor chat',
-    icon: 'chatbubbles',
-    color: '#0369A1',
-    bg: '#E0F2FE',
-    href: '/(tabs)/doctors',
+    id: 'payments',
+    title: 'Payments',
+    icon: 'card',
+    color: '#0F766E',
+    bg: '#CCFBF1',
+    href: '/health/payments',
   },
   {
-    id: 'doctors',
-    title: 'Doctors',
-    icon: 'medkit',
-    color: '#0369A1',
-    bg: '#E0F2FE',
-    href: '/(tabs)/doctors',
-  },
-  {
-    id: 'hospital',
-    title: 'Hospitals',
-    icon: 'business',
-    color: '#4338CA',
-    bg: '#E0E7FF',
-    href: '/(tabs)/hospitals' as Href,
-  },
-  {
-    id: 'track',
-    title: 'Health Daily',
+    id: 'health',
+    title: 'Daily health',
     icon: 'fitness',
     color: '#0F766E',
     bg: '#CCFBF1',
     href: '/(tabs)/health',
   },
   {
-    id: 'appointments',
-    title: 'Appointments',
-    icon: 'time',
-    color: '#B45309',
-    bg: '#FEF3C7',
-    href: '/(tabs)/appointments',
+    id: 'vitals',
+    title: 'Vitals',
+    icon: 'heart',
+    color: '#BE123C',
+    bg: '#FFE4E6',
+    href: '/health/vitals',
   },
   {
-    id: 'profile',
-    title: 'My Profile',
-    icon: 'person',
-    color: Brand.primary,
-    bg: Brand.light,
-    href: '/(tabs)/profile',
-  },
-  {
-    id: 'med',
+    id: 'medications',
     title: 'Medications',
     icon: 'flask',
     color: '#7C3AED',
     bg: '#EDE9FE',
-    href: '/(tabs)/profile',
+    href: '/health/medications',
   },
   {
-    id: 'record',
-    title: 'Records',
+    id: 'allergies',
+    title: 'Allergies',
+    icon: 'warning',
+    color: '#B45309',
+    bg: '#FEF3C7',
+    href: '/health/allergies',
+  },
+  {
+    id: 'prescriptions',
+    title: 'Prescriptions',
     icon: 'document-text',
+    color: '#0369A1',
+    bg: '#E0F2FE',
+    href: '/health/prescriptions',
+  },
+  {
+    id: 'records',
+    title: 'Records',
+    icon: 'folder-open',
     color: '#0B3D91',
     bg: Brand.light,
-    href: '/(tabs)/profile',
+    href: '/health/medical-records',
   },
   {
-    id: 'news',
-    title: 'Health news',
-    icon: 'newspaper',
-    color: '#0F766E',
-    bg: '#CCFBF1',
-    href: '/news' as Href,
+    id: 'family',
+    title: 'Family',
+    icon: 'people',
+    color: '#0369A1',
+    bg: '#E0F2FE',
+    href: '/health/family',
+  },
+  {
+    id: 'emergency',
+    title: 'Emergency',
+    icon: 'shield-checkmark',
+    color: Brand.danger,
+    bg: '#FEE2E2',
+    href: '/health/emergency-card',
+  },
+  {
+    id: 'visits',
+    title: 'Visits',
+    icon: 'time',
+    color: '#B45309',
+    bg: '#FEF3C7',
+    href: '/(tabs)/appointments',
   },
   {
     id: 'notify',
@@ -111,8 +120,16 @@ const ACTIONS: {
     href: '/notifications',
   },
   {
-    id: 'emergency',
-    title: 'Emergency',
+    id: 'profile',
+    title: 'My Profile',
+    icon: 'person',
+    color: Brand.primary,
+    bg: Brand.light,
+    href: '/(tabs)/profile',
+  },
+  {
+    id: 'call',
+    title: 'Emergency call',
     icon: 'call',
     color: Brand.danger,
     bg: '#FEE2E2',
@@ -132,10 +149,8 @@ export function QuickActionSheet({ visible, onClose }: Props) {
         });
         return;
       }
-      if (action.href) {
-        router.push(action.href);
-      }
-    }, 180);
+      if (action.href) router.push(action.href);
+    }, 120);
   }
 
   return (
@@ -143,54 +158,28 @@ export function QuickActionSheet({ visible, onClose }: Props) {
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent>
-      <View style={styles.root}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Quick actions</Text>
-          <Text style={styles.subtitle}>
-            Choose a care tool — 9 shortcuts in one place
-          </Text>
-
-          <View style={styles.grid}>
-            {ACTIONS.map((action) => (
-              <Pressable
-                key={action.id}
-                style={({ pressed }) => [
-                  styles.cell,
-                  action.emergency && styles.emergencyCell,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => run(action)}>
-                <View
-                  style={[
-                    styles.iconWrap,
-                    { backgroundColor: action.bg },
-                    action.emergency && styles.emergencyIcon,
-                  ]}>
-                  <Ionicons
-                    name={action.icon}
-                    size={22}
-                    color={action.emergency ? Brand.white : action.color}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.cellTitle,
-                    action.emergency && styles.emergencyTitle,
-                  ]}
-                  numberOfLines={2}>
-                  {action.title}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Pressable onPress={onClose} style={styles.cancel}>
-            <Text style={styles.cancelText}>Close</Text>
-          </Pressable>
+      onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={styles.handle} />
+        <Text style={styles.title}>Quick actions</Text>
+        <Text style={styles.sub}>
+          Same care tools as the web app — records, visits, payments & more
+        </Text>
+        <View style={styles.grid}>
+          {ACTIONS.map((action) => (
+            <Pressable
+              key={action.id}
+              onPress={() => run(action)}
+              style={styles.item}>
+              <View style={[styles.iconWrap, { backgroundColor: action.bg }]}>
+                <Ionicons name={action.icon} size={20} color={action.color} />
+              </View>
+              <Text style={styles.itemLabel} numberOfLines={2}>
+                {action.title}
+              </Text>
+            </Pressable>
+          ))}
         </View>
       </View>
     </Modal>
@@ -198,13 +187,9 @@ export function QuickActionSheet({ visible, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
   backdrop: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(11, 61, 145, 0.45)',
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.35)',
   },
   sheet: {
     backgroundColor: Brand.white,
@@ -212,82 +197,52 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
-    gap: Spacing.two,
+    maxHeight: '78%',
   },
   handle: {
     alignSelf: 'center',
-    width: 44,
-    height: 5,
-    borderRadius: 3,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: Brand.border,
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.three,
   },
   title: {
     fontFamily: Fonts.bold,
-    fontSize: 22,
+    fontSize: 18,
     color: Brand.dark,
   },
-  subtitle: {
+  sub: {
     fontFamily: Fonts.regular,
     fontSize: 13,
     color: Brand.muted,
-    marginBottom: Spacing.two,
+    marginTop: 4,
+    marginBottom: Spacing.three,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 12,
-  },
-  cell: {
-    width: '31.5%',
-    minHeight: 108,
-    backgroundColor: Brand.bg,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Brand.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 14,
     gap: 10,
+    paddingBottom: Spacing.four,
   },
-  emergencyCell: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
-  pressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.97 }],
+  item: {
+    width: '22%',
+    minWidth: 72,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
   },
   iconWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: Radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emergencyIcon: {
-    backgroundColor: Brand.danger,
-  },
-  cellTitle: {
-    fontFamily: Fonts.semibold,
-    fontSize: 12,
+  itemLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
     color: Brand.dark,
     textAlign: 'center',
-    lineHeight: 16,
-  },
-  emergencyTitle: {
-    color: Brand.danger,
-  },
-  cancel: {
-    alignItems: 'center',
-    paddingVertical: Spacing.three,
-    marginTop: 4,
-  },
-  cancelText: {
-    fontFamily: Fonts.semibold,
-    fontSize: 15,
-    color: Brand.muted,
   },
 });

@@ -1,0 +1,56 @@
+/** Doctor booking times — every 20 minutes (e.g. 8:00, 8:20, 8:40…) */
+
+export function buildTimeSlots(
+  startHour = 8,
+  endHour = 20,
+  stepMinutes = 20
+): string[] {
+  const slots: string[] = []
+  for (let h = startHour; h <= endHour; h++) {
+    for (let m = 0; m < 60; m += stepMinutes) {
+      if (h === endHour && m > 0) break
+      const hour12 = ((h + 11) % 12) + 1
+      const ampm = h < 12 ? "AM" : "PM"
+      slots.push(
+        `${String(hour12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`
+      )
+    }
+  }
+  return slots
+}
+
+export const BOOKING_TIME_SLOTS = buildTimeSlots(8, 20, 20)
+
+export function nextBookingDays(count = 14): Date[] {
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() + i)
+    return d
+  })
+}
+
+export function slotToHours(slot: string): { h: number; m: number } {
+  const match = slot.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (!match) return { h: 8, m: 0 }
+  let h = Number(match[1])
+  const m = Number(match[2])
+  const ampm = (match[3] || "").toUpperCase()
+  if (ampm === "PM" && h < 12) h += 12
+  if (ampm === "AM" && h === 12) h = 0
+  return { h, m }
+}
+
+export function combineDayAndSlot(day: Date, slot: string): Date {
+  const { h, m } = slotToHours(slot)
+  const when = new Date(day)
+  when.setHours(h, m, 0, 0)
+  return when
+}
+
+export function toDateInputValue(d: Date): string {
+  const y = d.getFullYear()
+  const mo = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${mo}-${day}`
+}

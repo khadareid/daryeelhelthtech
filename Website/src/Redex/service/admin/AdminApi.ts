@@ -1,236 +1,326 @@
-import { createApi } from '@reduxjs/toolkit/query/react'
-import { apiBaseQuery } from '@/lib/apiBaseQuery'
+import { createApi } from "@reduxjs/toolkit/query/react"
+import { apiBaseQuery } from "@/lib/apiBaseQuery"
+import { unwrapPaginated, unwrapResult } from "@/Redex/lib/ownedApi"
+import type {
+  AdminDashboardStats,
+  ApiResponse,
+  AuditLog,
+  Doctor,
+  Paginated,
+  User,
+  UserInput,
+  UserUpdateInput,
+} from "@/Redex/types/Types"
 
 export const adminApi = createApi({
-  reducerPath: 'adminApi',
+  reducerPath: "adminApi",
   baseQuery: apiBaseQuery,
   tagTypes: [
-    'AdminStats',
-    'AdminUsers',
-    'FeatureFlags',
-    'ProfApps',
-    'NewsReports',
-    'AuditLogs',
-    'AdminAppointments',
-    'Plans',
-    'Subscriptions',
-    'Cms',
+    "AdminStats",
+    "AdminUsers",
+    "AuditLogs",
+    "PendingDoctors",
+    "AdminDoctors",
+    "AdminAppointments",
+    "AdminPayments",
   ],
   endpoints: (builder) => ({
-    getAdminStats: builder.query<any, void>({
-      query: () => ({ url: '/admin/stats' }),
-      transformResponse: (r: any) => r.result ?? r,
-      providesTags: ['AdminStats'],
-    }),
-    getAdminUsers: builder.query<
-      { data: any[]; pagination: any },
-      | {
-          page?: number
-          limit?: number
-          search?: string
-          role?: string
-          status?: string
-        }
-      | void
-    >({
-      query: (params) => ({
-        url: '/admin/users',
-        params: params ?? undefined,
-      }),
-      providesTags: ['AdminUsers'],
-    }),
-    getAdminUser: builder.query<any, string>({
-      query: (id) => ({ url: `/admin/users/${id}` }),
-      transformResponse: (r: any) => r.result ?? r,
-      providesTags: (_r, _e, id) => [{ type: 'AdminUsers', id }],
-    }),
-    updateAdminUser: builder.mutation<any, { id: string; body: Record<string, unknown> }>({
-      query: ({ id, body }) => ({
-        url: `/admin/users/${id}`,
-        method: 'PATCH',
-        body,
-      }),
-      invalidatesTags: ['AdminUsers', 'AdminStats'],
-    }),
-    adminPasswordReset: builder.mutation<any, string>({
-      query: (id) => ({
-        url: `/admin/users/${id}/password-reset`,
-        method: 'POST',
-        body: {},
-      }),
-    }),
-    getFeatureFlags: builder.query<any[], void>({
-      query: () => ({ url: '/admin/features' }),
-      transformResponse: (r: any) => r.result ?? [],
-      providesTags: ['FeatureFlags'],
-    }),
-    updateFeatureFlag: builder.mutation<any, { key: string; body: Record<string, unknown> }>({
-      query: ({ key, body }) => ({
-        url: `/admin/features/${key}`,
-        method: 'PATCH',
-        body,
-      }),
-      invalidatesTags: ['FeatureFlags'],
-    }),
-    getProfessionalApplications: builder.query<any[], string | void>({
-      query: (status) => ({
-        url: '/admin/professional-applications',
-        params: status ? { status } : undefined,
-      }),
-      transformResponse: (r: any) => r.result ?? [],
-      providesTags: ['ProfApps'],
-    }),
-    reviewProfessionalApplication: builder.mutation<
-      any,
-      { id: string; decision: string; reviewNotes?: string; rejectionReason?: string }
-    >({
-      query: ({ id, ...body }) => ({
-        url: `/admin/professional-applications/${id}`,
-        method: 'PATCH',
-        body,
-      }),
-      invalidatesTags: ['ProfApps', 'AdminStats', 'AdminUsers'],
-    }),
-    getNewsReports: builder.query<any[], void>({
-      query: () => ({ url: '/admin/news/reports' }),
-      transformResponse: (r: any) => r.result ?? [],
-      providesTags: ['NewsReports'],
-    }),
-    reviewNewsReport: builder.mutation<
-      any,
-      { id: string; status?: string; reviewNotes?: string; hideContent?: boolean }
-    >({
-      query: ({ id, ...body }) => ({
-        url: `/admin/news/reports/${id}`,
-        method: 'PATCH',
-        body,
-      }),
-      invalidatesTags: ['NewsReports'],
-    }),
-    getAuditLogs: builder.query<
-      { data: any[]; pagination: any },
-      { page?: number; limit?: number; search?: string; action?: string } | void
-    >({
-      query: (params) => ({
-        url: '/admin/audit-logs',
-        params: params ?? undefined,
-      }),
-      providesTags: ['AuditLogs'],
-    }),
-    getAdminAppointments: builder.query<
-      { data: any[]; pagination: any },
-      { page?: number; limit?: number; search?: string; status?: string } | void
-    >({
-      query: (params) => ({
-        url: '/admin/appointments',
-        params: params ?? undefined,
-      }),
-      providesTags: ['AdminAppointments'],
+    getAdminStats: builder.query<AdminDashboardStats, void>({
+      query: () => ({ url: "/admin/dashboard" }),
+      transformResponse: (r: ApiResponse<AdminDashboardStats>) => unwrapResult(r),
+      providesTags: ["AdminStats"],
     }),
 
-    /* ---------- Plans / Subscriptions / CMS (SUPER_ADMIN) ---------- */
-    getPlans: builder.query<any[], void>({
-      query: () => ({ url: '/admin/plans' }),
-      transformResponse: (r: any) => r.result ?? [],
-      providesTags: ['Plans'],
-    }),
-    getPublicPlans: builder.query<any[], void>({
-      query: () => ({ url: '/admin/public/plans' }),
-      transformResponse: (r: any) => r.result ?? [],
-    }),
-    createPlan: builder.mutation<any, Record<string, unknown>>({
-      query: (body) => ({ url: '/admin/plans', method: 'POST', body }),
-      invalidatesTags: ['Plans', 'AdminStats'],
-    }),
-    updatePlan: builder.mutation<any, { id: string; body: Record<string, unknown> }>({
-      query: ({ id, body }) => ({
-        url: `/admin/plans/${id}`,
-        method: 'PATCH',
-        body,
-      }),
-      invalidatesTags: ['Plans', 'AdminStats'],
-    }),
-    deactivatePlan: builder.mutation<any, string>({
-      query: (id) => ({ url: `/admin/plans/${id}`, method: 'DELETE' }),
-      invalidatesTags: ['Plans', 'AdminStats'],
-    }),
-    getSubscriptions: builder.query<
-      { data: any[]; pagination: any },
-      { page?: number; limit?: number; search?: string; status?: string } | void
+    getAuditLogs: builder.query<
+      Paginated<AuditLog>,
+      { page?: number; limit?: number; search?: string; action?: string; userId?: string } | void
     >({
       query: (params) => ({
-        url: '/admin/subscriptions',
+        url: "/admin/audit-logs",
         params: params ?? undefined,
       }),
-      providesTags: ['Subscriptions'],
+      transformResponse: (r: ApiResponse<Paginated<AuditLog>>) => unwrapPaginated(r),
+      providesTags: ["AuditLogs"],
     }),
-    createSubscription: builder.mutation<any, Record<string, unknown>>({
+
+    getAdminUsers: builder.query<
+      Paginated<User>,
+      { page?: number; limit?: number; search?: string; role?: string; status?: string } | void
+    >({
+      query: (params) => ({
+        url: "/admin/users",
+        params: params ?? undefined,
+      }),
+      transformResponse: (r: ApiResponse<Paginated<User>>) => unwrapPaginated(r),
+      providesTags: ["AdminUsers"],
+    }),
+
+    getAdminUser: builder.query<User, string>({
+      query: (id) => ({ url: `/admin/users/${id}` }),
+      transformResponse: (r: ApiResponse<User>) => unwrapResult(r),
+      providesTags: (_r, _e, id) => [{ type: "AdminUsers", id }],
+    }),
+
+    createAdminUser: builder.mutation<User, UserInput & { role?: string }>({
       query: (body) => ({
-        url: '/admin/subscriptions',
-        method: 'POST',
+        url: "/admin/users",
+        method: "POST",
         body,
       }),
-      invalidatesTags: ['Subscriptions', 'AdminStats'],
+      transformResponse: (r: ApiResponse<User>) => unwrapResult(r),
+      invalidatesTags: ["AdminUsers", "AdminStats"],
     }),
-    updateSubscription: builder.mutation<
-      any,
-      { id: string; body: Record<string, unknown> }
+
+    updateAdminUser: builder.mutation<
+      User,
+      { id: string; body: UserUpdateInput & { role?: string; isActive?: boolean; isSuspended?: boolean } }
     >({
       query: ({ id, body }) => ({
-        url: `/admin/subscriptions/${id}`,
-        method: 'PATCH',
+        url: `/admin/users/${id}`,
+        method: "PATCH",
         body,
       }),
-      invalidatesTags: ['Subscriptions', 'AdminStats'],
+      transformResponse: (r: ApiResponse<User>) => unwrapResult(r),
+      invalidatesTags: ["AdminUsers", "AdminStats"],
     }),
-    getCms: builder.query<any, string>({
-      query: (key) => ({ url: `/admin/cms/${encodeURIComponent(key)}` }),
-      transformResponse: (r: any) => r.result ?? r,
-      providesTags: (_r, _e, key) => [{ type: 'Cms', id: key }],
-    }),
-    getPublicCms: builder.query<any, string>({
-      query: (key) => ({
-        url: `/admin/public/cms/${encodeURIComponent(key)}`,
+
+    deleteAdminUser: builder.mutation<{ isSuccess: boolean }, string>({
+      query: (id) => ({
+        url: `/admin/users/${id}`,
+        method: "DELETE",
       }),
-      transformResponse: (r: any) => r.result ?? r,
+      invalidatesTags: ["AdminUsers", "AdminStats"],
     }),
-    upsertCms: builder.mutation<
-      any,
-      { key: string; body: { title?: string; data: unknown; published?: boolean } }
+
+    resetAdminUserPassword: builder.mutation<
+      { changed: boolean; userid: string; email: string; fullName: string },
+      { id: string; newPassword: string }
     >({
-      query: ({ key, body }) => ({
-        url: `/admin/cms/${encodeURIComponent(key)}`,
-        method: 'PUT',
+      query: ({ id, newPassword }) => ({
+        url: `/admin/users/${id}/reset-password`,
+        method: "POST",
+        body: { newPassword },
+      }),
+      transformResponse: (
+        r: ApiResponse<{
+          changed: boolean
+          userid: string
+          email: string
+          fullName: string
+        }>
+      ) => unwrapResult(r),
+      invalidatesTags: ["AdminUsers"],
+    }),
+
+    getPendingDoctors: builder.query<
+      Paginated<Doctor> | Doctor[],
+      { page?: number; limit?: number } | void
+    >({
+      query: (params) => ({
+        url: "/admin/doctors/pending",
+        params: params ?? undefined,
+      }),
+      transformResponse: (r: ApiResponse<Paginated<Doctor> | Doctor[]>) => unwrapResult(r),
+      providesTags: ["PendingDoctors"],
+    }),
+
+    getAdminDoctors: builder.query<
+      Paginated<Doctor>,
+      { page?: number; limit?: number; q?: string; status?: string } | void
+    >({
+      query: (params) => ({
+        url: "/admin/doctors",
+        params: params ?? undefined,
+      }),
+      transformResponse: (r: ApiResponse<Paginated<Doctor>>) => unwrapPaginated(r),
+      providesTags: ["AdminDoctors"],
+    }),
+
+    createAdminDoctor: builder.mutation<
+      Doctor,
+      {
+        email: string
+        password: string
+        fullName: string
+        specialty: string
+        phone?: string
+        licenseNumber?: string
+        clinicName?: string
+        city?: string
+        consultationFee?: number
+        qualification?: string
+        bio?: string
+        videoConsultationEnabled?: boolean
+        chatConsultationEnabled?: boolean
+        isAvailable?: boolean
+      }
+    >({
+      query: (body) => ({
+        url: "/admin/doctors",
+        method: "POST",
         body,
       }),
-      invalidatesTags: (_r, _e, arg) => [{ type: 'Cms', id: arg.key }],
+      transformResponse: (r: ApiResponse<Doctor>) => unwrapResult(r),
+      invalidatesTags: ["AdminDoctors", "PendingDoctors", "AdminStats"],
+    }),
+
+    getAdminDoctor: builder.query<Doctor, string>({
+      query: (id) => ({ url: `/admin/doctors/${id}` }),
+      transformResponse: (r: ApiResponse<Doctor>) => unwrapResult(r),
+      providesTags: (_r, _e, id) => [{ type: "AdminDoctors", id }],
+    }),
+
+    updateAdminDoctor: builder.mutation<
+      Doctor,
+      {
+        id: string
+        body: Partial<{
+          fullName: string
+          specialty: string
+          subSpecialty: string | null
+          qualification: string | null
+          licenseNumber: string | null
+          clinicName: string | null
+          city: string | null
+          country: string | null
+          consultationFee: number | null
+          videoConsultationFee: number | null
+          chatConsultationFee: number | null
+          currency: string
+          bio: string | null
+          phone: string | null
+          yearsExperience: number | null
+          consultationEnabled: boolean
+          videoConsultationEnabled: boolean
+          chatConsultationEnabled: boolean
+          isAvailable: boolean
+          isOnline: boolean
+          isActive: boolean
+          verificationStatus: string
+          rejectionReason: string | null
+        }>
+      }
+    >({
+      query: ({ id, body }) => ({
+        url: `/admin/doctors/${id}`,
+        method: "PATCH",
+        body,
+      }),
+      transformResponse: (r: ApiResponse<Doctor>) => unwrapResult(r),
+      invalidatesTags: ["AdminDoctors", "PendingDoctors", "AdminStats"],
+    }),
+
+    deleteAdminDoctor: builder.mutation<Doctor, string>({
+      query: (id) => ({
+        url: `/admin/doctors/${id}`,
+        method: "DELETE",
+      }),
+      transformResponse: (r: ApiResponse<Doctor>) => unwrapResult(r),
+      invalidatesTags: ["AdminDoctors", "PendingDoctors", "AdminStats"],
+    }),
+
+    verifyDoctor: builder.mutation<
+      Doctor,
+      { id: string; verificationStatus: string; rejectionReason?: string }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/admin/doctors/${id}/verify`,
+        method: "PATCH",
+        body: {
+          status: body.verificationStatus,
+          verificationStatus: body.verificationStatus,
+          rejectionReason: body.rejectionReason,
+        },
+      }),
+      transformResponse: (r: ApiResponse<Doctor>) => unwrapResult(r),
+      invalidatesTags: ["PendingDoctors", "AdminDoctors", "AdminStats"],
+    }),
+
+    getAdminAppointments: builder.query<
+      Paginated<import("@/Redex/types/Types").Appointment>,
+      { page?: number; limit?: number; status?: string } | void
+    >({
+      query: (params) => ({
+        url: "/admin/appointments",
+        params: params ?? undefined,
+      }),
+      transformResponse: (
+        r: ApiResponse<Paginated<import("@/Redex/types/Types").Appointment>>
+      ) => unwrapPaginated(r),
+      providesTags: ["AdminAppointments"],
+    }),
+
+    updateAdminAppointment: builder.mutation<
+      import("@/Redex/types/Types").Appointment,
+      {
+        id: string
+        status?: string
+        cancellationReason?: string
+        paymentStatus?: string
+        paymentRequired?: boolean
+        consultationFee?: number
+      }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/appointments/${id}`,
+        method: "PATCH",
+        body,
+      }),
+      transformResponse: (
+        r: ApiResponse<import("@/Redex/types/Types").Appointment>
+      ) => unwrapResult(r),
+      invalidatesTags: ["AdminAppointments", "AdminStats", "AdminPayments"],
+    }),
+
+    getAdminPayments: builder.query<
+      Paginated<import("@/Redex/types/Types").Payment>,
+      { page?: number; limit?: number; status?: string } | void
+    >({
+      query: (params) => ({
+        url: "/payments",
+        params: params ?? undefined,
+      }),
+      transformResponse: (
+        r: ApiResponse<Paginated<import("@/Redex/types/Types").Payment>>
+      ) => unwrapPaginated(r),
+      providesTags: ["AdminPayments"],
+    }),
+
+    updateAdminPayment: builder.mutation<
+      import("@/Redex/types/Types").Payment,
+      { id: string; status?: string; method?: string; refundReason?: string }
+    >({
+      query: ({ id, ...body }) => ({
+        url: `/payments/${id}`,
+        method: "PATCH",
+        body,
+      }),
+      transformResponse: (
+        r: ApiResponse<import("@/Redex/types/Types").Payment>
+      ) => unwrapResult(r),
+      invalidatesTags: ["AdminPayments", "AdminStats", "AdminAppointments"],
     }),
   }),
 })
 
 export const {
   useGetAdminStatsQuery,
+  useGetAuditLogsQuery,
   useGetAdminUsersQuery,
   useGetAdminUserQuery,
+  useCreateAdminUserMutation,
   useUpdateAdminUserMutation,
-  useAdminPasswordResetMutation,
-  useGetFeatureFlagsQuery,
-  useUpdateFeatureFlagMutation,
-  useGetProfessionalApplicationsQuery,
-  useReviewProfessionalApplicationMutation,
-  useGetNewsReportsQuery,
-  useReviewNewsReportMutation,
-  useGetAuditLogsQuery,
+  useDeleteAdminUserMutation,
+  useResetAdminUserPasswordMutation,
+  useGetPendingDoctorsQuery,
+  useGetAdminDoctorsQuery,
+  useGetAdminDoctorQuery,
+  useCreateAdminDoctorMutation,
+  useUpdateAdminDoctorMutation,
+  useDeleteAdminDoctorMutation,
+  useVerifyDoctorMutation,
   useGetAdminAppointmentsQuery,
-  useGetPlansQuery,
-  useGetPublicPlansQuery,
-  useCreatePlanMutation,
-  useUpdatePlanMutation,
-  useDeactivatePlanMutation,
-  useGetSubscriptionsQuery,
-  useCreateSubscriptionMutation,
-  useUpdateSubscriptionMutation,
-  useGetCmsQuery,
-  useGetPublicCmsQuery,
-  useUpsertCmsMutation,
+  useUpdateAdminAppointmentMutation,
+  useGetAdminPaymentsQuery,
+  useUpdateAdminPaymentMutation,
 } = adminApi

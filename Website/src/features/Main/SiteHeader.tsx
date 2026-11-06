@@ -24,9 +24,7 @@ import { logout } from "@/Redex/service/auth/Userinfo"
 
 const NAV_LINKS = [
   { to: "/", label: "Home", end: true },
-  { to: "/hospitals", label: "Hospitals" },
-  { to: "/doctors", label: "Care Team" },
-  { to: "/news", label: "News" },
+  { to: "/doctors", label: "Doctors" },
   { to: "/#services", label: "Services" },
   { to: "/#how", label: "How it works" },
   { to: "/#contact", label: "Contact" },

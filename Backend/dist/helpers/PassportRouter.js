@@ -9,7 +9,7 @@ const router = (0, express_1.Router)();
 const frontendBase = () => {
     const fromEnv = (process.env.FRONTEND_URL || "").replace(/"/g, "").trim();
     return (fromEnv ||
-        "https://daryeel-healthtech.vercel.app").replace(/\/$/, "");
+        "https://daryeel-healthtech-gamma.vercel.app").replace(/\/$/, "");
 };
 function isAllowedAppRedirect(value) {
     try {

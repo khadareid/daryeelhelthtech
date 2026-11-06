@@ -2,11 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const PaymentController_1 = require("../Controllers/PaymentController");
-const Jwt_1 = require("../helpers/secure/Jwt");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
 const router = (0, express_1.Router)();
-router.post('/create', Jwt_1.decodeToken, PaymentController_1.createPayment);
-router.get('/all', Jwt_1.decodeToken, PaymentController_1.getAllPayments);
-router.get('/one/:id', Jwt_1.decodeToken, PaymentController_1.getPaymentById);
-router.put('/update/:id', Jwt_1.decodeToken, PaymentController_1.updatePayment);
-router.delete('/delete/:id', Jwt_1.decodeToken, PaymentController_1.deletePayment);
+router.use(VerifyToken_1.decodeToken);
+router.get("/", PaymentController_1.list);
+router.get("/:id", PaymentController_1.getOne);
+router.post("/", PaymentController_1.create);
+router.patch("/:id", PaymentController_1.update);
+router.put("/:id", PaymentController_1.update);
 exports.default = router;

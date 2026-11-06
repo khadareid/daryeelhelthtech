@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const DoctorReviewController_1 = require("../Controllers/DoctorReviewController");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const router = (0, express_1.Router)();
+router.get("/", DoctorReviewController_1.list);
+router.post("/", VerifyToken_1.decodeToken, DoctorReviewController_1.create);
+router.patch("/:id", VerifyToken_1.decodeToken, DoctorReviewController_1.update);
+router.put("/:id", VerifyToken_1.decodeToken, DoctorReviewController_1.update);
+router.delete("/:id", VerifyToken_1.decodeToken, DoctorReviewController_1.remove);
+exports.default = router;

@@ -11,11 +11,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getClientMeta = exports.createAuditLog = void 0;
 const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+const prisma_1 = require("../lib/prisma");
+const toAuditAction = (action) => {
+    const upper = action.toUpperCase();
+    if (Object.values(client_1.AuditAction).includes(upper)) {
+        return upper;
+    }
+    return client_1.AuditAction.UPDATE;
+};
 const createAuditLog = (input) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     try {
-        // Haddii `metadata` la soo diray, isticmaal. Haddii kale, ka dhis oldValue/newValue
         let metadata;
         if (input.metadata && Object.keys(input.metadata).length > 0) {
             metadata = input.metadata;
@@ -28,15 +34,16 @@ const createAuditLog = (input) => __awaiter(void 0, void 0, void 0, function* ()
                 built.newValue = input.newValue;
             metadata = built;
         }
-        return yield prisma.auditLog.create({
+        return yield prisma_1.prisma.auditLog.create({
             data: {
-                action: input.action,
-                entity: (_a = input.entity) !== null && _a !== void 0 ? _a : null,
+                action: toAuditAction(String(input.action)),
+                entity: (_a = input.entity) !== null && _a !== void 0 ? _a : "UNKNOWN",
                 entityId: (_b = input.entityId) !== null && _b !== void 0 ? _b : null,
+                description: (_c = input.description) !== null && _c !== void 0 ? _c : null,
                 metadata: metadata !== null && metadata !== void 0 ? metadata : undefined,
-                userId: (_c = input.userId) !== null && _c !== void 0 ? _c : null,
-                ipAddress: (_d = input.ipAddress) !== null && _d !== void 0 ? _d : null,
-                userAgent: (_e = input.userAgent) !== null && _e !== void 0 ? _e : null,
+                userId: (_d = input.userId) !== null && _d !== void 0 ? _d : null,
+                ipAddress: (_e = input.ipAddress) !== null && _e !== void 0 ? _e : null,
+                userAgent: (_f = input.userAgent) !== null && _f !== void 0 ? _f : null,
             },
         });
     }

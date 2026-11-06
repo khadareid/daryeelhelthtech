@@ -12,110 +12,80 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyCode = void 0;
 const client_1 = require("@prisma/client");
 const GenerateToken_1 = require("../GenerateToken");
-const prisma = new client_1.PrismaClient();
+const prisma_1 = require("../../lib/prisma");
+const audit_service_1 = require("../../services/audit.service");
+const otp_service_1 = require("../../services/otp.service");
 const verifyCode = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, code } = req.body;
-        // --------------------------------------------------------
-        // Validate input
-        // --------------------------------------------------------
         if (!email || !code) {
             res.status(400).json({
-                message: 'Email and verification code are required',
+                message: "Email and verification code are required",
                 isSuccess: false,
             });
             return;
         }
-        // --------------------------------------------------------
-        // Find verification code
-        // --------------------------------------------------------
-        const record = yield prisma.verificationCode.findFirst({
-            where: {
-                email,
-                code,
-                purpose: 'EMAIL_VERIFICATION',
-                isUsed: false,
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
-        });
-        // --------------------------------------------------------
-        // Check code
-        // --------------------------------------------------------
-        if (!record) {
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const entry = (0, otp_service_1.consumeOtp)(normalizedEmail, String(code));
+        if (!entry) {
             res.status(401).json({
-                message: 'Invalid verification code',
+                message: "Invalid or expired verification code",
                 isSuccess: false,
             });
             return;
         }
-        if (record.expiresAt < new Date()) {
-            res.status(401).json({
-                message: 'Verification code has expired',
-                isSuccess: false,
-            });
+        const user = yield prisma_1.prisma.user.findUnique({
+            where: { email: normalizedEmail },
+        });
+        if (!user || user.deletedAt) {
+            res.status(404).json({ message: "User not found", isSuccess: false });
             return;
         }
-        // --------------------------------------------------------
-        // Find user
-        // --------------------------------------------------------
-        const user = yield prisma.user.findUnique({
-            where: {
-                email,
-            },
-        });
-        if (!user) {
-            res.status(404).json({
-                message: 'User not found',
-                isSuccess: false,
-            });
-            return;
-        }
-        // --------------------------------------------------------
-        // Generate tokens
-        // --------------------------------------------------------
-        const { accessToken, refreshToken } = yield (0, GenerateToken_1.generateTokens)({
-            userId: user.userid,
-            email: user.email,
-            role: user.role,
-        });
-        // --------------------------------------------------------
-        // Mark verification code as used
-        // --------------------------------------------------------
-        yield prisma.verificationCode.update({
-            where: {
-                verificationcodeid: record.verificationcodeid,
-            },
-            data: {
-                isUsed: true,
-            },
-        });
-        // --------------------------------------------------------
-        // Mark email as verified
-        // --------------------------------------------------------
-        yield prisma.user.update({
-            where: {
-                userid: user.userid,
-            },
+        const updated = yield prisma_1.prisma.user.update({
+            where: { userid: user.userid },
             data: {
                 emailVerified: true,
                 lastLoginAt: new Date(),
             },
         });
-        // --------------------------------------------------------
-        // Response
-        // --------------------------------------------------------
+        const { accessToken, refreshToken } = yield (0, GenerateToken_1.generateTokens)({
+            userId: updated.userid,
+            email: updated.email,
+            role: updated.role,
+        });
+        const meta = (0, audit_service_1.getClientMeta)(req);
+        yield (0, audit_service_1.createAuditLog)({
+            action: client_1.AuditAction.LOGIN,
+            entity: "User",
+            entityId: updated.userid,
+            description: "Email OTP verification login",
+            userId: updated.userid,
+            ipAddress: meta.ipAddress,
+            userAgent: meta.userAgent,
+        });
         res.status(200).json({
-            message: 'Verification successful',
+            message: "Verification successful",
             isSuccess: true,
+            result: {
+                user: {
+                    userId: updated.userid,
+                    name: updated.fullName,
+                    email: updated.email,
+                    phone: updated.phone,
+                    image: updated.picture,
+                    role: updated.role,
+                    emailVerified: true,
+                },
+                accessToken,
+                refreshToken,
+            },
             user: {
-                userId: user.userid,
-                name: user.fullName,
-                email: user.email,
-                phone: user.phone,
-                image: user.picture,
-                role: user.role,
+                userId: updated.userid,
+                name: updated.fullName,
+                email: updated.email,
+                phone: updated.phone,
+                image: updated.picture,
+                role: updated.role,
                 emailVerified: true,
             },
             accessToken,
@@ -123,11 +93,8 @@ const verifyCode = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         });
     }
     catch (error) {
-        console.error('Verify code error:', error);
-        res.status(500).json({
-            message: 'Server error',
-            isSuccess: false,
-        });
+        console.error("Verify code error:", error);
+        res.status(500).json({ message: "Server error", isSuccess: false });
     }
 });
 exports.verifyCode = verifyCode;

@@ -7,7 +7,6 @@ import {
   TabSlot,
   type TabTriggerSlotProps,
 } from 'expo-router/ui';
-import type { Href } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,11 +66,11 @@ export default function AppTabs() {
             <Text style={styles.fabLabel}>Actions</Text>
           </Pressable>
 
-          <TabTrigger name="hospitals" href={'/(tabs)/hospitals' as Href} asChild>
+          <TabTrigger name="appointments" href="/(tabs)/appointments" asChild>
             <TabButton
-              label="Hospitals"
-              icon="business-outline"
-              iconActive="business"
+              label="Visits"
+              icon="calendar-outline"
+              iconActive="calendar"
             />
           </TabTrigger>
 
@@ -87,11 +86,6 @@ export default function AppTabs() {
           <TabTrigger
             name="health"
             href="/(tabs)/health"
-            style={styles.hiddenTrigger}
-          />
-          <TabTrigger
-            name="appointments"
-            href="/(tabs)/appointments"
             style={styles.hiddenTrigger}
           />
         </TabList>

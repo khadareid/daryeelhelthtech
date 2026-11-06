@@ -36,7 +36,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/index.ts
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const express_session_1 = __importDefault(require("express-session"));
@@ -44,31 +43,50 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const PassportRouter_1 = __importDefault(require("./helpers/PassportRouter"));
 const PassportConfig_1 = __importDefault(require("./config/PassportConfig"));
 const SendCode_1 = __importDefault(require("./helpers/SendCode"));
-const UserRouter_1 = __importDefault(require("./Routes/UserRouter"));
-const dailyHealthLog_routes_1 = __importDefault(require("./Routes/dailyHealthLog.routes"));
-const AppointmentRouter_1 = __importDefault(require("./Routes/AppointmentRouter"));
-const HealthcareRouter_1 = __importDefault(require("./Routes/HealthcareRouter"));
-const MessageRouter_1 = __importDefault(require("./Routes/MessageRouter"));
-const AdminRouter_1 = __importDefault(require("./Routes/AdminRouter"));
-const NewsRouter_1 = __importDefault(require("./Routes/NewsRouter"));
-const ProfessionalApplicationRouter_1 = __importDefault(require("./Routes/ProfessionalApplicationRouter"));
-const ConnectionRouter_1 = __importDefault(require("./Routes/ConnectionRouter"));
-const ProfessionalsRouter_1 = __importStar(require("./Routes/ProfessionalsRouter"));
 const RefreshTokenRouter_1 = __importDefault(require("./helpers/secure/RefreshTokenRouter"));
 const auditMiddleware_1 = require("./helpers/middleware/auditMiddleware");
 const csrf_1 = require("./helpers/middleware/csrf");
-const featureFlag_service_1 = require("./services/featureFlag.service");
-const healthId_service_1 = require("./services/healthId.service");
+const AuthRouter_1 = __importDefault(require("./Routes/AuthRouter"));
+const UserRouter_1 = __importDefault(require("./Routes/UserRouter"));
+const MedicalProfileRouter_1 = __importDefault(require("./Routes/MedicalProfileRouter"));
+const EmergencyContactRouter_1 = __importDefault(require("./Routes/EmergencyContactRouter"));
+const EmergencyCardRouter_1 = __importDefault(require("./Routes/EmergencyCardRouter"));
+const FamilyMemberRouter_1 = __importDefault(require("./Routes/FamilyMemberRouter"));
+const AllergyRouter_1 = __importDefault(require("./Routes/AllergyRouter"));
+const ChronicConditionRouter_1 = __importDefault(require("./Routes/ChronicConditionRouter"));
+const MedicationRouter_1 = __importDefault(require("./Routes/MedicationRouter"));
+const MedicalRecordRouter_1 = __importDefault(require("./Routes/MedicalRecordRouter"));
+const MedicalDocumentRouter_1 = __importDefault(require("./Routes/MedicalDocumentRouter"));
+const DiagnosisRouter_1 = __importDefault(require("./Routes/DiagnosisRouter"));
+const VitalSignRouter_1 = __importDefault(require("./Routes/VitalSignRouter"));
+const LabResultRouter_1 = __importDefault(require("./Routes/LabResultRouter"));
+const PrescriptionRouter_1 = __importDefault(require("./Routes/PrescriptionRouter"));
+const DailyHealthLogRouter_1 = __importDefault(require("./Routes/DailyHealthLogRouter"));
+const HealthDeviceRouter_1 = __importDefault(require("./Routes/HealthDeviceRouter"));
+const DoctorRouter_1 = __importStar(require("./Routes/DoctorRouter"));
+const AppointmentRouter_1 = __importDefault(require("./Routes/AppointmentRouter"));
+const ConsultationRouter_1 = __importDefault(require("./Routes/ConsultationRouter"));
+const DoctorReviewRouter_1 = __importDefault(require("./Routes/DoctorReviewRouter"));
+const PaymentRouter_1 = __importDefault(require("./Routes/PaymentRouter"));
+const NotificationRouter_1 = __importDefault(require("./Routes/NotificationRouter"));
+const ConsentRouter_1 = __importDefault(require("./Routes/ConsentRouter"));
+const AccessRequestRouter_1 = __importDefault(require("./Routes/AccessRequestRouter"));
+const AdminRouter_1 = __importDefault(require("./Routes/AdminRouter"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
 const isProd = process.env.NODE_ENV === "production";
+const sessionSecret = process.env.SESSION_SECRET ||
+    process.env.JWT_SECRET ||
+    process.env.JWT_SECRET_TOKEN ||
+    process.env.CSRF_SECRET ||
+    "daryeel-healthtech-session-fallback";
 if (!process.env.SESSION_SECRET) {
     if (isProd || process.env.VERCEL) {
-        console.error("[Daryeel Healthtech] SESSION_SECRET is missing");
+        console.error("[Daryeel Healthtech] SESSION_SECRET is missing — using fallback (set SESSION_SECRET in Vercel)");
     }
     else {
-        throw new Error("SESSION_SECRET is missing from .env file");
+        console.warn("[Daryeel Healthtech] SESSION_SECRET missing — using local fallback");
     }
 }
 function normalizeOrigin(value) {
@@ -82,6 +100,7 @@ const allowedOrigins = [
     "http://localhost:8082",
     "http://localhost:3000",
     "http://localhost:3001",
+    "https://daryeel-healthtech.vercel.app",
     "https://daryeel-healthtech-gamma.vercel.app",
     "https://daryeel-saas-healthtech.vercel.app",
     process.env.FRONTEND_URL,
@@ -103,15 +122,14 @@ const isPrivateHost = (hostname) => {
         return true;
     return false;
 };
-const isAllowedVercelPreview = (hostname) => {
-    // Allow this project's Vercel preview / alias hosts only
-    return (hostname === "daryeel-healthtech.vercel.app" ||
-        hostname.endsWith(".daryeel-healthtech.vercel.app") ||
-        /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname));
-};
+const isAllowedVercelPreview = (hostname) => hostname === "daryeel-healthtech.vercel.app" ||
+    hostname === "daryeel-healthtech-gamma.vercel.app" ||
+    hostname.endsWith(".daryeel-healthtech.vercel.app") ||
+    hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
+    /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
 const isAllowedOrigin = (origin) => {
     if (!origin)
-        return true; // same-origin / server / mobile
+        return true;
     try {
         const normalized = normalizeOrigin(origin);
         if (allowedOrigins.includes(normalized))
@@ -129,10 +147,8 @@ const isAllowedOrigin = (origin) => {
 };
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
-        // Never pass Error here — that turns browser OPTIONS preflight into HTTP 500
-        if (isAllowedOrigin(origin)) {
+        if (isAllowedOrigin(origin))
             callback(null, true);
-        }
         else {
             console.warn("[CORS] blocked origin:", origin);
             callback(null, false);
@@ -152,40 +168,73 @@ app.use((0, cors_1.default)({
 app.use(express_1.default.json({ limit: "100mb" }));
 app.use(express_1.default.urlencoded({ limit: "100mb", extended: true }));
 app.use((0, express_session_1.default)({
-    secret: process.env.SESSION_SECRET,
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
+    cookie: {
+        secure: isProd || Boolean(process.env.VERCEL),
+        sameSite: isProd || process.env.VERCEL ? "none" : "lax",
+        httpOnly: true,
+    },
 }));
 app.use(PassportConfig_1.default.initialize());
 app.use(PassportConfig_1.default.session());
 app.use("/api/v1", csrf_1.csrfProtection);
 app.use("/api/v1", auditMiddleware_1.auditMiddleware);
 app.get("/api/v1/csrf", (req, res) => {
-    const csrfToken = (0, csrf_1.currentOrNewCsrf)(req, res);
-    res.json({ isSuccess: true, result: { csrfToken } });
+    try {
+        const csrfToken = (0, csrf_1.currentOrNewCsrf)(req, res);
+        res.status(200).json({ isSuccess: true, result: { csrfToken } });
+    }
+    catch (error) {
+        console.error("[csrf]", (error === null || error === void 0 ? void 0 : error.message) || error);
+        try {
+            const csrfToken = (0, csrf_1.createSignedCsrfToken)();
+            res.status(200).json({ isSuccess: true, result: { csrfToken } });
+        }
+        catch (_a) {
+            res.status(500).json({
+                isSuccess: false,
+                message: "Could not issue CSRF token",
+            });
+        }
+    }
 });
-// Routes
+// Auth
+app.use("/api/v1/auth", AuthRouter_1.default);
 app.use("/api/v1/auth", PassportRouter_1.default);
 app.use("/api/v1/auth/email", SendCode_1.default);
 app.use("/api/v1/refresh", RefreshTokenRouter_1.default);
-app.use("/api/v1/user", UserRouter_1.default);
-app.use("/api/v1/daily-health-log", dailyHealthLog_routes_1.default);
+// Core
+app.use("/api/v1/users", UserRouter_1.default);
+app.use("/api/v1/user", UserRouter_1.default); // backward-compatible alias
+app.use("/api/v1/medical-profile", MedicalProfileRouter_1.default);
+app.use("/api/v1/emergency-contacts", EmergencyContactRouter_1.default);
+app.use("/api/v1/emergency-card", EmergencyCardRouter_1.default);
+app.use("/api/v1/family-members", FamilyMemberRouter_1.default);
+app.use("/api/v1/allergies", AllergyRouter_1.default);
+app.use("/api/v1/chronic-conditions", ChronicConditionRouter_1.default);
+app.use("/api/v1/medications", MedicationRouter_1.default);
+app.use("/api/v1/medical-records", MedicalRecordRouter_1.default);
+app.use("/api/v1/medical-documents", MedicalDocumentRouter_1.default);
+app.use("/api/v1/diagnoses", DiagnosisRouter_1.default);
+app.use("/api/v1/vital-signs", VitalSignRouter_1.default);
+app.use("/api/v1/lab-results", LabResultRouter_1.default);
+app.use("/api/v1/prescriptions", PrescriptionRouter_1.default);
+app.use("/api/v1/daily-health-logs", DailyHealthLogRouter_1.default);
+app.use("/api/v1/health-devices", HealthDeviceRouter_1.default);
+// Care delivery
+app.use("/api/v1/doctors", DoctorRouter_1.default);
+app.use("/api/v1/doctor", DoctorRouter_1.doctorSelfRouter);
 app.use("/api/v1/appointments", AppointmentRouter_1.default);
-app.use("/api/v1/healthcare", HealthcareRouter_1.default);
-app.use("/api/v1/messages", MessageRouter_1.default);
+app.use("/api/v1/consultations", ConsultationRouter_1.default);
+app.use("/api/v1/doctor-reviews", DoctorReviewRouter_1.default);
+app.use("/api/v1/payments", PaymentRouter_1.default);
+app.use("/api/v1/notifications", NotificationRouter_1.default);
+app.use("/api/v1/consents", ConsentRouter_1.default);
+app.use("/api/v1/access-requests", AccessRequestRouter_1.default);
+// Admin
 app.use("/api/v1/admin", AdminRouter_1.default);
-app.use("/api/v1/news", NewsRouter_1.default);
-app.use("/api/v1/professional-applications", ProfessionalApplicationRouter_1.default);
-app.use("/api/v1/connections", ConnectionRouter_1.default);
-app.use("/api/v1/professionals", ProfessionalsRouter_1.default);
-app.use("/api/v1/professional", ProfessionalsRouter_1.professionalSelfRouter);
-void (0, featureFlag_service_1.ensureDefaultFeatureFlags)().catch((err) => console.error("Feature flag seed skipped:", (err === null || err === void 0 ? void 0 : err.message) || err));
-void (0, healthId_service_1.backfillMissingHealthIds)()
-    .then((n) => {
-    if (n > 0)
-        console.log(`Backfilled ${n} missing Patient/Health IDs`);
-})
-    .catch((err) => console.error("Health ID backfill skipped:", (err === null || err === void 0 ? void 0 : err.message) || err));
 app.get("/", (_req, res) => {
     res.send("Daryeel Healthtech API");
 });
@@ -199,7 +248,9 @@ app.use((err, _req, res, _next) => {
         return;
     res.status(status).json({
         isSuccess: false,
-        message: isProd ? "Internal server error" : (err === null || err === void 0 ? void 0 : err.message) || "Internal server error",
+        message: isProd
+            ? "Internal server error"
+            : (err === null || err === void 0 ? void 0 : err.message) || "Internal server error",
         status,
     });
 });
@@ -209,7 +260,6 @@ app.all("/{*splat}", (_req, res) => {
         status: 404,
     });
 });
-// Vercel serverless needs the exported app; listen only for local/dev.
 exports.default = app;
 if (!process.env.VERCEL) {
     app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));

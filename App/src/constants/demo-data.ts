@@ -425,8 +425,7 @@ export const EXTRA_DOCTORS: DoctorItem[] = [
     name: 'Dr. Nura Abdi',
     specialty: 'Dermatologist',
     city: 'Hargeisa',
-    hospitalId: 'h1',
-    hospitalName: 'Daryeel Central Hospital',
+    clinicName: 'Daryeel Central Clinic',
     image:
       'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=600&q=80',
     experienceYears: 7,
@@ -452,8 +451,7 @@ export const EXTRA_DOCTORS: DoctorItem[] = [
     name: 'Dr. Saed Omar',
     specialty: 'Orthopedic Surgeon',
     city: 'Hargeisa',
-    hospitalId: 'h1',
-    hospitalName: 'Daryeel Central Hospital',
+    clinicName: 'Daryeel Central Clinic',
     image:
       'https://images.unsplash.com/photo-1537368910025-700350fe47c0?w=600&q=80',
     experienceYears: 14,
@@ -479,8 +477,7 @@ export const EXTRA_DOCTORS: DoctorItem[] = [
     name: 'Dr. Fardowsa Ismail',
     specialty: 'Mental Health',
     city: 'Gabiley',
-    hospitalId: 'h2',
-    hospitalName: 'Gabiley Family Clinic',
+    clinicName: 'Gabiley Family Clinic',
     image:
       'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=600&q=80',
     experienceYears: 10,
@@ -519,10 +516,10 @@ export const ONBOARDING_SLIDES: OnboardingSlide[] = [
     badge: 'Your health home',
     title: 'Welcome to Daryeel Health',
     subtitle:
-      'Book doctors, visit hospitals, track daily wellness, and keep family records in one secure app built for Somaliland.',
+      'Book doctors, track daily wellness, and keep family medical records in one secure app built for Somaliland.',
     image:
       'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&q=80',
-    highlights: ['Secure login', 'Family-friendly', 'Works offline with demo data'],
+    highlights: ['Secure login', 'Family-friendly', 'Live health records'],
     stats: [
       { label: 'Cities', value: '4+' },
       { label: 'Doctors', value: '40+' },
@@ -532,16 +529,16 @@ export const ONBOARDING_SLIDES: OnboardingSlide[] = [
   {
     key: 'discover',
     badge: 'Care near you',
-    title: 'Find doctors & hospitals fast',
+    title: 'Find doctors fast',
     subtitle:
-      'Browse specialties, ratings, and availability. Open a hospital to see its clinicians, hours, and departments before you book.',
+      'Browse specialties, ratings, and availability. Open a profile to book a visit with a verified clinician.',
     image:
       'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80',
-    highlights: ['Specialties & ratings', 'Hospital profiles', 'Sample appointments'],
+    highlights: ['Specialties & ratings', 'Verified doctors', 'Easy booking'],
     stats: [
-      { label: 'Hospitals', value: '4' },
+      { label: 'Doctors', value: 'Live' },
       { label: 'Specialties', value: '7' },
-      { label: 'Same-day', value: 'Yes' },
+      { label: 'Booking', value: 'In-app' },
     ],
   },
   {
