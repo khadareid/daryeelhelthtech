@@ -1,12 +1,6 @@
-// helpers/GenerateToken.ts
-
 import jwt from "jsonwebtoken";
 import { Role } from "@prisma/client";
-import { prisma } from "../lib/prisma";
 
-/* -------------------------------------------------------------
-   Config
-------------------------------------------------------------- */
 const ACCESS_SECRET =
   process.env.JWT_SECRET ??
   process.env.JWT_SECRET_TOKEN ??
@@ -15,39 +9,26 @@ const ACCESS_SECRET =
 const REFRESH_SECRET =
   process.env.JWT_REFRESH_SECRET ?? "dev-refresh-secret";
 
-const ACCESS_TTL   = "1d";   // 1 day
-const REFRESH_DAYS = 7;      // 7 days
+const ACCESS_TTL = "1d";
+const REFRESH_DAYS = 7;
 
-/* -------------------------------------------------------------
-   Types
-------------------------------------------------------------- */
-
-/** Auth context attached to requests by decodeToken (JWT payload fields). */
 export type UserData = {
   userId: string;
   email: string;
   role: Role;
 };
 
-/** Minimal payload used to sign JWTs. */
 export interface TokenPayload {
-  userId:    string;
-  email:     string;
-  role:      Role;
-  tenantId?: number | null;
+  userId: string;
+  email: string;
+  role: Role;
 }
 
-/* -------------------------------------------------------------
-   generateTokens
-   - Creates access + refresh tokens
-   - Persists a new Session row
-------------------------------------------------------------- */
 export const generateTokens = async (payload: TokenPayload) => {
   const jwtPayload = {
-    userId:   payload.userId,
-    email:    payload.email,
-    role:     payload.role,
-    tenantId: payload.tenantId ?? null,
+    userId: payload.userId,
+    email: payload.email,
+    role: payload.role,
   };
 
   const accessToken = jwt.sign(jwtPayload, ACCESS_SECRET, {
@@ -58,25 +39,9 @@ export const generateTokens = async (payload: TokenPayload) => {
     expiresIn: `${REFRESH_DAYS}d`,
   });
 
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + REFRESH_DAYS);
-
-  // ⚠️ IMPORTANT: only ONE user id field — see the schema note below.
-  await prisma.session.create({
-    data: {
-      userId: payload.userId,
-      refreshToken,
-      expiresAt,
-    },
-  });
-
   return { accessToken, refreshToken };
 };
 
-/* -------------------------------------------------------------
-   verifyRefreshToken
-   - Returns the decoded refresh JWT payload
-------------------------------------------------------------- */
 export const verifyRefreshToken = (token: string): TokenPayload => {
   const decoded = jwt.verify(token, REFRESH_SECRET) as jwt.JwtPayload;
 
@@ -85,17 +50,12 @@ export const verifyRefreshToken = (token: string): TokenPayload => {
   }
 
   return {
-    userId:   decoded.userId as string,
-    email:    (decoded.email as string) ?? "",
-    role:     decoded.role as Role,
-    tenantId: (decoded.tenantId as number | null) ?? null,
+    userId: decoded.userId,
+    email: (decoded.email as string) ?? "",
+    role: decoded.role as Role,
   };
 };
 
-/* -------------------------------------------------------------
-   verifyAccessToken  (optional but handy)
-   - Use in your auth middleware
-------------------------------------------------------------- */
 export const verifyAccessToken = (token: string): TokenPayload => {
   const decoded = jwt.verify(token, ACCESS_SECRET) as jwt.JwtPayload;
 
@@ -104,9 +64,8 @@ export const verifyAccessToken = (token: string): TokenPayload => {
   }
 
   return {
-    userId:   decoded.userId as string,
-    email:    (decoded.email as string) ?? "",
-    role:     decoded.role as Role,
-    tenantId: (decoded.tenantId as number | null) ?? null,
+    userId: decoded.userId,
+    email: (decoded.email as string) ?? "",
+    role: decoded.role as Role,
   };
 };

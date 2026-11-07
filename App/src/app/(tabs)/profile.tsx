@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ConfirmSheet } from '@/components/confirm-sheet';
@@ -9,28 +9,44 @@ import { Screen } from '@/components/screen';
 import { Button } from '@/components/ui/button';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import {
+  listMedicationsRequest,
+  type MedicationItem,
+} from '@/lib/api';
+import { enumLabel } from '@/lib/enums';
 
+/** Same care sections as the web Actions sheet */
 const MENU: { id: string; label: string; href: Href }[] = [
-  { id: 'appointments', label: 'My Appointments', href: '/(tabs)/appointments' },
-  { id: 'health', label: 'Health Daily', href: '/(tabs)/health' },
-  { id: 'doctors', label: 'Find Doctors', href: '/(tabs)/doctors' },
-  { id: 'role', label: 'Change role', href: '/change-role' },
-  { id: 'apply', label: 'Apply as professional', href: '/apply-professional' },
-  { id: 'home', label: 'Home overview', href: '/(tabs)' },
+  { id: 'visits', label: 'Visits', href: '/(tabs)/appointments' },
+  { id: 'payments', label: 'Payments', href: '/health/payments' },
+  { id: 'health', label: 'Daily health', href: '/(tabs)/health' },
+  { id: 'vitals', label: 'Vitals', href: '/health/vitals' },
+  { id: 'medications', label: 'Medications', href: '/health/medications' },
+  { id: 'allergies', label: 'Allergies', href: '/health/allergies' },
+  { id: 'prescriptions', label: 'Prescriptions', href: '/health/prescriptions' },
+  { id: 'records', label: 'Records', href: '/health/medical-records' },
+  { id: 'family', label: 'Family', href: '/health/family' },
+  { id: 'emergency', label: 'Emergency', href: '/health/emergency-card' },
+  { id: 'notifications', label: 'Alerts', href: '/notifications' },
+  { id: 'doctors', label: 'Doctors', href: '/(tabs)/doctors' },
 ];
 
 export default function ProfileScreen() {
-  const { user, profile, logout, refreshProfile, apiOnline } = useAuth();
+  const { user, profile, logout, refreshProfile, apiOnline, accessToken } =
+    useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [meds, setMeds] = useState<MedicationItem[]>([]);
   const photo = user?.avatarUrl || user?.picture;
-  const meds = (profile?.medications ?? []).map((med, index) => ({
-    id: med.medicationid || String(index),
-    name: med.name || 'Medication',
-    dose:
-      [med.dosage, med.instructions].filter(Boolean).join(' · ') ||
-      'As prescribed',
-  }));
+  const healthId = profile?.healthId || user?.healthId;
+  const bloodType = profile?.medicalProfile?.bloodType;
+
+  useEffect(() => {
+    if (!accessToken) return;
+    listMedicationsRequest(accessToken)
+      .then(setMeds)
+      .catch(() => setMeds([]));
+  }, [accessToken]);
 
   async function confirmLogout() {
     setLoggingOut(true);
@@ -45,7 +61,14 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <Screen onRefresh={refreshProfile} headerTitle="Profile">
+      <Screen
+        onRefresh={async () => {
+          await refreshProfile();
+          if (accessToken) {
+            setMeds(await listMedicationsRequest(accessToken).catch(() => []));
+          }
+        }}
+        headerTitle="Profile">
         <View style={styles.hero}>
           <Text style={styles.brand}>Daryeel</Text>
           <Text style={styles.heroTitle}>My Profile</Text>
@@ -63,31 +86,27 @@ export default function ProfileScreen() {
           />
           <Text style={styles.name}>{user?.fullName || 'Daryeel user'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
-          {profile?.profile?.healthId ? (
-            <Text style={styles.patientId}>
-              Patient ID · {profile.profile.healthId}
-            </Text>
+          {healthId ? (
+            <Text style={styles.patientId}>Health ID · {healthId}</Text>
           ) : null}
         </View>
 
         <View style={styles.patientCard}>
-          <Text style={styles.patientCardLabel}>Daryeel Patient ID</Text>
+          <Text style={styles.patientCardLabel}>Daryeel Health ID</Text>
           <Text style={styles.patientCardValue}>
-            {profile?.profile?.healthId || 'Generating…'}
+            {healthId || 'Generating…'}
           </Text>
           <Text style={styles.patientCardHint}>
-            Permanent healthcare identity — stays the same if you become a
-            professional.
+            Permanent personal health identity linked to your medical record.
           </Text>
         </View>
 
         <View style={styles.card}>
           <Row label="Phone" value={user?.phone || '—'} />
-          <Row label="City" value={profile?.profile?.city || '—'} />
-          <Row
-            label="Blood type"
-            value={profile?.profile?.bloodType?.replace(/_/g, ' ') || '—'}
-          />
+          <Row label="City" value={profile?.city || user?.city || '—'} />
+          <Row label="Blood type" value={enumLabel(bloodType)} />
+          <Row label="Gender" value={enumLabel(user?.gender)} />
+          <Row label="Role" value={enumLabel(user?.role || 'USER')} />
           <Row label="API" value={apiOnline ? 'Connected' : 'Offline'} />
         </View>
 
@@ -106,12 +125,17 @@ export default function ProfileScreen() {
         <View style={styles.meds}>
           <Text style={styles.section}>Medications</Text>
           {meds.length === 0 ? (
-            <Text style={styles.medDose}>No medications on your account yet.</Text>
+            <Text style={styles.medDose}>
+              No medications on your account yet.
+            </Text>
           ) : (
             meds.slice(0, 4).map((med) => (
               <View key={med.id} style={styles.medRow}>
                 <Text style={styles.medName}>{med.name}</Text>
-                <Text style={styles.medDose}>{med.dose}</Text>
+                <Text style={styles.medDose}>
+                  {[med.dosage, med.frequency].filter(Boolean).join(' · ') ||
+                    'As prescribed'}
+                </Text>
               </View>
             ))
           )}
@@ -121,7 +145,9 @@ export default function ProfileScreen() {
           title="Log out"
           variant="danger"
           onPress={() => setLogoutOpen(true)}
-          icon={<Ionicons name="log-out-outline" size={18} color={Brand.white} />}
+          icon={
+            <Ionicons name="log-out-outline" size={18} color={Brand.white} />
+          }
         />
       </Screen>
 
@@ -235,17 +261,6 @@ const styles = StyleSheet.create({
     color: Brand.muted,
     marginTop: 2,
   },
-  role: {
-    marginTop: 6,
-    fontFamily: Fonts.medium,
-    fontSize: 12,
-    color: Brand.primary,
-    backgroundColor: Brand.light,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    overflow: 'hidden',
-  },
   card: {
     backgroundColor: Brand.white,
     borderRadius: Radius.lg,
@@ -255,18 +270,20 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   row: {
-    gap: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
   rowLabel: {
     fontFamily: Fonts.medium,
-    fontSize: 12,
+    fontSize: 13,
     color: Brand.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.7,
   },
   rowValue: {
+    flex: 1,
+    textAlign: 'right',
     fontFamily: Fonts.semibold,
-    fontSize: 15,
+    fontSize: 13,
     color: Brand.dark,
   },
   menu: {
@@ -278,10 +295,10 @@ const styles = StyleSheet.create({
   },
   menuItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Brand.border,
   },
@@ -291,29 +308,20 @@ const styles = StyleSheet.create({
     color: Brand.dark,
   },
   meds: {
+    backgroundColor: Brand.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    padding: Spacing.four,
     gap: Spacing.two,
   },
   section: {
     fontFamily: Fonts.semibold,
     fontSize: 16,
     color: Brand.dark,
+    marginBottom: 4,
   },
-  medRow: {
-    backgroundColor: Brand.white,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Brand.border,
-    padding: Spacing.three,
-    gap: 2,
-  },
-  medName: {
-    fontFamily: Fonts.semibold,
-    fontSize: 14,
-    color: Brand.dark,
-  },
-  medDose: {
-    fontFamily: Fonts.regular,
-    fontSize: 12,
-    color: Brand.muted,
-  },
+  medRow: { gap: 2, marginBottom: 8 },
+  medName: { fontFamily: Fonts.semibold, fontSize: 14, color: Brand.dark },
+  medDose: { fontFamily: Fonts.regular, fontSize: 13, color: Brand.muted },
 });

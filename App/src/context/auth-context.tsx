@@ -10,7 +10,7 @@ import {
 
 import {
   checkApiHealth,
-  getProfileRequest,
+  getMeRequest,
   loginRequest,
   registerRequest,
   type AuthUser,
@@ -41,6 +41,25 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function toAuthUser(next: UserProfile | AuthUser): AuthUser {
+  return {
+    userid: next.userid,
+    email: next.email,
+    fullName: next.fullName,
+    role: next.role,
+    phone: next.phone,
+    picture: next.picture,
+    avatarUrl: next.avatarUrl,
+    healthId: next.healthId,
+    gender: next.gender,
+    dateOfBirth: next.dateOfBirth,
+    city: next.city,
+    country: next.country,
+    region: next.region,
+    district: next.district,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -49,19 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
 
-  const loadProfile = useCallback(async (userId: string, token: string) => {
+  const loadProfile = useCallback(async (token: string) => {
     try {
-      const next = await getProfileRequest(userId, token);
+      const next = await getMeRequest(token);
       setProfile(next);
-      setUser({
-        userid: next.userid,
-        email: next.email,
-        fullName: next.fullName,
-        role: next.role,
-        phone: next.phone,
-        picture: next.picture,
-        avatarUrl: next.avatarUrl,
-      });
+      setUser(toAuthUser(next));
     } catch {
       /* keep cached user if profile fetch fails */
     }
@@ -82,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session.user);
         setAccessToken(session.accessToken);
         setRefreshToken(session.refreshToken);
-        await loadProfile(session.user.userid, session.accessToken);
+        await loadProfile(session.accessToken);
       }
 
       setApiOnline(online);
@@ -104,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(next.accessToken);
       setRefreshToken(next.refreshToken);
       await saveSession(next);
-      await loadProfile(next.user.userid, next.accessToken);
+      await loadProfile(next.accessToken);
     },
     [loadProfile],
   );
@@ -149,9 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (!user || !accessToken) return;
-    await loadProfile(user.userid, accessToken);
-  }, [user, accessToken, loadProfile]);
+    if (!accessToken) return;
+    await loadProfile(accessToken);
+  }, [accessToken, loadProfile]);
 
   const refreshApiHealth = useCallback(async () => {
     setApiOnline(await checkApiHealth());

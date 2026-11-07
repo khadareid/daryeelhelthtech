@@ -1,47 +1,27 @@
 "use strict";
-// import { NotificationType, PrismaClient } from "@prisma/client";
-// const prisma = new PrismaClient();
-// export interface CreateNotificationInput {
-//   userId: number;
-//   tenantId?: number;
-//   title: string;
-//   message: string;
-//   type?: NotificationType;
-// }
-// export const createNotification = async (input: CreateNotificationInput) => {
-//   return prisma.notification.create({
-//     data: {
-//       userId: input.userId,
-//       tenantId: input.tenantId,
-//       title: input.title,
-//       message: input.message,
-//       type: input.type || NotificationType.SYSTEM,
-//     },
-//   });
-// };
-// export const notifyTenantAdmins = async (
-//   tenantId: number,
-//   title: string,
-//   message: string,
-//   type: NotificationType = NotificationType.SYSTEM
-// ) => {
-//   const admins = await prisma.user.findMany({
-//     where: {
-//       tenantId,
-//       isDeleted: false,
-//       isActive: true,
-//       role: { in: ["ADMIN", "MANAGER", "SUPER_ADMIN"] },
-//     },
-//     select: { userid: true },
-//   });
-//   if (!admins.length) return [];
-//   return prisma.notification.createMany({
-//     data: admins.map((admin) => ({
-//       userId: admin.userid,
-//       tenantId,
-//       title,
-//       message,
-//       type,
-//     })),
-//   });
-// };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createNotification = void 0;
+const client_1 = require("@prisma/client");
+const prisma_1 = require("../lib/prisma");
+const createNotification = (input) => __awaiter(void 0, void 0, void 0, function* () {
+    return prisma_1.prisma.notification.create({
+        data: {
+            userId: input.userId,
+            title: input.title,
+            body: input.body,
+            type: input.type || client_1.NotificationType.SYSTEM,
+            channel: input.channel || client_1.NotificationChannel.IN_APP,
+            data: input.data,
+        },
+    });
+});
+exports.createNotification = createNotification;

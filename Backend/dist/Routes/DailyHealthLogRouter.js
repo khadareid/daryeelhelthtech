@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const DailyHealthLogController_1 = require("../Controllers/DailyHealthLogController");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const router = (0, express_1.Router)();
+router.use(VerifyToken_1.decodeToken);
+router.get("/", DailyHealthLogController_1.list);
+router.get("/:id", DailyHealthLogController_1.getOne);
+router.post("/", DailyHealthLogController_1.upsert);
+router.put("/", DailyHealthLogController_1.upsert);
+router.delete("/:id", DailyHealthLogController_1.remove);
+exports.default = router;

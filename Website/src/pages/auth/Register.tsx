@@ -58,9 +58,10 @@ export default function RegisterPage() {
       const postRegister = async (forceCsrf = false) => {
         const csrf = await ensureCsrfToken(forceCsrf)
         return axios.post<RegisterResponse>(
-          `${env.apiUrl}/user/register`,
+          `${env.apiUrl}/auth/register`,
           {
             fullName: fullName.trim(),
+            name: fullName.trim(),
             email: email.trim(),
             password,
           },

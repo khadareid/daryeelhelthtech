@@ -9,7 +9,11 @@ import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useGoogleHealthLink } from '@/hooks/use-google-health';
 import { usePedometer } from '@/hooks/use-pedometer';
-import { getTodayHealthLog, upsertTodayHealthLog } from '@/lib/api';
+import {
+  getTodayHealthLog,
+  listVitalSignsRequest,
+  upsertTodayHealthLog,
+} from '@/lib/api';
 
 const DEFAULT_STEPS_GOAL = 10000;
 const DEFAULT_WATER_GOAL = 2000;
@@ -41,8 +45,9 @@ function ratio(value: number, goal: number) {
 }
 
 export default function HealthDailyScreen() {
-  const { accessToken, profile, user, refreshProfile } = useAuth();
+  const { accessToken, user, refreshProfile } = useAuth();
   const [todayLog, setTodayLog] = useState<TodayLog | null>(null);
+  const [heart, setHeart] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const { linked, ready, connect, disconnect, openHealthConnect } =
     useGoogleHealthLink();
@@ -61,7 +66,6 @@ export default function HealthDailyScreen() {
   const waterGoal = todayLog?.waterGoalMl ?? DEFAULT_WATER_GOAL;
   const sleep = Number(todayLog?.sleepHours ?? 0);
   const sleepGoal = todayLog?.sleepGoalHours ?? DEFAULT_SLEEP_GOAL;
-  const heart = profile?.vitalSigns?.[0]?.heartRate ?? 0;
   const activeMin =
     todayLog?.activeMinutes ?? Math.max(0, Math.round(liveSteps / 120));
   const calories =
@@ -70,15 +74,19 @@ export default function HealthDailyScreen() {
     Math.round(liveSteps * 0.04);
 
   const firstName = useMemo(
-    () => (user?.fullName || profile?.fullName || 'there').split(' ')[0],
-    [user?.fullName, profile?.fullName],
+    () => (user?.fullName || 'there').split(' ')[0],
+    [user?.fullName],
   );
 
   async function load() {
     await refreshProfile();
     if (!accessToken) return;
-    const res = await getTodayHealthLog(accessToken);
-    setTodayLog((res?.result ?? res?.data ?? null) as TodayLog | null);
+    const [res, vitals] = await Promise.all([
+      getTodayHealthLog(accessToken),
+      listVitalSignsRequest(accessToken).catch(() => []),
+    ]);
+    setTodayLog((res?.result ?? null) as TodayLog | null);
+    setHeart(vitals[0]?.heartRate ?? 0);
   }
 
   useEffect(() => {
@@ -95,8 +103,8 @@ export default function HealthDailyScreen() {
           steps: liveSteps,
           caloriesBurned: Math.round(liveSteps * 0.04),
           activeMinutes: Math.max(0, Math.round(liveSteps / 120)),
-          distanceMeters: Math.round(liveSteps * 0.75),
-          source: 'HEALTH_APP',
+          distanceKm: Number(((liveSteps * 0.75) / 1000).toFixed(2)),
+          source: 'HEALTH_CONNECT',
         });
       } catch {
         /* offline / API optional */
@@ -294,6 +302,29 @@ export default function HealthDailyScreen() {
         <Text style={styles.goalHint}>
           Sleep goal {sleepGoal}h · Synced from Google Health sensors when linked
         </Text>
+      </View>
+
+      <View style={styles.records}>
+        <Text style={styles.quickTitle}>Health records</Text>
+        {(
+          [
+            { label: 'Medications', href: '/health/medications' },
+            { label: 'Allergies', href: '/health/allergies' },
+            { label: 'Vital signs', href: '/health/vitals' },
+            { label: 'Prescriptions', href: '/health/prescriptions' },
+            { label: 'Medical records', href: '/health/medical-records' },
+            { label: 'Emergency card', href: '/health/emergency-card' },
+            { label: 'Family members', href: '/health/family' },
+          ] as const
+        ).map((item) => (
+          <Pressable
+            key={item.href}
+            style={styles.recordRow}
+            onPress={() => router.push(item.href as Href)}>
+            <Text style={styles.recordLabel}>{item.label}</Text>
+            <Ionicons name="chevron-forward" size={18} color={Brand.primary} />
+          </Pressable>
+        ))}
       </View>
     </Screen>
   );
@@ -607,6 +638,28 @@ const styles = StyleSheet.create({
     borderColor: Brand.border,
     padding: Spacing.three,
     gap: 10,
+  },
+  records: {
+    marginTop: 8,
+    backgroundColor: Brand.white,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    padding: Spacing.three,
+    gap: 4,
+  },
+  recordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Brand.border,
+  },
+  recordLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: 14,
+    color: Brand.dark,
   },
   quickTitle: {
     fontFamily: Fonts.semibold,

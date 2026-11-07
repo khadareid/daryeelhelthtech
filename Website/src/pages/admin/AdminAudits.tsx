@@ -1,85 +1,184 @@
-import { useState } from 'react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { useGetAuditLogsQuery } from '@/Redex/service/admin/AdminApi'
+import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AdminDrawer,
+  AdminPageHeader,
+  AdminPagination,
+  AdminStatusPill,
+  AdminTable,
+  AdminToolbar,
+} from "@/components/admin/AdminShell"
+import { useGetAuditLogsQuery } from "@/Redex/service/admin/AdminApi"
+import type { AuditLog } from "@/Redex/types/Types"
+import { enumLabel } from "@/lib/enums"
 
 export default function AdminAudits() {
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
-  const { data, isLoading } = useGetAuditLogsQuery({
+  const [selected, setSelected] = useState<AuditLog | null>(null)
+  const { data, isLoading, isError, refetch } = useGetAuditLogsQuery({
     page,
     limit: 30,
     search: search || undefined,
   })
-  const rows = data?.data ?? []
-  const pagination = data?.pagination
+  const rows = data?.items ?? []
+  const meta = data?.meta
 
   return (
-    <div className="space-y-4">
-      <header className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
-        <h1 className="font-heading text-2xl font-bold text-brand-dark">
-          Audit logs
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Platform actions across users, plans, CMS, and moderation.
-        </p>
+    <div className="space-y-3">
+      <AdminPageHeader
+        eyebrow="Admin"
+        title="Audits"
+        subtitle="Platform actions across users, doctors, bookings, and health data."
+        meta={
+          meta?.total != null
+            ? `${meta.total.toLocaleString()} audit events`
+            : undefined
+        }
+      />
+
+      <AdminToolbar>
         <Input
-          className="mt-4"
-          placeholder="Search action, entity, user id…"
+          className="h-9 flex-1 rounded-lg border-blue-100 sm:min-w-[220px]"
+          placeholder="Search action, entity, user…"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
             setPage(1)
           }}
         />
-      </header>
-      <section className="space-y-2 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
-        {isLoading ? <Skeleton className="h-40 rounded-2xl" /> : null}
-        {rows.map((log: any) => (
-          <article
-            key={log.auditlogid}
-            className="rounded-2xl border border-blue-50 p-3 text-sm"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-heading font-semibold text-brand-dark">
-                {log.action}
-              </p>
-              <span className="text-xs text-muted-foreground">
-                {new Date(log.createdAt).toLocaleString()}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {log.entity || '—'} {log.entityId ? `· ${log.entityId}` : ''} ·{' '}
-              {log.user?.fullName || log.userId || 'system'}
-            </p>
-          </article>
-        ))}
-        {rows.length === 0 && !isLoading ? (
-          <p className="text-sm text-muted-foreground">No audit events yet.</p>
-        ) : null}
-        <div className="flex items-center justify-between pt-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Prev
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Page {pagination?.page ?? page} / {pagination?.totalPages ?? 1}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={(pagination?.page ?? 1) >= (pagination?.totalPages ?? 1)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
+      </AdminToolbar>
+
+      {isLoading ? <Skeleton className="h-40 rounded-xl" /> : null}
+
+      {isError ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-6 text-center">
+          <p className="text-sm font-semibold text-rose-700">
+            Could not load audit logs
+          </p>
+          <Button size="sm" className="mt-3" onClick={() => refetch()}>
+            Retry
           </Button>
         </div>
-      </section>
+      ) : null}
+
+      <AdminTable
+        columns={["When", "Action", "Entity", "Actor", "Status", "Actions"]}
+        empty={
+          !isLoading && rows.length === 0 ? "No audit events yet." : undefined
+        }
+        minWidth="860px"
+      >
+        {rows.map((log) => (
+          <tr key={log.id} className="border-t border-blue-50">
+            <td className="px-3 py-2.5 text-xs text-muted-foreground">
+              {log.createdAt ? new Date(log.createdAt).toLocaleString() : "—"}
+            </td>
+            <td className="px-3 py-2.5">
+              <Badge variant="secondary" className="text-[10px]">
+                {enumLabel(String(log.action))}
+              </Badge>
+            </td>
+            <td className="px-3 py-2.5 text-sm">
+              <p className="font-medium text-brand-dark">{log.entity || "—"}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {log.entityId || ""}
+              </p>
+            </td>
+            <td className="px-3 py-2.5 text-sm">
+              <p className="font-medium text-brand-dark">
+                {log.user?.fullName || log.userId || "System"}
+              </p>
+              {log.user?.email ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {log.user.email}
+                </p>
+              ) : null}
+            </td>
+            <td className="px-3 py-2.5">
+              <AdminStatusPill tone="ok" label="Logged" />
+            </td>
+            <td className="px-3 py-2.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                onClick={() => setSelected(log)}
+              >
+                View
+              </Button>
+            </td>
+          </tr>
+        ))}
+      </AdminTable>
+
+      <AdminPagination
+        page={meta?.page ?? page}
+        totalPages={meta?.totalPages ?? 1}
+        total={meta?.total}
+        onPage={setPage}
+      />
+
+      <AdminDrawer
+        open={Boolean(selected)}
+        title="Audit event"
+        subtitle={selected ? enumLabel(String(selected.action)) : undefined}
+        onClose={() => setSelected(null)}
+        footer={
+          <Button variant="outline" onClick={() => setSelected(null)}>
+            Close
+          </Button>
+        }
+      >
+        {selected ? (
+          <dl className="space-y-3 text-sm">
+            <Row
+              label="When"
+              value={
+                selected.createdAt
+                  ? new Date(selected.createdAt).toLocaleString()
+                  : "—"
+              }
+            />
+            <Row label="Action" value={enumLabel(String(selected.action))} />
+            <Row label="Entity" value={selected.entity || "—"} />
+            <Row label="Entity ID" value={selected.entityId || "—"} />
+            <Row
+              label="Actor"
+              value={
+                selected.user?.fullName ||
+                selected.user?.email ||
+                selected.userId ||
+                "System"
+              }
+            />
+            <div>
+              <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Metadata
+              </dt>
+              <dd className="mt-1 overflow-x-auto rounded-lg bg-brand-light/50 p-3 font-mono text-[11px] text-brand-dark">
+                {selected.metadata || selected.meta
+                  ? JSON.stringify(selected.metadata ?? selected.meta, null, 2)
+                  : selected.description || "—"}
+              </dd>
+            </div>
+          </dl>
+        ) : null}
+      </AdminDrawer>
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-0.5 font-medium text-brand-dark">{value}</dd>
     </div>
   )
 }

@@ -58,7 +58,7 @@ export default function SignInPage() {
       const postLogin = async (forceCsrf = false) => {
         const csrf = await ensureCsrfToken(forceCsrf)
         return axios.post<LoginResponse>(
-          `${env.apiUrl}/user/login`,
+          `${env.apiUrl}/auth/login`,
           { email: email.trim(), password },
           { withCredentials: true, headers: { "x-csrf-token": csrf } }
         )

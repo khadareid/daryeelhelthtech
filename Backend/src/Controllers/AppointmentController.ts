@@ -1,315 +1,56 @@
 import { Request, Response } from "express";
 import {
-  AppointmentStatus,
-  NotificationChannel,
-  NotificationType,
-} from "@prisma/client";
-import { prisma } from "../lib/prisma";
+  createAppointment,
+  deleteAppointment,
+  getAppointment,
+  listAppointments,
+  updateAppointment,
+} from "../services/appointment.service";
+import { handleRouteError } from "../utils/errors";
+import { requireUser } from "../utils/ownership";
+import { created, ok } from "../utils/response";
 
-function getUserId(req: Request): string | null {
-  const user = (req as any).user;
-  return user?.userId || user?.userid || user?.id || null;
-}
-
-function makeAppointmentCode() {
-  const stamp = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `APT-${stamp}-${rand}`;
-}
-
-function parseScheduledAt(value: unknown): Date | null {
-  if (typeof value !== "string" && !(value instanceof Date)) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-/** POST /appointments — any signed-in user can book */
-export const createAppointment = async (req: Request, res: Response) => {
+export const list = async (req: Request, res: Response) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      res.status(401).json({ isSuccess: false, message: "Sign in required" });
-      return;
-    }
-
-    const {
-      doctorId,
-      doctorName,
-      specialty,
-      facilityName,
-      facilityId,
-      scheduledAt,
-      duration,
-      reason,
-      notes,
-      visitType,
-    } = req.body ?? {};
-
-    const when = parseScheduledAt(scheduledAt);
-    if (!when) {
-      res.status(400).json({
-        isSuccess: false,
-        message: "scheduledAt is required (ISO date)",
-      });
-      return;
-    }
-
-    if (when.getTime() < Date.now() - 60_000) {
-      res.status(400).json({
-        isSuccess: false,
-        message: "Choose a future date and time",
-      });
-      return;
-    }
-
-    const isVideo =
-      String(visitType || "").toLowerCase().includes("video") ||
-      String(visitType || "").toLowerCase() === "telehealth";
-
-    // Resolve professional account when doctorId is a ProfessionalProfile id or user id
-    let professionalUserId: string | null =
-      typeof req.body?.professionalUserId === "string"
-        ? req.body.professionalUserId
-        : null;
-
-    if (!professionalUserId && doctorId) {
-      const byProfile = await prisma.professionalProfile.findFirst({
-        where: {
-          OR: [
-            { professionalprofileid: String(doctorId) },
-            { slug: String(doctorId) },
-            { userId: String(doctorId) },
-          ],
-        },
-        select: { userId: true, professionalprofileid: true },
-      });
-      if (byProfile) {
-        professionalUserId = byProfile.userId;
-      }
-    }
-
-    const appointment = await prisma.appointment.create({
-      data: {
-        userId,
-        professionalUserId,
-        appointmentCode: makeAppointmentCode(),
-        doctorId: doctorId ? String(doctorId) : null,
-        doctorName: doctorName ? String(doctorName) : "Clinician",
-        specialty: specialty ? String(specialty) : null,
-        facilityName: facilityName ? String(facilityName) : null,
-        facilityId: facilityId ? String(facilityId) : null,
-        scheduledAt: when,
-        duration: Number(duration) > 0 ? Number(duration) : 30,
-        reason: reason ? String(reason) : null,
-        notes: notes
-          ? String(notes)
-          : visitType
-            ? `Visit type: ${visitType}`
-            : null,
-        meetingLink: isVideo
-          ? `https://daryeel-healthtech-gamma.vercel.app/dashboard?section=appointments`
-          : null,
-        status: AppointmentStatus.SCHEDULED,
-      },
-    });
-
-    const patient = await prisma.user.findUnique({
-      where: { userid: userId },
-      select: {
-        fullName: true,
-        phone: true,
-        email: true,
-        profile: { select: { healthId: true } },
-      },
-    });
-
-    if (professionalUserId) {
-      await prisma.notification
-        .create({
-          data: {
-            userId: professionalUserId,
-            title: "New appointment booking",
-            body: `${patient?.fullName || "A patient"} booked you for ${when.toLocaleString()}${
-              reason ? ` · ${String(reason)}` : ""
-            }.`,
-            type: NotificationType.APPOINTMENT,
-            channel: NotificationChannel.IN_APP,
-            metadata: {
-              appointmentId: appointment.appointmentid,
-              patientUserId: userId,
-              patientName: patient?.fullName,
-              patientHealthId: patient?.profile?.healthId,
-            },
-          },
-        })
-        .catch(() => undefined);
-    }
-
-    res.status(201).json({
-      isSuccess: true,
-      message: "Appointment booked",
-      result: {
-        ...appointment,
-        patientName: patient?.fullName,
-        patientHealthId: patient?.profile?.healthId,
-        patientPhone: patient?.phone,
-        patientEmail: patient?.email,
-      },
-    });
+    const user = requireUser(req);
+    ok(res, await listAppointments(user, req.query as Record<string, unknown>));
   } catch (error) {
-    console.error("createAppointment error:", error);
-    res.status(500).json({
-      isSuccess: false,
-      message: "Failed to book appointment",
-    });
+    handleRouteError(error, res);
   }
 };
 
-/** GET /appointments — list current user's bookings */
-export const listMyAppointments = async (req: Request, res: Response) => {
+export const getOne = async (req: Request, res: Response) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      res.status(401).json({ isSuccess: false, message: "Sign in required" });
-      return;
-    }
-
-    const status = typeof req.query.status === "string" ? req.query.status : "";
-    const scope = typeof req.query.scope === "string" ? req.query.scope : "all";
-
-    const statusFilter =
-      status && Object.values(AppointmentStatus).includes(status as AppointmentStatus)
-        ? (status as AppointmentStatus)
-        : undefined;
-
-    // Patient bookings + appointments where this user is the professional
-    const appointments = await prisma.appointment.findMany({
-      where: {
-        OR: [{ userId }, { professionalUserId: userId }],
-        ...(statusFilter ? { status: statusFilter } : {}),
-      },
-      orderBy: { scheduledAt: "desc" },
-      take: 100,
-      include: {
-        user: {
-          select: {
-            userid: true,
-            fullName: true,
-            phone: true,
-            email: true,
-            avatarUrl: true,
-            picture: true,
-            profile: { select: { healthId: true, city: true } },
-          },
-        },
-        professional: {
-          select: {
-            userid: true,
-            fullName: true,
-            avatarUrl: true,
-            picture: true,
-          },
-        },
-      },
-    });
-
-    const mapped = appointments.map((a) => ({
-      ...a,
-      patientName: a.user?.fullName,
-      patientUserId: a.userId,
-      patientHealthId: a.user?.profile?.healthId ?? null,
-      patientPhone: a.user?.phone ?? null,
-      patientEmail: a.user?.email ?? null,
-      professionalName: a.professional?.fullName || a.doctorName,
-      isMineAsPatient: a.userId === userId,
-      isMineAsProfessional: a.professionalUserId === userId,
-    }));
-
-    const now = Date.now();
-    const closed = new Set<AppointmentStatus>([
-      AppointmentStatus.CANCELLED,
-      AppointmentStatus.COMPLETED,
-      AppointmentStatus.NO_SHOW,
-    ]);
-    const upcoming = mapped.filter(
-      (a) => new Date(a.scheduledAt).getTime() >= now && !closed.has(a.status)
-    );
-    const history = mapped.filter(
-      (a) => new Date(a.scheduledAt).getTime() < now || closed.has(a.status)
-    );
-
-    const filtered =
-      scope === "upcoming"
-        ? upcoming
-        : scope === "past" || scope === "history"
-          ? history
-          : mapped;
-
-    res.status(200).json({
-      isSuccess: true,
-      result: filtered,
-      meta: {
-        upcomingCount: upcoming.length,
-        historyCount: history.length,
-        upcoming,
-        history,
-      },
-    });
+    const user = requireUser(req);
+    ok(res, await getAppointment(req.params.id, user));
   } catch (error) {
-    console.error("listMyAppointments error:", error);
-    res.status(500).json({
-      isSuccess: false,
-      message: "Failed to load appointments",
-    });
+    handleRouteError(error, res);
   }
 };
 
-/** PATCH /appointments/:id/cancel */
-export const cancelAppointment = async (req: Request, res: Response) => {
+export const create = async (req: Request, res: Response) => {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      res.status(401).json({ isSuccess: false, message: "Sign in required" });
-      return;
-    }
-
-    const id = String(req.params.id || "");
-    const existing = await prisma.appointment.findFirst({
-      where: { appointmentid: id, userId },
-    });
-
-    if (!existing) {
-      res.status(404).json({ isSuccess: false, message: "Appointment not found" });
-      return;
-    }
-
-    if (existing.status === AppointmentStatus.CANCELLED) {
-      res.status(200).json({ isSuccess: true, result: existing });
-      return;
-    }
-
-    const appointment = await prisma.appointment.update({
-      where: { appointmentid: id },
-      data: {
-        status: AppointmentStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancelledReason:
-          typeof req.body?.reason === "string"
-            ? req.body.reason
-            : "Cancelled by patient",
-      },
-    });
-
-    res.status(200).json({
-      isSuccess: true,
-      message: "Appointment cancelled",
-      result: appointment,
-    });
+    const user = requireUser(req);
+    created(res, await createAppointment(user, req.body || {}));
   } catch (error) {
-    console.error("cancelAppointment error:", error);
-    res.status(500).json({
-      isSuccess: false,
-      message: "Failed to cancel appointment",
-    });
+    handleRouteError(error, res);
+  }
+};
+
+export const update = async (req: Request, res: Response) => {
+  try {
+    const user = requireUser(req);
+    ok(res, await updateAppointment(req.params.id, user, req.body || {}), "Updated");
+  } catch (error) {
+    handleRouteError(error, res);
+  }
+};
+
+export const remove = async (req: Request, res: Response) => {
+  try {
+    const user = requireUser(req);
+    ok(res, await deleteAppointment(req.params.id, user), "Deleted");
+  } catch (error) {
+    handleRouteError(error, res);
   }
 };

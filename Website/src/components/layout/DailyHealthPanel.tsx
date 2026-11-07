@@ -23,15 +23,18 @@ import {
   DailyHealthLog,
   DailyHealthLogInput,
   EnergyLevel,
+  EnergyLevelEnum,
   MoodLevel,
+  MoodLevelEnum,
   SleepQuality,
+  SleepQualityEnum,
   StressLevel,
+  StressLevelEnum,
 } from "@/Redex/types/Types"
 import {
   useCreateDailyHealthLogMutation,
   useGetDailyHealthHistoryQuery,
   useGetTodayDailyHealthLogQuery,
-  useUpdateDailyHealthLogMutation,
 } from "@/Redex/service/DailyHealthLog/DailyHealthLog"
 import { useWebHealthSync } from "@/hooks/useWebHealthSync"
 
@@ -84,10 +87,10 @@ function errorMessage(error: unknown) {
   return "Could not save today's log."
 }
 
-const MOODS = Object.values(MoodLevel)
-const SLEEP = Object.values(SleepQuality)
-const STRESS = Object.values(StressLevel)
-const ENERGY = Object.values(EnergyLevel)
+const MOODS = Object.values(MoodLevelEnum)
+const SLEEP = Object.values(SleepQualityEnum)
+const STRESS = Object.values(StressLevelEnum)
+const ENERGY = Object.values(EnergyLevelEnum)
 
 function AutoStat({ label, value }: { label: string; value: string }) {
   return (
@@ -100,12 +103,20 @@ function AutoStat({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
+export function DailyHealthPanel({
+  soft = false,
+  compact = false,
+}: {
+  soft?: boolean
+  compact?: boolean
+}) {
+  void soft
+  void compact
   const userId = useSelector((state: RootState) => state.userInfo.userId)
   const { data: today, isLoading, isError, refetch } = useGetTodayDailyHealthLogQuery()
   const { data: history } = useGetDailyHealthHistoryQuery({ limit: 7 })
   const [createLog, { isLoading: creating }] = useCreateDailyHealthLogMutation()
-  const [updateLog, { isLoading: updating }] = useUpdateDailyHealthLogMutation()
+  const updating = creating
 
   const seedSteps = today?.steps ?? 0
   const webHealth = useWebHealthSync(seedSteps)
@@ -140,17 +151,13 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
       steps: webHealth.steps,
       caloriesBurned: webHealth.caloriesFromSteps,
       activeMinutes: webHealth.activeMinutesFromSteps,
-      distanceMeters: Math.round(webHealth.steps * 0.75),
-      source: "HEALTH_APP" as const,
+      distanceKm: Math.round(webHealth.steps * 0.75) / 1000,
+      source: "DEVICE" as const,
     }
 
     const t = window.setTimeout(async () => {
       try {
-        if (today) {
-          await updateLog({ date, data: payload }).unwrap()
-        } else {
-          await createLog({ userId, date, ...payload } as DailyHealthLogInput).unwrap()
-        }
+        await createLog({ date, ...payload } as DailyHealthLogInput).unwrap()
         refetch()
       } catch {
         /* silent auto-sync */
@@ -164,7 +171,6 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
     webHealth.activeMinutesFromSteps,
     today,
     userId,
-    updateLog,
     createLog,
     refetch,
   ])
@@ -205,9 +211,9 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
       steps: liveSteps || undefined,
       activeMinutes: liveActive || undefined,
       caloriesBurned: liveCalories || undefined,
-      distanceMeters: liveSteps ? Math.round(liveSteps * 0.75) : undefined,
-      source: (autoOn || liveSteps > 0 ? "HEALTH_APP" : "MANUAL") as
-        | "HEALTH_APP"
+      distanceKm: liveSteps ? Math.round(liveSteps * 0.75) / 1000 : undefined,
+      source: (autoOn || liveSteps > 0 ? "DEVICE" : "MANUAL") as
+        | "DEVICE"
         | "MANUAL",
     }
 
@@ -216,29 +222,10 @@ export function DailyHealthPanel({ soft = false }: { soft?: boolean }) {
     ) as Partial<Omit<DailyHealthLogInput, "userId" | "date">>
 
     try {
-      if (today) {
-        await updateLog({ date, data: payload }).unwrap()
-      } else {
-        await createLog({ userId, date, ...payload } as DailyHealthLogInput).unwrap()
-      }
+      await createLog({ date, ...payload } as DailyHealthLogInput).unwrap()
       toast.success("Saved — automatic activity kept in sync")
       refetch()
     } catch (error) {
-      const status =
-        error && typeof error === "object" && "status" in error
-          ? (error as { status?: number }).status
-          : undefined
-      if (!today && status === 409) {
-        try {
-          await updateLog({ date, data: payload }).unwrap()
-          toast.success("Today's health log is updated")
-          refetch()
-          return
-        } catch (updateError) {
-          toast.error(errorMessage(updateError))
-          return
-        }
-      }
       toast.error(errorMessage(error))
     }
   }

@@ -7,21 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ═══════════════════════════════════════════════════════════
+// ======================================================
 // ENUMS
-// ═══════════════════════════════════════════════════════════
+// ======================================================
 
 enum Role {
   SUPER_ADMIN
-  USER
-  PATIENT
-  DOCTOR
-  NURSE
-  MIDWIFE
-  LAB_TECH
-  PHARMACIST
-  RECEPTIONIST
   ADMIN
+  USER
 }
 
 enum Gender {
@@ -42,141 +35,93 @@ enum BloodType {
   UNKNOWN
 }
 
-enum ConsentScope {
-  MEDICAL_RECORDS
-  APPOINTMENTS
-  LAB_RESULTS
-  PRESCRIPTIONS
-  VITAL_SIGNS
-  ALL
-}
-
-enum ConsentStatus {
-  PENDING
-  ACTIVE
-  EXPIRED
-  REVOKED
-}
+// ======================================================
+// APPOINTMENT
+// ======================================================
 
 enum AppointmentStatus {
-  SCHEDULED
   PENDING
   ACCEPTED
   REJECTED
   RESCHEDULE_REQUESTED
   CONFIRMED
-  CANCELLED
-  CANCELLED_BY_PATIENT
-  CANCELLED_BY_HOSPITAL
   CHECKED_IN
   IN_PROGRESS
   COMPLETED
+  CANCELLED
   NO_SHOW
 }
 
-enum PaymentStatusMirror {
-  UNPAID
-  PENDING
-  PAID
-  PARTIALLY_PAID
-  WAIVED
-  REFUNDED
-  NOT_REQUIRED
+// ======================================================
+// CONSULTATION
+// ======================================================
+
+enum ConsultationType {
+  VIDEO
+  AUDIO
+  CHAT
+  IN_PERSON
 }
 
-enum PrescriptionStatus {
-  PENDING
-  DISPENSED
+enum ConsultationStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
   CANCELLED
-  EXPIRED
+  NO_SHOW
 }
 
-enum LabOrderStatus {
-  ORDERED
-  SAMPLE_COLLECTED
+// ======================================================
+// PAYMENT
+// ======================================================
+
+enum PaymentStatus {
+  PENDING
   PROCESSING
-  COMPLETED
-  CANCELLED
-}
-
-enum HealthTrackingType {
-  BLOOD_PRESSURE
-  BLOOD_SUGAR
-  WEIGHT
-  HEIGHT
-  HEART_RATE
-  TEMPERATURE
-  OXYGEN_SATURATION
-  STEPS
-  SLEEP
-  WATER_INTAKE
-  MOOD
-  PAIN_LEVEL
-  CUSTOM
-}
-
-enum NotificationType {
-  APPOINTMENT_REMINDER
-  LAB_RESULT
-  PRESCRIPTION
-  SYSTEM
-  PAYMENT
-  HEALTH_TIP
-  CONSENT_REQUEST
-  PROFESSIONAL_APPLICATION
-  NEWS_INTERACTION
-  MODERATION
-  CONNECTION
-  MESSAGE
-  APPOINTMENT
-  APPOINTMENT_ACCEPTED
-  APPOINTMENT_REJECTED
-  APPOINTMENT_RESCHEDULE
-  OPD_TICKET
-  VISIT_UPDATE
-  REVIEW_REMINDER
-}
-
-enum ConnectionStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
-  BLOCKED
-  ENDED
-}
-
-enum ConnectionRequestedBy {
-  PATIENT
-  PROFESSIONAL
-}
-
-enum NotificationChannel {
-  SMS
-  PUSH
-  EMAIL
-  IN_APP
-}
-
-enum TransactionType {
-  CREDIT
-  DEBIT
-  REFUND
-  COMMISSION
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
+  PAID
   FAILED
+  CANCELLED
   REFUNDED
+  PARTIALLY_REFUNDED
 }
 
 enum PaymentMethod {
-  WALLET
   CASH
   CARD
   MOBILE_MONEY
+  BANK_TRANSFER
+  WALLET
+  ONLINE
+  OTHER
 }
+
+// ======================================================
+// NOTIFICATION
+// ======================================================
+
+enum NotificationType {
+  APPOINTMENT
+  APPOINTMENT_REMINDER
+  APPOINTMENT_ACCEPTED
+  APPOINTMENT_REJECTED
+  CONSULTATION
+  PAYMENT
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  MEDICAL_RECORD
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  SMS
+  EMAIL
+}
+
+// ======================================================
+// WELLNESS
+// ======================================================
 
 enum MoodLevel {
   VERY_BAD
@@ -241,117 +186,648 @@ enum GoalStatus {
 
 enum DailyLogSource {
   MANUAL
+  HEALTH_CONNECT
   DEVICE
-  HEALTH_APP
   MIXED
 }
 
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// DOCTOR
+// ======================================================
+
+enum DoctorVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+// ======================================================
+// ACCESS / PRIVACY
+// ======================================================
+
+enum ConsentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+  EXPIRED
+}
+
+enum AccessLevel {
+  VIEW
+  DOWNLOAD
+  FULL
+}
+
+enum AccessRequestType {
+  MEDICAL_RECORD
+  VITALS
+  MEDICATIONS
+  LAB_RESULTS
+  PRESCRIPTIONS
+  FULL_RECORD
+}
+
+// ======================================================
+// AUDIT
+// ======================================================
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  VIEW
+  LOGIN
+  LOGOUT
+  EXPORT
+  SHARE
+  REVOKE
+  APPROVE
+  REJECT
+  PAYMENT
+  REFUND
+}
+
+// ======================================================
 // 1. USER
-// ═══════════════════════════════════════════════════════════
+// ======================================================
 
 model User {
-  userid       String    @id @default(cuid())
-  email        String    @unique
-  phone        String?   @unique
+  userid       String  @id @default(cuid())
+  email        String  @unique
+  phone        String? @unique
   passwordHash String?
-  fullName     String
-  gender       Gender?
-  dateOfBirth  DateTime?
-  avatarUrl    String?
-  isDeleted    Boolean   @default(false)
 
-  googleId  String?   @unique
-  picture   String?
-  lastLogin DateTime?
-  role      Role      @default(USER)
+  fullName    String
+  gender      Gender?
+  dateOfBirth DateTime?
+  avatarUrl   String?
 
-  emailVerified    Boolean @default(false)
-  phoneVerified    Boolean @default(false)
-  twoFactorEnabled Boolean @default(false)
+  // Personal Health ID
+  healthId String? @unique
+
+  // Google Login
+  googleId String? @unique
+  picture  String?
+
+  role        Role    @default(USER)
+  isActive    Boolean @default(true)
+  isSuspended Boolean @default(false)
+
+  emailVerified Boolean @default(false)
+  phoneVerified Boolean @default(false)
 
   language String @default("so")
   timezone String @default("Africa/Mogadishu")
 
-  isActive    Boolean   @default(true)
-  isSuspended Boolean   @default(false)
+  country  String? @default("Somaliland")
+  region   String?
+  city     String?
+  district String?
+
   lastLoginAt DateTime?
   deletedAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  profile              UserProfile?
-  medicalProfile       MedicalProfile?
-  professionalProfiles ProfessionalProfile[]
+  // ====================================================
+  // RELATIONS
+  // ====================================================
 
-  healthRecords MedicalRecord[]
-  vitalSigns    VitalSign[]
-  diagnoses     Diagnosis[]
-  prescriptions Prescription[]
-  labOrders     LabOrder[]
-  labResults    LabResult[]
-  appointments  Appointment[]
-  documents     Document[]
+  medicalProfile MedicalProfile?
 
   emergencyContacts EmergencyContact[]
+  emergencyCard     EmergencyCard?
+
+  familyMembers       FamilyMember[] @relation("FamilyOwner")
+  linkedFamilyMembers FamilyMember[] @relation("FamilyLinkedUser")
+
   allergies         Allergy[]
   chronicConditions ChronicCondition[]
   medications       Medication[]
 
-  healthTracking  HealthTracking[]
-  dailyHealthLogs DailyHealthLog[]
+  medicalRecords   MedicalRecord[]
+  medicalDocuments MedicalDocument[]
+  diagnoses        Diagnosis[]
+  vitalSigns       VitalSign[]
+  labResults       LabResult[]
 
-  wallets      Wallet[]
-  transactions Transaction[]
+  prescriptions Prescription[]
 
-  consentsGranted  Consent[] @relation("ConsentGrantedBy")
-  consentsReceived Consent[] @relation("ConsentGrantedToUser")
+  dailyHealthLogs         DailyHealthLog[]
+  healthDeviceConnections HealthDeviceConnection[]
 
-  notifications     Notification[]
-  messagesSent      Message[]          @relation("MessageSender")
-  sessions          Session[]
-  verificationCodes VerificationCode[]
-  passwordResets    PasswordReset[]
-  auditLogs         AuditLog[]
+  doctor Doctor?
 
-  professionalApplications ProfessionalApplication[] @relation("ProfessionalApplicant")
-  professionalReviews      ProfessionalApplication[] @relation("ProfessionalReviewer")
+  appointments  Appointment[]
+  consultations Consultation[]
+  doctorReviews DoctorReview[]
 
-  newsPosts     NewsPost[]     @relation("NewsPostAuthor")
-  newsComments  NewsComment[]  @relation("NewsCommentAuthor")
-  newsReactions NewsReaction[]
-  newsReports   NewsReport[]   @relation("NewsReporter")
-  newsReviews   NewsReport[]   @relation("NewsReportReviewer")
+  payments Payment[]
 
-  featureOverrides FeatureUserOverride[]
+  notifications Notification[]
 
-  platformSubscriptions PlatformSubscription[] @relation("PlatformSubscriber")
-  cmsUpdates            CmsContent[]           @relation("CmsUpdatedBy")
+  consents Consent[]
 
-  patientConnections      PatientProfessionalConnection[] @relation("PatientConnections")
-  professionalConnections PatientProfessionalConnection[] @relation("ProfessionalConnections")
-  professionalAvailability ProfessionalAvailability[]
-  messagesReceived         Message[]                      @relation("MessageRecipient")
-  appointmentsAsProfessional Appointment[]                @relation("ProfessionalAppointments")
-  doctorReviews              DoctorReview[]
-  healthcareActivityEvents   HealthcareActivityEvent[]
+  accessRequestsSent     MedicalAccessRequest[] @relation("AccessRequester")
+  accessRequestsReceived MedicalAccessRequest[] @relation("AccessPatient")
 
-  @@index([email])
-  @@index([phone])
+  auditLogs AuditLog[]
+
+  suspensionReason String?
+  suspendedUntil   DateTime?
+  suspendedBy      String?
+  suspendedAt      DateTime?
+  passwordResetToken     String?   @unique
+  passwordResetExpiresAt DateTime?
+  passwordChangedAt      DateTime?
+  lastActiveAt           DateTime?
+  lastLoginIp            String?
+  deletedBy              String?
+  deletedReason          String?
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
+  recoveryCodes    String[] @default([])
+  sessions               UserSession[]
+  adminActions           AdminAction[]            @relation("AdminActions")
+  broadcasts             BroadcastMessage[]
+  userRoles              UserRole[]
+  doctorDocuments        DoctorDocument[]         @relation("DoctorDocumentUploader")
+  verificationLogs       DoctorVerificationLog[]
+  assignedUserRoles      UserRole[]               @relation("RoleAssigner")
+
   @@index([role])
+  @@index([isActive])
+  @@index([healthId])
+  @@index([isSuspended])
+  @@index([lastActiveAt])
+}
+
+// ======================================================
+// 2. MEDICAL PROFILE
+// ======================================================
+
+model MedicalProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  bloodType BloodType @default(UNKNOWN)
+
+  smokingStatus     String?
+  alcoholUse        String?
+  exerciseFrequency String?
+  dietType          String?
+
+  familyHistory   Json?
+  surgicalHistory Json?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+}
+
+// ======================================================
+// 3. EMERGENCY CONTACT
+// ======================================================
+
+model EmergencyContact {
+  id             String  @id @default(cuid())
+  userId         String
+  fullName       String
+  relationship   String
+  phone          String
+  alternatePhone String?
+  email          String?
+  isPrimary      Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ======================================================
+// 4. EMERGENCY CARD
+// ======================================================
+
+model EmergencyCard {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  cardNumber String @unique
+
+  bloodType BloodType @default(UNKNOWN)
+
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  allergiesSummary   String?
+  conditionsSummary  String?
+  medicationsSummary String?
+
+  doctorNotes String?
+
+  qrCode String?
+
+  isActive Boolean @default(true)
+
+  lastUpdatedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [userid], onDelete: Cascade)
+}
+
+// ======================================================
+// 5. FAMILY MEMBER
+// ======================================================
+
+model FamilyMember {
+  id     String @id @default(cuid())
+  userId String
+
+  // If family member has Daryeel account
+  linkedUserId String?
+
+  fullName     String
+  relationship String
+
+  dateOfBirth DateTime?
+  gender      Gender?
+  phone       String?
+
+  isDependent Boolean @default(false)
+
+  canManageHealthRecords Boolean @default(false)
+  canBookAppointments    Boolean @default(false)
+  canViewMedicalRecords  Boolean @default(false)
+
+  isEmergencyContact Boolean @default(false)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation("FamilyOwner", fields: [userId], references: [userid], onDelete: Cascade)
+
+  linkedUser User? @relation("FamilyLinkedUser", fields: [linkedUserId], references: [userid], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([linkedUserId])
+}
+
+// ======================================================
+// 6. ALLERGY
+// ======================================================
+
+model Allergy {
+  id     String @id @default(cuid())
+  userId String
+
+  allergen    String
+  type        String?
+  severity    String?
+  reaction    String?
+  diagnosedAt DateTime?
+
+  isActive Boolean @default(true)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
   @@index([isActive])
 }
 
-model DailyHealthLog {
-  dailyhealthlogid String   @id @default(cuid())
-  userId           String
-  date             DateTime @db.Date
+// ======================================================
+// 7. CHRONIC CONDITION
+// ======================================================
 
-  // ═══════════════════════════════════════════════════════════
-  // DAILY WELLNESS CHECK-IN
-  // ═══════════════════════════════════════════════════════════
+model ChronicCondition {
+  id     String @id @default(cuid())
+  userId String
+
+  condition   String
+  icdCode     String?
+  diagnosedAt DateTime?
+  severity    String?
+
+  isActive     Boolean @default(true)
+  isControlled Boolean @default(false)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+// ======================================================
+// 8. MEDICATION
+// ======================================================
+
+model Medication {
+  id     String @id @default(cuid())
+  userId String
+
+  name      String
+  dosage    String?
+  frequency String?
+  route     String?
+
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  isActive Boolean @default(true)
+
+  prescribedBy String?
+  reason       String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+// ======================================================
+// 9. MEDICAL RECORD
+// ======================================================
+
+model MedicalRecord {
+  id     String @id @default(cuid())
+  userId String
+
+  recordType String
+  title      String
+
+  description String?
+  diagnosis   String?
+  treatment   String?
+
+  doctorName   String?
+  facilityName String?
+
+  recordDate DateTime
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  documents MedicalDocument[]
+
+  @@index([userId, recordDate])
+}
+
+// ======================================================
+// 10. MEDICAL DOCUMENT
+// ======================================================
+
+model MedicalDocument {
+  id     String @id @default(cuid())
+  userId String
+
+  medicalRecordId String?
+
+  title        String
+  documentType String
+
+  fileUrl  String
+  fileName String?
+  mimeType String?
+  fileSize Int?
+
+  description String?
+
+  documentDate DateTime?
+
+  isVerified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([medicalRecordId])
+}
+
+// ======================================================
+// 11. DIAGNOSIS
+// ======================================================
+
+model Diagnosis {
+  id     String @id @default(cuid())
+  userId String
+
+  doctorId       String?
+  appointmentId  String?
+  consultationId String?
+
+  diagnosis String
+  icdCode   String?
+
+  description String?
+
+  diagnosedAt DateTime @default(now())
+
+  isPrimary Boolean @default(false)
+
+  status String?
+  notes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([doctorId])
+  @@index([appointmentId])
+  @@index([consultationId])
+}
+
+// ======================================================
+// 12. VITAL SIGN
+// ======================================================
+
+model VitalSign {
+  id     String @id @default(cuid())
+  userId String
+
+  temperature      Float?
+  bloodPressureSys Int?
+  bloodPressureDia Int?
+  heartRate        Int?
+  respiratoryRate  Int?
+  oxygenSaturation Float?
+
+  weight Float?
+  height Float?
+  bmi    Float?
+
+  source     String   @default("MANUAL")
+  recordedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+}
+
+// ======================================================
+// 13. LAB RESULT
+// ======================================================
+
+model LabResult {
+  id     String @id @default(cuid())
+  userId String
+
+  doctorId      String?
+  appointmentId String?
+
+  testName String
+  testCode String?
+  category String?
+
+  resultValue    String?
+  unit           String?
+  referenceRange String?
+
+  status         String?
+  interpretation String?
+
+  labName String?
+
+  resultDate DateTime
+
+  documentUrl String?
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, resultDate])
+  @@index([doctorId])
+  @@index([appointmentId])
+}
+
+// ======================================================
+// 14. PRESCRIPTION
+// ======================================================
+
+model Prescription {
+  id     String @id @default(cuid())
+  userId String
+
+  doctorId       String?
+  appointmentId  String?
+  consultationId String?
+
+  prescriptionNumber String @unique
+
+  issuedAt DateTime @default(now())
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  status String @default("ACTIVE")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  consultation Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+
+  items PrescriptionItem[]
+
+  @@index([userId])
+  @@index([doctorId])
+  @@index([appointmentId])
+  @@index([consultationId])
+}
+
+// ======================================================
+// 15. PRESCRIPTION ITEM
+// ======================================================
+
+model PrescriptionItem {
+  id String @id @default(cuid())
+
+  prescriptionId String
+
+  medicineName String
+  dosage       String?
+  frequency    String?
+  route        String?
+  duration     String?
+  quantity     String?
+
+  instructions String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionId])
+}
+
+// ======================================================
+// 16. DAILY HEALTH LOG
+// ======================================================
+
+model DailyHealthLog {
+  id     String   @id @default(cuid())
+  userId String
+  date   DateTime @db.Date
 
   mood          MoodLevel?
   sleepQuality  SleepQuality?
@@ -360,76 +836,42 @@ model DailyHealthLog {
   activityLevel ActivityLevel?
   painLevel     PainLevel?
 
-  painAreas String?
-  notes     String?
+  notes String?
 
-  // ═══════════════════════════════════════════════════════════
-  // ACTIVITY
-  // Can be entered manually or synced automatically
-  // ═══════════════════════════════════════════════════════════
-
+  // Activity
   steps          Int   @default(0)
   distanceKm     Float @default(0)
   activeMinutes  Int   @default(0)
   caloriesBurned Int   @default(0)
-  floorsClimbed  Int   @default(0)
 
-  // ═══════════════════════════════════════════════════════════
-  // BODY
-  // ═══════════════════════════════════════════════════════════
+  // Heart
+  heartRateAvg Int?
+  heartRateMin Int?
+  heartRateMax Int?
 
+  // Body
   weightKg       Float?
   bodyFatPercent Float?
-  muscleMassKg   Float?
-  waterPercent   Float?
   bmi            Float?
 
-  measurementRecordedAt DateTime?
+  // Oxygen
+  oxygenSaturation Float?
 
-  // ═══════════════════════════════════════════════════════════
-  // NUTRITION
-  // ═══════════════════════════════════════════════════════════
-
-  caloriesIntake Int    @default(0)
-  proteinG       Float?
-  carbsG         Float?
-  fatG           Float?
-  fiberG         Float?
-  sugarG         Float?
-
-  // ═══════════════════════════════════════════════════════════
-  // HYDRATION
-  // ═══════════════════════════════════════════════════════════
-
-  waterIntakeMl Int @default(0)
-  waterGoalMl   Int @default(2000)
-
+  // Hydration
+  waterIntakeMl   Int             @default(0)
+  waterGoalMl     Int             @default(2000)
   hydrationStatus HydrationStatus @default(NOT_MET)
 
-  // ═══════════════════════════════════════════════════════════
-  // SLEEP
-  // ═══════════════════════════════════════════════════════════
-
+  // Sleep
   sleepHours Float?
   sleepStart DateTime?
   sleepEnd   DateTime?
 
-  // ═══════════════════════════════════════════════════════════
-  // WELLNESS ACTIVITIES
-  // ═══════════════════════════════════════════════════════════
-
-  relaxationMinutes Int @default(0)
-  meditationMinutes Int @default(0)
-
-  // ═══════════════════════════════════════════════════════════
-  // DAILY GOALS
-  // ═══════════════════════════════════════════════════════════
-
+  // Goals
   stepsGoal       Int        @default(10000)
   stepsGoalStatus GoalStatus @default(NOT_STARTED)
 
-  waterGoalMlTarget Int        @default(2000)
-  waterGoalStatus   GoalStatus @default(NOT_STARTED)
+  waterGoalStatus GoalStatus @default(NOT_STARTED)
 
   activeMinutesGoal Int        @default(30)
   activeGoalStatus  GoalStatus @default(NOT_STARTED)
@@ -437,580 +879,403 @@ model DailyHealthLog {
   sleepGoalHours  Float      @default(8)
   sleepGoalStatus GoalStatus @default(NOT_STARTED)
 
-  caloriesGoal      Int?
-  calorieGoalStatus GoalStatus @default(NOT_STARTED)
-
-  // ═══════════════════════════════════════════════════════════
-  // SOURCE
-  // ═══════════════════════════════════════════════════════════
-
+  // Source
   source     DailyLogSource @default(MANUAL)
   deviceName String?
 
-  // ═══════════════════════════════════════════════════════════
-  // TIMESTAMPS
-  // ═══════════════════════════════════════════════════════════
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ═══════════════════════════════════════════════════════════
-  // RELATION
-  // ═══════════════════════════════════════════════════════════
-
   user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  // ═══════════════════════════════════════════════════════════
-  // INDEXES
-  // ═══════════════════════════════════════════════════════════
 
   @@unique([userId, date])
   @@index([userId, date])
-  @@index([date])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 2. USER PROFILE
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// 17. HEALTH DEVICE CONNECTION
+// ======================================================
 
-model UserProfile {
-  userprofileid String  @id @default(cuid())
-  userId        String  @unique
-  healthId      String? @unique
+model HealthDeviceConnection {
+  id     String @id @default(cuid())
+  userId String
 
-  middleName    String?
-  nationalId    String? @unique
-  nationality   String? @default("Somaliland")
-  maritalStatus String?
-  occupation    String?
+  provider   String
+  deviceName String?
 
-  country     String? @default("Somaliland")
-  region      String?
-  city        String?
-  district    String?
-  addressLine String?
-  postalCode  String?
+  providerUserId String?
 
-  alternatePhone String?
-  alternateEmail String?
+  // Store encrypted values only
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
 
-  bloodType BloodType @default(UNKNOWN)
-  height    Float?
-  weight    Float?
+  tokenExpiresAt DateTime?
 
-  preferredLanguage String @default("so")
-  preferredContact  String @default("SMS")
+  scopes String[] @default([])
+
+  isActive Boolean @default(true)
+
+  lastSyncAt DateTime?
+  lastError  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([provider])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 3. MEDICAL PROFILE
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// 18. DOCTOR
+// ======================================================
 
-model MedicalProfile {
-  medicalprofileid String @id @default(cuid())
-  userId           String @unique
+model Doctor {
+  id     String @id @default(cuid())
+  userId String @unique
 
-  smokingStatus     String?
-  alcoholUse        String?
-  exerciseFrequency String?
-  dietType          String?
+  fullName     String
+  profileImage String?
 
-  familyHistory          Json?
-  surgicalHistory        Json?
-  hospitalizationHistory Json?
-  immunizationRecords    Json?
+  gender          Gender?
+  specialty       String
+  subSpecialty    String?
+  qualification   String?
+  university      String?
+  yearsExperience Int?
+  bio             String?
 
-  organDonor Boolean @default(false)
-  dnrStatus  Boolean @default(false)
+  languages String[] @default([])
 
-  notes String?
+  licenseNumber    String?
+  licenseAuthority String?
+
+  verificationStatus DoctorVerificationStatus @default(PENDING)
+  verifiedAt         DateTime?
+  rejectionReason    String?
+
+  consultationEnabled      Boolean @default(true)
+  videoConsultationEnabled Boolean @default(false)
+  chatConsultationEnabled  Boolean @default(false)
+
+  consultationFee      Decimal? @db.Decimal(10, 2)
+  videoConsultationFee Decimal? @db.Decimal(10, 2)
+  chatConsultationFee  Decimal? @db.Decimal(10, 2)
+
+  currency String @default("USD")
+
+  isAvailable Boolean @default(true)
+  isOnline    Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  clinicName String?
+  city       String?
+  country    String?
+
+  rating      Decimal? @db.Decimal(3, 2)
+  reviewCount Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-}
 
-// ═══════════════════════════════════════════════════════════
-// 4. EMERGENCY CONTACT
-// ═══════════════════════════════════════════════════════════
+  appointments  Appointment[]
+  consultations Consultation[]
 
-model EmergencyContact {
-  emergencycontactid String   @id @default(cuid())
-  userId             String
-  fullName           String
-  relationship       String
-  phone              String
-  alternatePhone     String?
-  email              String?
-  address            String?
-  isPrimary          Boolean  @default(false)
-  priority           Int      @default(1)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  diagnoses     Diagnosis[]
+  labResults    LabResult[]
+  prescriptions Prescription[]
 
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  doctorReviews DoctorReview[]
 
-  @@index([userId])
-}
+  verifiedBy           String?
+  rejectedBy           String?
+  rejectedAt           DateTime?
+  suspendedReason      String?
+  suspendedUntil       DateTime?
+  suspendedBy          String?
+  submittedForReviewAt DateTime?
+  reviewNotes          String?
+  documents            DoctorDocument[]
+  verificationLogs     DoctorVerificationLog[]
 
-// ═══════════════════════════════════════════════════════════
-// 5. ALLERGY
-// ═══════════════════════════════════════════════════════════
-
-model Allergy {
-  allergyid   String    @id @default(cuid())
-  userId      String
-  allergen    String
-  type        String
-  severity    String
-  reaction    String?
-  diagnosedAt DateTime?
-  notes       String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([type])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 6. CHRONIC CONDITION
-// ═══════════════════════════════════════════════════════════
-
-model ChronicCondition {
-  chronicconditionid String    @id @default(cuid())
-  userId             String
-  condition          String
-  icdCode            String?
-  diagnosedAt        DateTime?
-  severity           String?
-  isActive           Boolean   @default(true)
-  isControlled       Boolean   @default(false)
-  notes              String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([icdCode])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 7. MEDICATION
-// ═══════════════════════════════════════════════════════════
-
-model Medication {
-  medicationid String    @id @default(cuid())
-  userId       String
-  name         String
-  dosage       String
-  frequency    String
-  route        String?
-  startedAt    DateTime
-  endedAt      DateTime?
-  isActive     Boolean   @default(true)
-  prescribedBy String?
-  reason       String?
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
+  @@index([specialty])
+  @@index([verificationStatus])
+  @@index([isAvailable])
   @@index([isActive])
+  @@index([verifiedBy])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 8. MEDICAL RECORD
-// ═══════════════════════════════════════════════════════════
-
-model MedicalRecord {
-  medicalrecordid String  @id @default(cuid())
-  userId          String
-  recordType      String
-  title           String
-  description     String?
-  diagnosis       String?
-  treatment       String?
-  notes           String?
-
-  facilityName String?
-  facilityId   String?
-  doctorName   String?
-  doctorId     String?
-
-  recordDate  DateTime
-  attachments Json?
-
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId, recordDate])
-  @@index([recordType])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 9. VITAL SIGN
-// ═══════════════════════════════════════════════════════════
-
-model VitalSign {
-  vitalsignid String @id @default(cuid())
-  userId      String
-
-  temperature      Float?
-  bloodPressureSys Int?
-  bloodPressureDia Int?
-  heartRate        Int?
-  respiratoryRate  Int?
-  oxygenSaturation Float?
-  weight           Float?
-  height           Float?
-  bmi              Float?
-
-  source       String   @default("MANUAL")
-  facilityName String?
-  facilityId   String?
-  notes        String?
-  recordedAt   DateTime @default(now())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId, recordedAt])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 10. DIAGNOSIS
-// ═══════════════════════════════════════════════════════════
-
-model Diagnosis {
-  diagnosisid String  @id @default(cuid())
-  userId      String
-  icdCode     String?
-  description String
-  category    String?
-  isPrimary   Boolean @default(false)
-  isChronic   Boolean @default(false)
-
-  diagnosedBy  String?
-  doctorId     String?
-  facilityName String?
-  facilityId   String?
-
-  diagnosedAt DateTime
-  resolvedAt  DateTime?
-  isActive    Boolean   @default(true)
-
-  notes       String?
-  attachments Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([icdCode])
-  @@index([isActive])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 11. PRESCRIPTION
-// ═══════════════════════════════════════════════════════════
-
-model Prescription {
-  prescriptionid   String @id @default(cuid())
-  userId           String
-  prescriptionCode String @unique
-
-  medication   String
-  dosage       String
-  frequency    String
-  duration     String
-  route        String?
-  instructions String?
-
-  prescribedBy String?
-  doctorId     String?
-  facilityName String?
-  facilityId   String?
-
-  status PrescriptionStatus @default(PENDING)
-
-  issuedAt     DateTime  @default(now())
-  expiresAt    DateTime?
-  dispensedAt  DateTime?
-  dispensedBy  String?
-  pharmacyName String?
-  pharmacyId   String?
-
-  notes       String?
-  attachments Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([status])
-  @@index([prescriptionCode])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 12. LAB ORDER
-// ═══════════════════════════════════════════════════════════
-
-model LabOrder {
-  laborderid String @id @default(cuid())
-  userId     String
-  orderCode  String @unique
-
-  testName     String
-  testCategory String?
-  instructions String?
-
-  orderedBy    String?
-  doctorId     String?
-  facilityName String?
-  facilityId   String?
-  labName      String?
-  labId        String?
-
-  status LabOrderStatus @default(ORDERED)
-
-  orderedAt         DateTime  @default(now())
-  sampleCollectedAt DateTime?
-  completedAt       DateTime?
-
-  notes String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user   User       @relation(fields: [userId], references: [userid], onDelete: Cascade)
-  result LabResult?
-
-  @@index([userId])
-  @@index([status])
-  @@index([orderCode])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 13. LAB RESULT
-// ═══════════════════════════════════════════════════════════
-
-model LabResult {
-  labresultid String @id @default(cuid())
-  userId      String
-  labOrderId  String @unique
-
-  testName       String
-  resultData     Json?
-  resultText     String?
-  interpretation String?
-  isAbnormal     Boolean @default(false)
-  isCritical     Boolean @default(false)
-
-  labName    String?
-  labId      String?
-  verifiedBy String?
-  verifiedAt DateTime?
-
-  completedAt DateTime @default(now())
-  attachments Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user     User     @relation(fields: [userId], references: [userid], onDelete: Cascade)
-  labOrder LabOrder @relation(fields: [labOrderId], references: [laborderid], onDelete: Cascade)
-
-  @@index([userId, completedAt])
-  @@index([isAbnormal])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 14. APPOINTMENT
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// 19. APPOINTMENT
+// ======================================================
 
 model Appointment {
-  appointmentid   String @id @default(cuid())
-  userId          String
+  id       String  @id @default(cuid())
+  userId   String
+  doctorId String?
+
   appointmentCode String @unique
-
-  /// Patient who booked (userId) — professionalUserId is the clinician account when known
-  professionalUserId String?
-
-  facilityName String?
-  facilityId   String?
-  branchName   String?
-  branchId     String?
-  doctorName   String?
-  doctorId     String?
-  specialty    String?
-  department   String?
-
-  /// SaaS cross-system references (SaaS is source of truth for hospital ops)
-  saasAppointmentId String? @unique
-  saasTenantId      String?
-  saasDoctorId      String?
-  saasTicketId      String?
-  saasTicketNumber  String?
-  saasVisitId       String?
-  idempotencyKey    String? @unique
-  source            String  @default("HEALTHTECH")
 
   scheduledAt DateTime
   duration    Int      @default(30)
 
-  reason      String?
-  notes       String?
-  meetingLink String?
+  reason String?
+  notes  String?
 
   status AppointmentStatus @default(PENDING)
 
-  proposedScheduledAt DateTime?
-  proposedMessage     String?
-  rejectionReason     String?
+  meetingLink String?
 
-  paymentStatus PaymentStatusMirror @default(UNPAID)
+  // ====================================================
+  // PAYMENT
+  // ====================================================
+
+  paymentRequired Boolean @default(true)
+
   consultationFee Decimal? @db.Decimal(10, 2)
-  currency        String?  @default("USD")
+  currency        String   @default("USD")
 
-  consentId String?
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // ====================================================
+  // REMINDER
+  // ====================================================
 
   reminderSent Boolean   @default(false)
   reminderAt   DateTime?
 
-  cancelledAt     DateTime?
-  cancelledReason String?
+  // ====================================================
+  // TIMESTAMPS
+  // ====================================================
 
+  requestedAt DateTime  @default(now())
   confirmedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user         User  @relation(fields: [userId], references: [userid], onDelete: Cascade)
-  professional User? @relation("ProfessionalAppointments", fields: [professionalUserId], references: [userid], onDelete: SetNull)
-  doctorReview DoctorReview?
-  activityEvents HealthcareActivityEvent[]
-
-  @@index([userId, scheduledAt])
-  @@index([professionalUserId, scheduledAt])
-  @@index([status])
-  @@index([appointmentCode])
-  @@index([saasTenantId])
-  @@index([saasDoctorId])
-  @@index([paymentStatus])
-}
-
-model DoctorReview {
-  reviewid String @id @default(cuid())
-
-  appointmentId String @unique
-  userId        String
-  saasDoctorId  String
-  saasTenantId  String?
-  saasReviewId  String?
-
-  rating  Int
-  comment String?
-
-  professionalism   Int?
-  communication     Int?
-  waitingTime       Int?
-  careQuality       Int?
-  overallExperience Int?
+  cancelledAt        DateTime?
+  cancellationReason String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  appointment Appointment @relation(fields: [appointmentId], references: [appointmentid], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([saasDoctorId])
-  @@index([rating])
-}
-
-model HealthcareActivityEvent {
-  eventid String @id @default(cuid())
-
-  userId        String
-  appointmentId String?
-  type          String
-  title         String
-  body          String?
-  metadata      Json?
-  occurredAt    DateTime @default(now())
-  createdAt     DateTime @default(now())
-
-  user        User         @relation(fields: [userId], references: [userid], onDelete: Cascade)
-  appointment Appointment? @relation(fields: [appointmentId], references: [appointmentid], onDelete: SetNull)
-
-  @@index([userId, occurredAt])
-  @@index([appointmentId])
-  @@index([type])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 15. HEALTH TRACKING
-// ═══════════════════════════════════════════════════════════
-
-model HealthTracking {
-  healthtrackingid String             @id @default(cuid())
-  userId           String
-  type             HealthTrackingType
-  value            Float
-  unit             String?
-  notes            String?
-  recordedAt       DateTime           @default(now())
-  source           String             @default("MANUAL")
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  // ====================================================
+  // RELATIONS
+  // ====================================================
 
   user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
 
-  @@index([userId, type, recordedAt])
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  payments Payment[]
+
+  consultation Consultation?
+
+  diagnoses     Diagnosis[]
+  labResults    LabResult[]
+  prescriptions Prescription[]
+
+  doctorReviews DoctorReview[]
+
+  @@index([userId, scheduledAt])
+  @@index([doctorId, scheduledAt])
+  @@index([status])
+  @@index([paymentStatus])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 20. CONSENT
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// 20. CONSULTATION
+// ======================================================
+
+model Consultation {
+  id String @id @default(cuid())
+
+  consultationCode String @unique
+
+  userId   String
+  doctorId String?
+
+  appointmentId String? @unique
+
+  type   ConsultationType
+  status ConsultationStatus @default(SCHEDULED)
+
+  scheduledAt DateTime?
+
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  meetingLink String?
+
+  summary          String?
+  diagnosisSummary String?
+  treatmentPlan    String?
+
+  patientNotes String?
+  doctorNotes  String?
+
+  followUpAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  diagnoses Diagnosis[]
+
+  prescriptions Prescription[]
+
+  @@index([userId])
+  @@index([doctorId])
+  @@index([status])
+}
+
+// ======================================================
+// 21. DOCTOR REVIEW
+// ======================================================
+
+model DoctorReview {
+  id String @id @default(cuid())
+
+  userId   String
+  doctorId String?
+
+  appointmentId String?
+
+  rating Int
+
+  review String?
+
+  isAnonymous Boolean @default(false)
+  isPublished Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  doctor Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([doctorId])
+  @@index([userId])
+  @@index([appointmentId])
+}
+
+// ======================================================
+// 22. PAYMENT
+// ======================================================
+
+model Payment {
+  id String @id @default(cuid())
+
+  appointmentId String?
+  userId        String
+
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("USD")
+
+  status PaymentStatus  @default(PENDING)
+  method PaymentMethod?
+
+  // Transaction references
+  transactionId         String? @unique
+  paymentReference      String? @unique
+  externalTransactionId String? @unique
+
+  provider String?
+
+  providerResponse Json?
+
+  // Refund
+  refundedAmount  Decimal?  @db.Decimal(10, 2)
+  refundedAt      DateTime?
+  refundReference String?
+  refundReason    String?
+
+  // Failure
+  failureCode   String?
+  failureReason String?
+
+  initiatedAt DateTime  @default(now())
+  paidAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@index([userId])
+  @@index([status])
+  @@index([method])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+// ======================================================
+// 23. NOTIFICATION
+// ======================================================
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+
+  title String
+  body  String
+
+  type    NotificationType
+  channel NotificationChannel @default(IN_APP)
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  data Json?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([type])
+}
+
+// ======================================================
+// 24. CONSENT
+// ======================================================
 
 model Consent {
-  consentid String @id @default(cuid())
-  userId    String
+  id     String @id @default(cuid())
+  userId String
 
-  grantedToTenantId   String?
-  grantedToTenantName String?
-  grantedToBranchId   String?
-  grantedToUserId     String?
-  grantedToUserName   String?
+  requesterId String?
 
-  scope  ConsentScope
-  status ConsentStatus @default(PENDING)
+  doctorId   String?
+  hospitalId String?
 
-  grantedAt     DateTime  @default(now())
-  expiresAt     DateTime?
-  revokedAt     DateTime?
-  revokedReason String?
+  accessLevel AccessLevel
+  status      ConsentStatus @default(PENDING)
+
+  expiresAt DateTime?
+  grantedAt DateTime?
+  revokedAt DateTime?
+
+  medicalRecords    Boolean @default(false)
+  vitalSigns        Boolean @default(false)
+  medications       Boolean @default(false)
+  allergies         Boolean @default(false)
+  chronicConditions Boolean @default(false)
+  labResults        Boolean @default(false)
+  prescriptions     Boolean @default(false)
+  appointments      Boolean @default(false)
 
   purpose String?
   notes   String?
@@ -1018,669 +1283,275 @@ model Consent {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user          User  @relation("ConsentGrantedBy", fields: [userId], references: [userid], onDelete: Cascade)
-  grantedToUser User? @relation("ConsentGrantedToUser", fields: [grantedToUserId], references: [userid], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([grantedToUserId])
-  @@index([status])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 21. DOCUMENT
-// ═══════════════════════════════════════════════════════════
-
-model Document {
-  documentid  String   @id @default(cuid())
-  userId      String
-  title       String
-  description String?
-  category    String
-  fileName    String
-  fileUrl     String
-  fileType    String
-  fileSize    Int
-  uploadedBy  String?
-  uploadedAt  DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
   user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
 
   @@index([userId])
-  @@index([category])
+  @@index([requesterId])
+  @@index([doctorId])
+  @@index([status])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 22. WALLET
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// 25. MEDICAL ACCESS REQUEST
+// ======================================================
 
-model Wallet {
-  walletid  String   @id @default(cuid())
-  userId    String
-  balance   Decimal  @default(0) @db.Decimal(12, 2)
-  currency  String   @default("USD")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model MedicalAccessRequest {
+  id String @id @default(cuid())
 
-  user         User          @relation(fields: [userId], references: [userid], onDelete: Cascade)
-  transactions Transaction[]
+  requesterId String
+  patientId   String
 
-  @@index([userId])
+  requestType AccessRequestType
+
+  status ConsentStatus @default(PENDING)
+
+  message String?
+
+  requestedAt DateTime  @default(now())
+  respondedAt DateTime?
+  expiresAt   DateTime?
+
+  requester User @relation("AccessRequester", fields: [requesterId], references: [userid], onDelete: Cascade)
+
+  patient User @relation("AccessPatient", fields: [patientId], references: [userid], onDelete: Cascade)
+
+  @@index([requesterId])
+  @@index([patientId])
+  @@index([status])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 23. TRANSACTION
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// 26. AUDIT LOG
+// ======================================================
 
-model Transaction {
-  transactionid String            @id @default(cuid())
-  walletId      String
-  userId        String
-  amount        Decimal           @db.Decimal(12, 2)
-  currency      String            @default("USD")
-  type          TransactionType
-  status        TransactionStatus @default(PENDING)
-  paymentMethod PaymentMethod?
+model AuditLog {
+  id String @id @default(cuid())
 
-  reference   String?
+  userId String?
+
+  action AuditAction
+
+  entity   String
+  entityId String?
+
   description String?
 
-  facilityName String?
-  facilityId   String?
+  ipAddress String?
+  userAgent String?
 
   metadata Json?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  wallet Wallet @relation(fields: [walletId], references: [walletid], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([walletId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 24. NOTIFICATION
-// ═══════════════════════════════════════════════════════════
-
-model Notification {
-  notificationid String              @id @default(cuid())
-  userId         String
-  title          String
-  body           String
-  type           NotificationType
-  channel        NotificationChannel
-  isRead         Boolean             @default(false)
-  sentAt         DateTime?
-  metadata       Json?
-  createdAt      DateTime            @default(now())
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId, isRead])
-  @@index([createdAt])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 25. MESSAGE
-// ═══════════════════════════════════════════════════════════
-
-model Message {
-  messageid     String  @id @default(cuid())
-  senderId      String
-  recipientId   String?
-  recipientType String?
-
-  subject       String?
-  body          String
-  attachmentUrl String?
-  isRead        Boolean   @default(false)
-  readAt        DateTime?
-
-  createdAt DateTime @default(now())
-
-  sender    User  @relation("MessageSender", fields: [senderId], references: [userid], onDelete: Cascade)
-  recipient User? @relation("MessageRecipient", fields: [recipientId], references: [userid], onDelete: SetNull)
-
-  @@index([senderId])
-  @@index([recipientId])
-  @@index([senderId, recipientId, createdAt])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 26. SESSION
-// ═══════════════════════════════════════════════════════════
-
-model Session {
-  sessionid    String    @id @default(cuid())
-  userId       String
-  refreshToken String    @unique
-  userAgent    String?
-  ipAddress    String?
-  deviceInfo   String?
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
-  revokedAt    DateTime?
-  user         User?     @relation(fields: [userUserid], references: [userid], onDelete: Cascade)
-  userUserid   String?
-
-  @@index([userId])
-  @@index([expiresAt])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 27. VERIFICATION PURPOSE
-// ═══════════════════════════════════════════════════════════
-
-enum VerificationPurpose {
-  PHONE_VERIFICATION
-  EMAIL_VERIFICATION
-  PASSWORD_RESET
-  LOGIN_OTP
-  TWO_FACTOR
-  CHANGE_PHONE
-  CHANGE_EMAIL
-}
-
-// ═══════════════════════════════════════════════════════════
-// 28. VERIFICATION CODE
-// ═══════════════════════════════════════════════════════════
-
-model VerificationCode {
-  verificationcodeid String @id @default(cuid())
-
-  // Optional user relation
-  userId String?
-  phone  String?
-  email  String?
-
-  // OTP / verification code
-  code String
-
-  // Why this code was created
-  purpose VerificationPurpose
-
-  // Code lifecycle
-  expiresAt  DateTime
-  isUsed     Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  user       User?    @relation(fields: [userUserid], references: [userid], onDelete: Cascade)
-  userUserid String?
-
-  @@index([userId])
-  @@index([phone])
-  @@index([email])
-  @@index([purpose])
-  @@index([expiresAt])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 28. PASSWORD RESET
-// ═══════════════════════════════════════════════════════════
-
-model PasswordReset {
-  passwordresetid String   @id @default(cuid())
-  userId          String
-  token           String   @unique
-  expiresAt       DateTime
-  isUsed          Boolean  @default(false)
-  createdAt       DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([token])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 29. AUDIT LOG
-// ═══════════════════════════════════════════════════════════
-
-model AuditLog {
-  auditlogid String   @id @default(cuid())
-  userId     String?
-  action     String
-  entity     String?
-  entityId   String?
-  metadata   Json?
-  ipAddress  String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [userid], onDelete: SetNull)
 
+  requestId  String?
+  sessionId  String?
+  method     String?
+  path       String?
+  statusCode Int?
+  durationMs Int?
+  severity   String? @default("INFO")
+  changes    Json?
+
   @@index([userId])
+  @@index([entity, entityId])
   @@index([action])
   @@index([createdAt])
+  @@index([severity])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 30. PROFESSIONAL PROFILE
-// ═══════════════════════════════════════════════════════════
+// ======================================================
+// 27. PLATFORM SETTINGS & RBAC (admin / superadmin powers)
+// Note: model is PlatformRole — enum Role already exists on User
+// ======================================================
 
-model ProfessionalProfile {
-  professionalprofileid String @id @default(cuid())
-  userId                String @unique
+model PlatformSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  description String?
+  category    String?
+  isPublic    Boolean  @default(false)
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  professionalType Role
-
-  /// Public URL slug e.g. dr-ahmed — never expose internal userid
-  slug String? @unique
-
-  licenseNumber  String?   @unique
-  licenseExpiry  DateTime?
-  certifications Json?
-
-  specialization String?
-  subSpecialty   String?
-  qualifications Json?
-
-  workplace    String?
-  facilityName String?
-
-  isPubliclyVisible Boolean @default(false)
-  publicBio         String?
-  publicPhotoUrl    String?
-  publicCoverUrl    String?
-
-  yearsOfExperience Int?
-  languages         String[]
-
-  consultationFee Decimal? @db.Decimal(10, 2)
-  currency        String   @default("USD")
-
-  rating        Float @default(0)
-  totalReviews  Int   @default(0)
-  totalPatients Int   @default(0)
-
-  publicPhone String?
-  publicEmail String?
-  website     String?
-
-  linkedin String?
-  twitter  String?
-  facebook String?
-
-  isVerified Boolean   @default(false)
-  isActive   Boolean   @default(true)
-  deletedAt  DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
-
-  @@index([professionalType])
-  @@index([specialization])
-  @@index([isPubliclyVisible])
-  @@index([rating])
-  @@index([slug])
-}
-
-// ═══════════════════════════════════════════════════════════
-// PATIENT ↔ PROFESSIONAL CONNECTION (≠ medical consent)
-// ═══════════════════════════════════════════════════════════
-
-model PatientProfessionalConnection {
-  id                 String @id @default(cuid())
-  patientUserId      String
-  professionalUserId String
-
-  status      ConnectionStatus      @default(PENDING)
-  requestedBy ConnectionRequestedBy
-
-  reason String?
-
-  requestedAt DateTime  @default(now())
-  acceptedAt  DateTime?
-  rejectedAt  DateTime?
-  endedAt     DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  patient      User @relation("PatientConnections", fields: [patientUserId], references: [userid], onDelete: Cascade)
-  professional User @relation("ProfessionalConnections", fields: [professionalUserId], references: [userid], onDelete: Cascade)
-
-  @@unique([patientUserId, professionalUserId])
-  @@index([patientUserId, status])
-  @@index([professionalUserId, status])
-}
-
-model ProfessionalAvailability {
-  id                 String @id @default(cuid())
-  professionalUserId String
-
-  /// 0 = Sunday … 6 = Saturday
-  dayOfWeek   Int
-  startTime   String
-  endTime     String
-  isAvailable Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  professional User @relation(fields: [professionalUserId], references: [userid], onDelete: Cascade)
-
-  @@index([professionalUserId, dayOfWeek])
-}
-
-// ═══════════════════════════════════════════════════════════
-// 31. FEATURE FLAGS / MODULE PERMISSIONS
-// ═══════════════════════════════════════════════════════════
-
-enum FeatureClient {
-  ALL
-  WEB
-  MOBILE
+  @@index([category])
+  @@index([isPublic])
 }
 
 model FeatureFlag {
-  featureflagid String  @id @default(cuid())
-  key           String  @unique
-  label         String
-  description   String?
-  enabled       Boolean @default(true)
-  client        FeatureClient @default(ALL)
-
-  /// Role keys allowed when enabled, e.g. ["PATIENT","DOCTOR"]
-  allowedRoles String[] @default([])
-
-  /// Actions: read, create, update, delete, approve, manage
-  actions String[] @default(["read"])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  overrides FeatureUserOverride[]
-
-  @@index([enabled])
+  id             String   @id @default(cuid())
+  key            String   @unique
+  description    String?
+  isEnabled      Boolean  @default(false)
+  rolloutPercent Int      @default(0)
+  targetRoles    String[] @default([])
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
-model FeatureUserOverride {
-  featureuseroverrideid String @id @default(cuid())
-  featureFlagId         String
-  userId                String
-  enabled               Boolean
-  actions               String[] @default([])
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+model PlatformRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  permissions String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  featureFlag FeatureFlag @relation(fields: [featureFlagId], references: [featureflagid], onDelete: Cascade)
-  user        User        @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  users            UserRole[]
+  broadcastTargets BroadcastMessage[] @relation("BroadcastTargetRole")
 
-  @@unique([featureFlagId, userId])
+  @@map("roles")
+}
+
+model UserRole {
+  id         String    @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedBy String?
+  assignedAt DateTime  @default(now())
+  expiresAt  DateTime?
+
+  user     User          @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  role     PlatformRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assigner User?         @relation("RoleAssigner", fields: [assignedBy], references: [userid], onDelete: SetNull)
+
+  @@unique([userId, roleId])
   @@index([userId])
+  @@index([roleId])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 32. PROFESSIONAL APPLICATION (admin approval)
-// ═══════════════════════════════════════════════════════════
+model UserSession {
+  id           String    @id @default(cuid())
+  userId       String
+  refreshToken String    @unique
+  ipAddress    String?
+  userAgent    String?
+  deviceType   String?
+  isRevoked    Boolean   @default(false)
+  revokedAt    DateTime?
+  revokedBy    String?
+  lastUsedAt   DateTime  @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
 
-enum ProfessionalApplicationStatus {
-  PENDING
-  UNDER_REVIEW
-  APPROVED
-  REJECTED
-  MORE_INFORMATION_REQUIRED
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRevoked])
+  @@index([expiresAt])
 }
 
-model ProfessionalApplication {
-  professionalapplicationid String @id @default(cuid())
-  userId                    String
-
-  /// Human-readable application code e.g. APP-2026-000123
-  applicationCode String? @unique
-
-  requestedRole Role
-
-  licenseNumber     String?
-  licenseExpiry     DateTime?
-  qualifications    String?
-  specialization    String?
-  subSpecialty      String?
-  yearsOfExperience Int?
-  languages         String[] @default([])
-  facilityName      String?
-  workplace         String?
-  professionalBio   String?
-  supportingDocs    Json?
-  notes             String?
-
-  status          ProfessionalApplicationStatus @default(PENDING)
-  reviewNotes     String?
-  rejectionReason String?
-  reviewedById    String?
-  submittedAt     DateTime                      @default(now())
-  reviewedAt      DateTime?
-  decidedAt       DateTime?
-
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  reason    String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  user       User  @relation("ProfessionalApplicant", fields: [userId], references: [userid], onDelete: Cascade)
-  reviewedBy User? @relation("ProfessionalReviewer", fields: [reviewedById], references: [userid], onDelete: SetNull)
-
-  @@index([userId, requestedRole])
-  @@index([status])
-  @@index([submittedAt])
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([success])
 }
 
-// ═══════════════════════════════════════════════════════════
-// 33. NEWS FEED
-// ═══════════════════════════════════════════════════════════
+model AdminAction {
+  id         String   @id @default(cuid())
+  adminId    String
+  actionType String
+  targetType String?
+  targetId   String?
+  reason     String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
 
-enum NewsCategory {
-  HEALTH_NEWS
-  PUBLIC_HEALTH
-  MEDICAL_EDUCATION
-  HOSPITAL_UPDATES
-  PROFESSIONAL_NEWS
-  COMMUNITY_HEALTH
-  GENERAL
-  OFFICIAL_ANNOUNCEMENT
+  admin User @relation("AdminActions", fields: [adminId], references: [userid], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([actionType])
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }
 
-enum NewsPostStatus {
-  DRAFT
-  PUBLISHED
-  HIDDEN
-  REMOVED
-}
-
-enum NewsVisibility {
-  PUBLIC
-  AUTHENTICATED
-  PROFESSIONALS
-  PRIVATE
-}
-
-enum NewsReactionType {
-  LIKE
-  HELPFUL
-  INSIGHTFUL
-}
-
-enum NewsReportReason {
-  MISINFORMATION
-  SPAM
-  HARASSMENT
-  IMPERSONATION
-  INAPPROPRIATE
-  PRIVACY_VIOLATION
-  OTHER
-}
-
-enum NewsReportStatus {
-  OPEN
-  UNDER_REVIEW
-  RESOLVED
-  DISMISSED
-}
-
-model NewsPost {
-  newspostid    String         @id @default(cuid())
-  authorId      String
+model BroadcastMessage {
+  id            String                @id @default(cuid())
+  createdBy     String
   title         String
-  content       String
-  category      NewsCategory   @default(HEALTH_NEWS)
-  status        NewsPostStatus @default(DRAFT)
-  visibility    NewsVisibility @default(PUBLIC)
-  coverImageUrl String?
-  isOfficial    Boolean        @default(false)
-  publishedAt   DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
+  body          String
+  channel       NotificationChannel[] @default([IN_APP])
+  targetRoleId  String?
+  targetUserIds String[]              @default([])
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  status        String                @default("DRAFT")
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
-  author    User           @relation("NewsPostAuthor", fields: [authorId], references: [userid], onDelete: Cascade)
-  comments  NewsComment[]
-  reactions NewsReaction[]
-  reports   NewsReport[]
+  creator    User          @relation(fields: [createdBy], references: [userid], onDelete: Cascade)
+  targetRole PlatformRole? @relation("BroadcastTargetRole", fields: [targetRoleId], references: [id], onDelete: SetNull)
 
-  @@index([status, publishedAt])
-  @@index([authorId])
-  @@index([category])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([targetRoleId])
 }
 
-model NewsComment {
-  newscommentid   String    @id @default(cuid())
-  postId          String
-  authorId        String
-  parentCommentId String?
-  content         String
+model DoctorDocument {
+  id              String    @id @default(cuid())
+  doctorId        String
+  type            String
+  fileUrl         String
+  fileName        String?
+  mimeType        String?
+  fileSize        Int?
+  isVerified      Boolean   @default(false)
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  uploadedBy      String?
+  rejectionReason String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
 
-  post          NewsPost     @relation(fields: [postId], references: [newspostid], onDelete: Cascade)
-  author        User         @relation("NewsCommentAuthor", fields: [authorId], references: [userid], onDelete: Cascade)
-  parentComment NewsComment? @relation("CommentThread", fields: [parentCommentId], references: [newscommentid], onDelete: SetNull)
-  replies       NewsComment[] @relation("CommentThread")
-  reports       NewsReport[]
+  doctor   Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  uploader User?  @relation("DoctorDocumentUploader", fields: [uploadedBy], references: [userid], onDelete: SetNull)
 
-  @@index([postId, createdAt])
-  @@index([authorId])
+  @@index([doctorId])
+  @@index([isVerified])
+  @@index([type])
 }
 
-model NewsReaction {
-  newsreactionid String           @id @default(cuid())
-  postId         String
-  userId         String
-  reactionType   NewsReactionType @default(LIKE)
-  createdAt      DateTime         @default(now())
+model DoctorVerificationLog {
+  id        String   @id @default(cuid())
+  doctorId  String
+  adminId   String
+  action    String
+  reason    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
 
-  post NewsPost @relation(fields: [postId], references: [newspostid], onDelete: Cascade)
-  user User     @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  admin  User   @relation(fields: [adminId], references: [userid], onDelete: Cascade)
 
-  @@unique([postId, userId])
-  @@index([postId])
+  @@index([doctorId])
+  @@index([adminId])
+  @@index([createdAt])
+  @@index([action])
 }
 
-model NewsReport {
-  newsreportid String           @id @default(cuid())
-  postId       String?
-  commentId    String?
-  reporterId   String
-  reason       NewsReportReason
-  details      String?
-  status       NewsReportStatus @default(OPEN)
-  reviewedById String?
-  reviewNotes  String?
-  createdAt    DateTime         @default(now())
-  reviewedAt   DateTime?
+model EmergencyCardScan {
+  id        String   @id @default(cuid())
+  cardId    String
+  scannedBy String?
+  ipAddress String?
+  userAgent String?
+  location  String?
+  scannedAt DateTime @default(now())
 
-  post       NewsPost?    @relation(fields: [postId], references: [newspostid], onDelete: Cascade)
-  comment    NewsComment? @relation(fields: [commentId], references: [newscommentid], onDelete: Cascade)
-  reporter   User         @relation("NewsReporter", fields: [reporterId], references: [userid], onDelete: Cascade)
-  reviewedBy User?        @relation("NewsReportReviewer", fields: [reviewedById], references: [userid], onDelete: SetNull)
-
-  @@index([status, createdAt])
-  @@index([postId])
-  @@index([commentId])
-}
-
-// ═══════════════════════════════════════════════════════════
-// PLATFORM SUPER ADMIN — plans, subscriptions, homepage CMS
-// ═══════════════════════════════════════════════════════════
-
-enum PlanInterval {
-  MONTHLY
-  YEARLY
-  LIFETIME
-}
-
-enum PlatformSubscriptionStatus {
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  CANCELLED
-  EXPIRED
-}
-
-model PlatformPlan {
-  planid      String       @id @default(cuid())
-  code        String       @unique
-  name        String
-  description String?
-  price       Decimal      @db.Decimal(12, 2)
-  currency    String       @default("USD")
-  interval    PlanInterval @default(MONTHLY)
-  features    Json?
-  isActive    Boolean      @default(true)
-  isPublic    Boolean      @default(true)
-  sortOrder   Int          @default(0)
-  trialDays   Int          @default(0)
-  maxUsers    Int?
-  maxBranches Int?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  subscriptions PlatformSubscription[]
-
-  @@index([isActive, isPublic, sortOrder])
-}
-
-model PlatformSubscription {
-  subscriptionid   String                     @id @default(cuid())
-  planId           String
-  subscriberUserId String?
-  organizationName String
-  contactEmail     String?
-  contactPhone     String?
-  status           PlatformSubscriptionStatus @default(TRIALING)
-  startsAt         DateTime                   @default(now())
-  endsAt           DateTime?
-  cancelledAt      DateTime?
-  notes            String?
-  metadata         Json?
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
-
-  plan           PlatformPlan @relation(fields: [planId], references: [planid], onDelete: Restrict)
-  subscriberUser User?        @relation("PlatformSubscriber", fields: [subscriberUserId], references: [userid], onDelete: SetNull)
-
-  @@index([status, startsAt])
-  @@index([planId])
-  @@index([subscriberUserId])
-}
-
-model CmsContent {
-  cmscontentid String   @id @default(cuid())
-  key          String   @unique
-  title        String?
-  data         Json
-  published    Boolean  @default(true)
-  updatedById  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  updatedBy User? @relation("CmsUpdatedBy", fields: [updatedById], references: [userid], onDelete: SetNull)
-
-  @@index([published])
+  @@index([cardId])
+  @@index([scannedAt])
 }

@@ -1,61 +1,36 @@
 export type NavItem = {
-  title: string;
-  href: string;
-  roles?: string[];
-};
+  title: string
+  href: string
+  roles?: string[]
+}
 
 export const publicNav: NavItem[] = [
-  { title: 'Home', href: '/' },
-  { title: 'Doctors', href: '/doctors' },
-  { title: 'Hospitals', href: '/hospitals' },
-  { title: 'Professionals', href: '/professionals' },
-  { title: 'Pricing', href: '/pricing' },
-  { title: 'About', href: '/about' },
-  { title: 'Contact', href: '/contact' },
-];
+  { title: "Home", href: "/" },
+  { title: "Doctors", href: "/doctors" },
+  { title: "About", href: "/#services" },
+  { title: "Contact", href: "/#contact" },
+]
 
-export const patientNav: NavItem[] = [
-  { title: 'Dashboard', href: '/patient/dashboard' },
-  { title: 'Appointments', href: '/patient/appointments' },
-  { title: 'Records', href: '/patient/records' },
-  { title: 'Prescriptions', href: '/patient/prescriptions' },
-  { title: 'Lab results', href: '/patient/lab-results' },
-  { title: 'Pregnancy', href: '/patient/pregnancy' },
-  { title: 'Wallet', href: '/patient/wallet' },
-  { title: 'Consent', href: '/patient/consents' },
-  { title: 'Messages', href: '/patient/messages' },
-  { title: 'Profile', href: '/patient/profile' },
-];
-
-export const providerNav: NavItem[] = [
-  { title: 'Dashboard', href: '/provider/dashboard' },
-  { title: 'Appointments', href: '/provider/appointments' },
-  { title: 'Patients', href: '/provider/patients' },
-  { title: 'Encounters', href: '/provider/encounters' },
-  { title: 'Prescriptions', href: '/provider/prescriptions' },
-  { title: 'Lab orders', href: '/provider/lab-orders' },
-  { title: 'Schedule', href: '/provider/schedule' },
-  { title: 'Public profile', href: '/provider/public-profile' },
-  { title: 'Profile', href: '/provider/profile' },
-];
-
-export const tenantNav: NavItem[] = [
-  { title: 'Dashboard', href: '/tenant/dashboard' },
-  { title: 'Branches', href: '/tenant/branches' },
-  { title: 'Staff', href: '/tenant/staff' },
-  { title: 'Patients', href: '/tenant/patients' },
-  { title: 'Appointments', href: '/tenant/appointments' },
-  { title: 'Reports', href: '/tenant/reports' },
-  { title: 'Billing', href: '/tenant/billing' },
-  { title: 'Settings', href: '/tenant/settings' },
-];
+export const dashboardNav: NavItem[] = [
+  { title: "Dashboard", href: "/dashboard" },
+  { title: "Doctors", href: "/dashboard?section=doctors" },
+  { title: "Appointments", href: "/dashboard?section=appointments" },
+  { title: "Daily health", href: "/dashboard?section=health" },
+  { title: "Vitals", href: "/dashboard?section=vitals" },
+  { title: "Medications", href: "/dashboard?section=medications" },
+  { title: "Allergies", href: "/dashboard?section=allergies" },
+  { title: "Prescriptions", href: "/dashboard?section=prescriptions" },
+  { title: "Records", href: "/dashboard?section=records" },
+  { title: "Family", href: "/dashboard?section=family" },
+  { title: "Emergency", href: "/dashboard?section=emergency" },
+  { title: "Notifications", href: "/dashboard?section=notifications" },
+  { title: "Profile", href: "/dashboard/UserProfile" },
+]
 
 export const adminNav: NavItem[] = [
-  { title: 'Dashboard', href: '/admin/dashboard' },
-  { title: 'Users', href: '/admin/users' },
-  { title: 'Plans', href: '/admin/plans' },
-  { title: 'Subscriptions', href: '/admin/subscriptions' },
-  { title: 'Homepage CMS', href: '/admin/cms' },
-  { title: 'Audits', href: '/admin/audits' },
-  { title: 'Settings', href: '/admin/settings' },
-];
+  { title: "Dashboard", href: "/admin/dashboard" },
+  { title: "Users", href: "/admin/users" },
+  { title: "Doctors", href: "/admin/doctors" },
+  { title: "Audits", href: "/admin/audits" },
+  { title: "Settings", href: "/admin/settings" },
+]

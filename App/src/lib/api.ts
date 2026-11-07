@@ -1,10 +1,6 @@
 import { env } from '@/config/env';
 import type { DoctorItem } from '@/constants/content';
 import { clearCsrfToken, ensureCsrfToken } from '@/lib/csrf';
-import type {
-  HospitalsPagination,
-  PublicHospital,
-} from '@/types/hospital';
 
 export type ApiSuccess<T> = {
   isSuccess: true;
@@ -14,14 +10,31 @@ export type ApiSuccess<T> = {
   data?: T;
 };
 
+export type Paginated<T> = {
+  items: T[];
+  meta?: {
+    total?: number;
+    page?: number;
+    limit?: number;
+    totalPages?: number;
+  };
+};
+
 export type AuthUser = {
   userid: string;
   email: string;
   phone?: string | null;
   fullName: string;
   role: string;
+  healthId?: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
   avatarUrl?: string | null;
   picture?: string | null;
+  city?: string | null;
+  country?: string | null;
+  region?: string | null;
+  district?: string | null;
 };
 
 export type AuthResult = {
@@ -30,65 +43,216 @@ export type AuthResult = {
   refreshToken: string;
 };
 
+export type MedicalProfile = {
+  id: string;
+  userId: string;
+  bloodType?: string | null;
+  smokingStatus?: string | null;
+  alcoholUse?: string | null;
+  exerciseFrequency?: string | null;
+  dietType?: string | null;
+  notes?: string | null;
+};
+
+export type EmergencyCard = {
+  id: string;
+  userId: string;
+  cardNumber: string;
+  bloodType?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  allergiesSummary?: string | null;
+  conditionsSummary?: string | null;
+  medicationsSummary?: string | null;
+  doctorNotes?: string | null;
+  qrCode?: string | null;
+  isActive?: boolean;
+};
+
 export type AppointmentItem = {
-  appointmentid: string;
+  id: string;
   appointmentCode?: string;
   scheduledAt: string;
+  duration?: number;
   status: string;
-  doctorName?: string | null;
-  patientName?: string | null;
-  facilityName?: string | null;
   reason?: string | null;
+  notes?: string | null;
+  doctorId?: string | null;
+  consultationFee?: number | string | null;
+  currency?: string | null;
+  paymentRequired?: boolean;
+  paymentStatus?: string | null;
+  doctor?: {
+    id?: string;
+    fullName?: string | null;
+    specialty?: string | null;
+    clinicName?: string | null;
+    profileImage?: string | null;
+  } | null;
+  user?: {
+    userid?: string;
+    fullName?: string | null;
+  } | null;
+};
+
+export type PaymentItem = {
+  id: string;
+  amount: number | string;
+  currency?: string;
+  status: string;
+  method?: string | null;
+  provider?: string | null;
+  paymentReference?: string | null;
+  appointmentId?: string | null;
+  createdAt?: string;
+  appointment?: {
+    id?: string;
+    appointmentCode?: string;
+    scheduledAt?: string;
+    reason?: string | null;
+    doctor?: { fullName?: string | null } | null;
+  } | null;
 };
 
 export type VitalItem = {
-  vitalsignid?: string;
-  type?: string;
-  value?: number | string;
-  unit?: string | null;
-  recordedAt?: string;
-  heartRate?: number | null;
-  bloodPressureSystolic?: number | null;
-  bloodPressureDiastolic?: number | null;
+  id: string;
   temperature?: number | null;
+  bloodPressureSys?: number | null;
+  bloodPressureDia?: number | null;
+  heartRate?: number | null;
+  respiratoryRate?: number | null;
+  oxygenSaturation?: number | null;
   weight?: number | null;
+  height?: number | null;
+  bmi?: number | null;
+  source?: string | null;
+  recordedAt?: string;
+};
+
+export type MedicationItem = {
+  id: string;
+  name: string;
+  dosage?: string | null;
+  frequency?: string | null;
+  route?: string | null;
+  isActive?: boolean;
+  prescribedBy?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+};
+
+export type AllergyItem = {
+  id: string;
+  allergen: string;
+  type?: string | null;
+  severity?: string | null;
+  reaction?: string | null;
+  isActive?: boolean;
+  notes?: string | null;
+  diagnosedAt?: string | null;
+};
+
+export type PrescriptionItem = {
+  id: string;
+  prescriptionNumber?: string;
+  issuedAt?: string;
+  status?: string;
+  notes?: string | null;
+  doctor?: { fullName?: string | null } | null;
+  items?: Array<{
+    id: string;
+    medicineName: string;
+    dosage?: string | null;
+    frequency?: string | null;
+    instructions?: string | null;
+  }>;
+};
+
+export type MedicalRecordItem = {
+  id: string;
+  recordType: string;
+  title: string;
+  description?: string | null;
+  diagnosis?: string | null;
+  treatment?: string | null;
+  doctorName?: string | null;
+  facilityName?: string | null;
+  recordDate: string;
+  notes?: string | null;
+};
+
+export type FamilyMemberItem = {
+  id: string;
+  fullName: string;
+  relationship: string;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  phone?: string | null;
+  isDependent?: boolean;
+  isEmergencyContact?: boolean;
+  notes?: string | null;
+};
+
+export type EmergencyContactItem = {
+  id: string;
+  fullName: string;
+  phone: string;
+  relationship: string;
+  alternatePhone?: string | null;
+  isPrimary?: boolean;
+};
+
+export type NotificationItem = {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  channel?: string;
+  isRead: boolean;
+  readAt?: string | null;
+  data?: unknown;
+  createdAt: string;
+};
+
+export type DailyHealthLog = {
+  id?: string;
+  date?: string;
+  mood?: string | null;
+  sleepQuality?: string | null;
+  stressLevel?: string | null;
+  energyLevel?: string | null;
+  activityLevel?: string | null;
+  painLevel?: string | null;
+  notes?: string | null;
+  steps?: number | null;
+  distanceKm?: number | null;
+  activeMinutes?: number | null;
+  caloriesBurned?: number | null;
+  heartRateAvg?: number | null;
+  weightKg?: number | null;
+  oxygenSaturation?: number | null;
+  waterIntakeMl?: number | null;
+  waterGoalMl?: number | null;
+  sleepHours?: number | null;
+  stepsGoal?: number | null;
+  sleepGoalHours?: number | null;
+  source?: string | null;
 };
 
 export type UserProfile = AuthUser & {
-  profile?: {
-    city?: string | null;
-    bloodType?: string | null;
-    height?: number | null;
-    weight?: number | null;
-    healthId?: string | null;
+  medicalProfile?: MedicalProfile | null;
+  emergencyCard?: EmergencyCard | null;
+  doctor?: {
+    id: string;
+    specialty?: string | null;
+    verificationStatus?: string | null;
   } | null;
-  appointments?: AppointmentItem[];
-  medications?: Array<{
-    medicationid?: string;
-    name?: string;
-    dosage?: string | null;
-    instructions?: string | null;
-  }>;
-  vitalSigns?: VitalItem[];
-  dailyHealthLogs?: Array<{
-    dailyhealthlogid?: string;
-    date?: string;
-    mood?: string | null;
-    steps?: number | null;
-    waterIntakeMl?: number | null;
-    sleepHours?: number | null;
-  }>;
-  prescriptions?: Array<{
-    prescriptionid?: string;
-    issuedAt?: string;
-    status?: string;
-  }>;
-  _count?: {
-    appointments?: number;
-    prescriptions?: number;
-    labOrders?: number;
-    notifications?: number;
-  };
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  language?: string;
+  timezone?: string;
 };
 
 type RequestOptions = {
@@ -107,7 +271,26 @@ async function parseJson(res: Response) {
 }
 
 function isCsrfError(status: number, data: { message?: string } | null) {
-  return status === 403 && typeof data?.message === 'string' && /csrf/i.test(data.message);
+  return (
+    status === 403 &&
+    typeof data?.message === 'string' &&
+    /csrf/i.test(data.message)
+  );
+}
+
+function unwrap<T>(data: ApiSuccess<T> | null | undefined): T | undefined {
+  if (!data) return undefined;
+  return (data.result ?? data.data ?? data.user) as T | undefined;
+}
+
+function unwrapItems<T>(
+  data: ApiSuccess<Paginated<T> | T[]> | null | undefined,
+): T[] {
+  const payload = unwrap(data);
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.items)) return payload.items;
+  return [];
 }
 
 export async function apiRequest<T>(
@@ -172,15 +355,26 @@ export async function checkApiHealth(): Promise<boolean> {
 }
 
 export async function loginRequest(email: string, password: string) {
-  const data = await apiRequest<ApiSuccess<AuthResult>>('/user/login', {
+  const data = await apiRequest<ApiSuccess<AuthResult>>('/auth/login', {
     method: 'POST',
     body: { email, password },
   });
-  const result = data.result;
-  if (!result?.accessToken || !result.user) {
+  const result = unwrap(data) ?? (data as unknown as AuthResult);
+  const user = (result as AuthResult).user ?? (data as { user?: AuthUser }).user;
+  const accessToken =
+    (result as AuthResult).accessToken ??
+    (data as { accessToken?: string }).accessToken;
+  const refreshToken =
+    (result as AuthResult).refreshToken ??
+    (data as { refreshToken?: string }).refreshToken;
+  if (!accessToken || !user) {
     throw new Error(data.message || 'Login failed');
   }
-  return result;
+  return {
+    user,
+    accessToken,
+    refreshToken: refreshToken || '',
+  } satisfies AuthResult;
 }
 
 export async function registerRequest(input: {
@@ -189,70 +383,213 @@ export async function registerRequest(input: {
   fullName: string;
   phone?: string;
 }) {
-  const data = await apiRequest<ApiSuccess<AuthResult>>('/user/register', {
+  const data = await apiRequest<ApiSuccess<AuthResult>>('/auth/register', {
     method: 'POST',
     body: input,
   });
-  const result = data.result;
-  if (!result?.accessToken || !result.user) {
+  const result = unwrap(data) ?? (data as unknown as AuthResult);
+  const user = (result as AuthResult).user ?? (data as { user?: AuthUser }).user;
+  const accessToken =
+    (result as AuthResult).accessToken ??
+    (data as { accessToken?: string }).accessToken;
+  const refreshToken =
+    (result as AuthResult).refreshToken ??
+    (data as { refreshToken?: string }).refreshToken;
+  if (!accessToken || !user) {
     throw new Error(data.message || 'Registration failed');
   }
+  return {
+    user,
+    accessToken,
+    refreshToken: refreshToken || '',
+  } satisfies AuthResult;
+}
+
+export async function refreshTokensRequest(refreshToken: string) {
+  const data = await apiRequest<
+    ApiSuccess<{ accessToken: string; refreshToken: string }>
+  >('/refresh', {
+    method: 'POST',
+    body: { refreshToken },
+  });
+  const result = unwrap(data);
+  if (!result?.accessToken) throw new Error(data.message || 'Refresh failed');
   return result;
 }
 
-export async function getProfileRequest(userId: string, token: string) {
-  const data = await apiRequest<ApiSuccess<UserProfile>>(`/user/profile/${userId}`, {
+export async function getMeRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<UserProfile>>('/users/me', {
     method: 'GET',
     token,
     skipCsrf: true,
   });
-  const profile = data.user ?? data.result ?? data.data;
+  const profile = unwrap(data);
   if (!profile) throw new Error('Profile not found');
   return profile;
 }
 
-export async function getDoctorsRequest(token?: string | null) {
+/** @deprecated use getMeRequest */
+export async function getProfileRequest(_userId: string, token: string) {
+  return getMeRequest(token);
+}
+
+export async function updateMeRequest(
+  input: Partial<AuthUser>,
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<AuthUser>>('/users/me', {
+    method: 'PUT',
+    body: input,
+    token,
+  });
+  const user = unwrap(data);
+  if (!user) throw new Error(data.message || 'Update failed');
+  return user;
+}
+
+const DEFAULT_DOCTOR_IMAGE =
+  'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=600&q=80';
+
+type ApiDoctor = {
+  id: string;
+  userId?: string;
+  fullName?: string;
+  specialty?: string;
+  subSpecialty?: string | null;
+  city?: string | null;
+  clinicName?: string | null;
+  profileImage?: string | null;
+  yearsExperience?: number | null;
+  rating?: number | string | null;
+  reviewCount?: number | null;
+  consultationFee?: number | string | null;
+  currency?: string | null;
+  bio?: string | null;
+  isAvailable?: boolean;
+  isOnline?: boolean;
+  languages?: string[];
+  user?: {
+    userid?: string;
+    picture?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+  doctorReviews?: Array<{
+    id: string;
+    rating: number;
+    review?: string | null;
+    createdAt?: string;
+    isAnonymous?: boolean;
+  }>;
+};
+
+function mapDoctor(raw: ApiDoctor): DoctorItem {
+  const fee = Number(raw.consultationFee ?? 0);
+  const rating = Number(raw.rating ?? 0);
+  return {
+    id: String(raw.id),
+    userId: raw.userId || raw.user?.userid,
+    name: raw.fullName || 'Doctor',
+    specialty: raw.specialty || 'General Physician',
+    city: raw.city || 'Somaliland',
+    clinicName: raw.clinicName || 'Daryeel Care Network',
+    image:
+      raw.profileImage ||
+      raw.user?.avatarUrl ||
+      raw.user?.picture ||
+      DEFAULT_DOCTOR_IMAGE,
+    experienceYears: Number(raw.yearsExperience ?? 0),
+    rating: Number.isFinite(rating) ? rating : 0,
+    reviews: Number(raw.reviewCount ?? 0),
+    fee: Number.isFinite(fee) ? fee : 0,
+    currency: raw.currency || 'USD',
+    bio: raw.bio || 'Trusted clinician on Daryeel Health.',
+    availableToday: raw.isAvailable !== false,
+    tags: raw.subSpecialty
+      ? [raw.subSpecialty]
+      : raw.languages?.length
+        ? raw.languages.slice(0, 3)
+        : ['Consultation'],
+    reviewSamples: (raw.doctorReviews || []).map((r) => ({
+      id: r.id,
+      author: r.isAnonymous ? 'Anonymous' : 'Patient',
+      rating: r.rating,
+      comment: r.review || '',
+      date: r.createdAt
+        ? new Date(r.createdAt).toISOString().slice(0, 10)
+        : '',
+    })),
+  };
+}
+
+export async function getDoctorsRequest(
+  token?: string | null,
+  params?: { q?: string; specialty?: string; page?: number; limit?: number },
+) {
   try {
-    const data = await apiRequest<ApiSuccess<DoctorItem[]>>('/user/doctors', {
-      method: 'GET',
-      token,
-      skipCsrf: true,
-    });
-    const list = data.result ?? data.data ?? [];
-    if (!Array.isArray(list)) return [];
-    return list.map((item) => ({
-      ...item,
-      fee: Number(item.fee ?? 15),
-      rating: Number(item.rating ?? 4.8),
-      reviews: Number(item.reviews ?? 0),
-      experienceYears: Number(item.experienceYears ?? 0),
-      tags: item.tags ?? [],
-      bio: item.bio || 'Trusted clinician on Daryeel Health.',
-      availableToday: item.availableToday !== false,
-      image:
-        item.image ||
-        'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=600&q=80',
-    }));
+    const query = new URLSearchParams();
+    if (params?.q) query.set('q', params.q);
+    if (params?.specialty) query.set('specialty', params.specialty);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit ?? 50));
+    else query.set('limit', '50');
+    const qs = query.toString();
+    const data = await apiRequest<ApiSuccess<Paginated<ApiDoctor>>>(
+      `/doctors${qs ? `?${qs}` : ''}`,
+      { method: 'GET', token, skipCsrf: true },
+    );
+    return unwrapItems(data).map(mapDoctor);
   } catch {
     return [];
   }
 }
 
-export async function getTodayHealthLog(token: string) {
-  try {
-    return await apiRequest<ApiSuccess<Record<string, unknown>>>('/daily-health-log/today', {
-      method: 'GET',
-      token,
-      skipCsrf: true,
-    });
-  } catch {
-    return null;
-  }
+export async function getDoctorRequest(id: string, token?: string | null) {
+  const data = await apiRequest<ApiSuccess<ApiDoctor>>(
+    `/doctors/${encodeURIComponent(id)}`,
+    { method: 'GET', token, skipCsrf: true },
+  );
+  const doctor = unwrap(data);
+  if (!doctor) throw new Error('Doctor not found');
+  return mapDoctor(doctor);
 }
 
 function todayDateKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export async function getTodayHealthLog(token: string) {
+  try {
+    const date = todayDateKey();
+    const data = await apiRequest<ApiSuccess<Paginated<DailyHealthLog>>>(
+      `/daily-health-logs?from=${date}&to=${date}&limit=1`,
+      { method: 'GET', token, skipCsrf: true },
+    );
+    const items = unwrapItems(data);
+    return {
+      isSuccess: true as const,
+      result: items[0] ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function listDailyHealthLogsRequest(
+  token: string,
+  params?: { from?: string; to?: string; page?: number; limit?: number },
+) {
+  const query = new URLSearchParams();
+  if (params?.from) query.set('from', params.from);
+  if (params?.to) query.set('to', params.to);
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  const qs = query.toString();
+  const data = await apiRequest<ApiSuccess<Paginated<DailyHealthLog>>>(
+    `/daily-health-logs${qs ? `?${qs}` : ''}`,
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
 }
 
 /** Create or update today's daily health log (steps/water/sleep sync). */
@@ -261,360 +598,430 @@ export async function upsertTodayHealthLog(
   fields: Record<string, unknown>,
 ) {
   const date = todayDateKey();
-  const body = { ...fields, source: fields.source || 'DEVICE' };
-  try {
-    return await apiRequest<ApiSuccess<Record<string, unknown>>>(
-      `/daily-health-log/${date}`,
-      { method: 'PUT', body, token },
-    );
-  } catch {
-    return apiRequest<ApiSuccess<Record<string, unknown>>>('/daily-health-log', {
-      method: 'POST',
-      body: { date, ...body },
-      token,
-    });
-  }
-}
-
-export async function changeRoleRequest(
-  input: { role: string; reason?: string },
-  token: string,
-) {
-  const data = await apiRequest<
-    ApiSuccess<{
-      accessToken?: string;
-      refreshToken?: string;
-      applicationPending?: boolean;
-    }> & { user?: AuthUser; message?: string }
-  >('/user/profile/me/role', {
-    method: 'PATCH',
-    body: input,
+  const body = {
+    date,
+    ...fields,
+    source: fields.source || 'MANUAL',
+  };
+  return apiRequest<ApiSuccess<DailyHealthLog>>('/daily-health-logs', {
+    method: 'POST',
+    body,
     token,
   });
-  return {
-    user: data.user,
-    message: data.message,
-    applicationPending: Boolean(data.result?.applicationPending),
-    accessToken: data.result?.accessToken,
-    refreshToken: data.result?.refreshToken,
-  };
-}
-
-type HospitalsListResponse = {
-  isSuccess: boolean;
-  data?: PublicHospital[];
-  result?: PublicHospital[];
-  pagination?: HospitalsPagination;
-  message?: string;
-};
-
-type HospitalDetailResponse = {
-  isSuccess: boolean;
-  data?: PublicHospital;
-  result?: PublicHospital;
-  message?: string;
-};
-
-/** Public SaaS hospitals — no auth/CSRF (GET only). */
-async function saasPublicGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${env.saasApiUrl}${path}`, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    credentials: 'omit',
-  });
-  const data = await parseJson(res);
-  if (!res.ok || data?.isSuccess === false) {
-    throw new Error(
-      (typeof data?.message === 'string' && data.message) ||
-        `Request failed (${res.status})`,
-    );
-  }
-  return data as T;
 }
 
 export type BookAppointmentInput = {
-  doctorId?: string;
-  doctorName: string;
-  specialty?: string;
-  facilityName?: string;
-  facilityId?: string;
+  doctorId: string;
   scheduledAt: string;
   duration?: number;
   reason?: string;
   notes?: string;
-  visitType?: string;
-};
-
-export type BookHealthcareInput = BookAppointmentInput & {
-  tenantId?: string;
-  hospitalId?: string;
-  consentGranted: boolean;
-  type?: string;
-  idempotencyKey?: string;
   consultationFee?: number | string;
   currency?: string;
+  paymentRequired?: boolean;
 };
-
-/** Hospital booking via Healthtech → SaaS integration (authoritative). */
-export async function createHealthcareAppointmentRequest(
-  input: BookHealthcareInput,
-  token: string,
-) {
-  const data = await apiRequest<ApiSuccess<AppointmentItem>>(
-    '/healthcare/appointments',
-    {
-      method: 'POST',
-      body: {
-        ...input,
-        tenantId: input.tenantId || input.facilityId || input.hospitalId,
-        hospitalId: input.hospitalId || input.facilityId,
-        consentGranted: input.consentGranted !== false,
-      },
-      token,
-    },
-  );
-  const result = data.result ?? data.data;
-  if (!result) {
-    throw new Error(
-      data.message ||
-        "We couldn't complete your appointment request. It was not confirmed.",
-    );
-  }
-  return result;
-}
 
 export async function createAppointmentRequest(
   input: BookAppointmentInput,
   token: string,
 ) {
-  // Prefer integrated hospital booking when a facility/hospital id is present
-  if (input.facilityId || (input as BookHealthcareInput).hospitalId) {
-    return createHealthcareAppointmentRequest(
-      { ...input, consentGranted: true },
-      token,
-    );
-  }
   const data = await apiRequest<ApiSuccess<AppointmentItem>>('/appointments', {
     method: 'POST',
     body: input,
     token,
   });
-  const result = data.result ?? data.data;
+  const result = unwrap(data);
   if (!result) throw new Error(data.message || 'Booking failed');
   return result;
 }
 
-export async function listAppointmentsRequest(token: string) {
-  try {
-    const healthcare = await apiRequest<ApiSuccess<AppointmentItem[]>>(
-      '/healthcare/appointments',
-      { method: 'GET', token, skipCsrf: true },
-    );
-    const ht = healthcare.result ?? healthcare.data ?? [];
-    if (Array.isArray(ht) && ht.length > 0) return ht;
-  } catch {
-    /* fall through to local appointments */
-  }
-  const data = await apiRequest<ApiSuccess<AppointmentItem[]>>('/appointments', {
-    method: 'GET',
-    token,
-    skipCsrf: true,
-  });
-  const list = data.result ?? data.data ?? [];
-  return Array.isArray(list) ? list : [];
-}
-
-export async function listOpdTicketsRequest(token: string) {
-  const data = await apiRequest<ApiSuccess<AppointmentItem[]>>(
-    '/healthcare/opd-tickets',
-    { method: 'GET', token, skipCsrf: true },
-  );
-  const list = data.result ?? data.data ?? [];
-  return Array.isArray(list) ? list : [];
-}
-
-export async function getDoctorAvailabilityRequest(
-  doctorId: string,
-  date: string,
-  token?: string | null,
+export async function listAppointmentsRequest(
+  token: string,
+  opts?: { as?: 'doctor'; status?: string },
 ) {
-  const data = await apiRequest<
-    ApiSuccess<{ windows: unknown[]; slots: string[] }>
-  >(
-    `/healthcare/doctors/${encodeURIComponent(doctorId)}/availability?date=${encodeURIComponent(date)}`,
+  const params = new URLSearchParams();
+  if (opts?.as) params.set('as', opts.as);
+  if (opts?.status) params.set('status', opts.status);
+  const qs = params.toString();
+  const data = await apiRequest<ApiSuccess<Paginated<AppointmentItem>>>(
+    `/appointments${qs ? `?${qs}` : ''}`,
     { method: 'GET', token, skipCsrf: true },
   );
-  return data.result ?? data.data ?? { windows: [], slots: [] };
+  return unwrapItems(data);
 }
 
-export type ChatMessage = {
-  messageid: string;
-  senderId: string;
-  recipientId?: string | null;
-  recipientType?: string | null;
-  subject?: string | null;
-  body: string;
-  createdAt: string;
-  sender?: { userid?: string; fullName?: string };
-};
-
-export async function getChatThreadRequest(peerId: string, token: string) {
-  const data = await apiRequest<ApiSuccess<ChatMessage[]>>(
-    `/messages/thread/${encodeURIComponent(peerId)}`,
-    { method: 'GET', token, skipCsrf: true },
-  );
-  const list = data.result ?? data.data ?? [];
-  return Array.isArray(list) ? list : [];
-}
-
-export async function sendChatMessageRequest(
-  input: {
-    recipientId: string;
-    recipientType?: string;
-    subject?: string;
-    body: string;
+export async function updateAppointmentRequest(
+  id: string,
+  body: {
+    status?: string;
+    cancellationReason?: string;
+    paymentStatus?: string;
   },
   token: string,
 ) {
-  const data = await apiRequest<ApiSuccess<ChatMessage>>('/messages', {
+  const data = await apiRequest<ApiSuccess<AppointmentItem>>(
+    `/appointments/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      body,
+      token,
+    },
+  );
+  return unwrap(data);
+}
+
+export async function listPaymentsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<PaymentItem>>>(
+    '/payments',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function createPaymentRequest(
+  input: {
+    appointmentId?: string;
+    amount?: number;
+    currency?: string;
+    method?: string;
+    status?: string;
+    provider?: string;
+    transactionId?: string;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<PaymentItem>>('/payments', {
     method: 'POST',
     body: input,
     token,
   });
-  const result = data.result ?? data.data;
-  if (!result) throw new Error(data.message || 'Send failed');
-  return result;
+  return unwrap(data);
 }
 
-export type NewsFeedItem = {
-  newspostid: string;
-  title: string;
-  content: string;
-  category: string;
-  coverImageUrl?: string | null;
-  publishedAt?: string | null;
-  isOfficial?: boolean;
-  commentCount?: number;
-  reactionCount?: number;
-  author?: {
-    fullName?: string;
-    verifiedProfessional?: boolean;
-  };
+export async function updatePaymentRequest(
+  id: string,
+  body: {
+    status?: string;
+    method?: string;
+    provider?: string;
+    transactionId?: string;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<PaymentItem>>(
+    `/payments/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body, token },
+  );
+  return unwrap(data);
+}
+
+export async function cancelAppointmentRequest(id: string, token: string) {
+  return updateAppointmentRequest(id, { status: 'CANCELLED' }, token);
+}
+
+export type DoctorMe = {
+  id: string;
+  fullName: string;
+  specialty: string;
+  verificationStatus?: string;
 };
 
-export async function getNewsFeedRequest(params?: {
-  page?: number;
-  limit?: number;
-  token?: string | null;
-}) {
-  const page = params?.page ?? 1;
-  const limit = params?.limit ?? 20;
-  const data = await apiRequest<{
-    isSuccess: boolean;
-    data?: NewsFeedItem[];
-    pagination?: unknown;
-  }>(`/news?page=${page}&limit=${limit}`, {
-    method: 'GET',
-    token: params?.token,
-    skipCsrf: true,
-  });
-  return Array.isArray(data.data) ? data.data : [];
+export async function getMyDoctorRequest(token: string) {
+  try {
+    const data = await apiRequest<ApiSuccess<DoctorMe | null>>('/doctor/me', {
+      method: 'GET',
+      token,
+      skipCsrf: true,
+    });
+    return unwrap(data) ?? null;
+  } catch {
+    return null;
+  }
 }
 
-export async function getNewsPostRequest(id: string, token?: string | null) {
-  const data = await apiRequest<ApiSuccess<any>>(`/news/${encodeURIComponent(id)}`, {
-    method: 'GET',
-    token,
-    skipCsrf: true,
-  });
-  return data.result ?? data.data;
+export async function listMedicationsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<MedicationItem>>>(
+    '/medications',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
 }
 
-export async function createNewsPostRequest(
-  input: { title: string; content: string; category?: string; status?: string },
+export async function createMedicationRequest(
+  input: {
+    name: string;
+    dosage?: string;
+    frequency?: string;
+    notes?: string;
+  },
   token: string,
 ) {
-  const data = await apiRequest<ApiSuccess<NewsFeedItem>>('/news', {
-    method: 'POST',
-    body: { ...input, status: input.status || 'PUBLISHED' },
-    token,
-  });
-  return data.result ?? data.data;
-}
-
-export async function reactNewsRequest(id: string, token: string) {
-  return apiRequest(`/news/${id}/reactions`, {
-    method: 'POST',
-    body: { reactionType: 'LIKE' },
-    token,
-  });
-}
-
-export async function commentNewsRequest(
-  id: string,
-  content: string,
-  token: string,
-) {
-  return apiRequest(`/news/${id}/comments`, {
-    method: 'POST',
-    body: { content },
-    token,
-  });
-}
-
-export async function submitProfessionalApplicationRequest(
-  input: Record<string, unknown>,
-  token: string,
-) {
-  return apiRequest('/professional-applications', {
+  const data = await apiRequest<ApiSuccess<MedicationItem>>('/medications', {
     method: 'POST',
     body: input,
     token,
   });
+  return unwrap(data);
 }
 
-/**
- * GET /company/public-hospitals?page=1&limit=9&search=
- * Matches SaaS getPublicHospitals controller.
- */
-export async function getPublicHospitalsRequest(params?: {
-  search?: string;
-  page?: number;
-  limit?: number;
-}) {
-  const page = Math.max(1, params?.page ?? 1);
-  const limit = Math.min(50, Math.max(1, params?.limit ?? 9));
-  const query = new URLSearchParams({
-    page: String(page),
-    limit: String(limit),
+export async function listAllergiesRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<AllergyItem>>>(
+    '/allergies',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function createAllergyRequest(
+  input: {
+    allergen: string;
+    severity?: string;
+    reaction?: string;
+    type?: string;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<AllergyItem>>('/allergies', {
+    method: 'POST',
+    body: input,
+    token,
   });
-  if (params?.search?.trim()) query.set('search', params.search.trim());
-
-  const data = await saasPublicGet<HospitalsListResponse>(
-    `/company/public-hospitals?${query.toString()}`,
-  );
-
-  const list = data.data ?? data.result ?? [];
-  return {
-    hospitals: Array.isArray(list) ? list : [],
-    pagination: data.pagination ?? {
-      total: Array.isArray(list) ? list.length : 0,
-      page,
-      limit,
-      totalPages: 1,
-    },
-  };
+  return unwrap(data);
 }
 
-/**
- * GET /company/public-hospitals/:tenantId
- * Matches SaaS getPublicHospital controller (hospital + doctors).
- */
-export async function getPublicHospitalRequest(tenantId: string) {
-  const data = await saasPublicGet<HospitalDetailResponse>(
-    `/company/public-hospitals/${encodeURIComponent(tenantId)}`,
+export async function listVitalSignsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<VitalItem>>>(
+    '/vital-signs',
+    { method: 'GET', token, skipCsrf: true },
   );
-  const hospital = data.data ?? data.result;
-  if (!hospital) throw new Error(data.message || 'Hospital not found');
-  return hospital;
+  return unwrapItems(data);
+}
+
+export async function createVitalSignRequest(
+  input: Partial<VitalItem>,
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<VitalItem>>('/vital-signs', {
+    method: 'POST',
+    body: input,
+    token,
+  });
+  return unwrap(data);
+}
+
+export async function listPrescriptionsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<PrescriptionItem>>>(
+    '/prescriptions',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function listMedicalRecordsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<MedicalRecordItem>>>(
+    '/medical-records',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function createMedicalRecordRequest(
+  input: {
+    title: string;
+    recordType?: string;
+    diagnosis?: string;
+    doctorName?: string;
+    facilityName?: string;
+    notes?: string;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<MedicalRecordItem>>(
+    '/medical-records',
+    {
+      method: 'POST',
+      body: {
+        ...input,
+        recordType: input.recordType || 'VISIT',
+        recordDate: new Date().toISOString(),
+      },
+      token,
+    },
+  );
+  return unwrap(data);
+}
+
+export type LabResultItem = {
+  id: string;
+  testName: string;
+  resultValue?: string | null;
+  unit?: string | null;
+  referenceRange?: string | null;
+  status?: string | null;
+  labName?: string | null;
+  resultDate: string;
+};
+
+export async function listLabResultsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<LabResultItem>>>(
+    '/lab-results',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function createLabResultRequest(
+  input: {
+    testName: string;
+    resultValue?: string;
+    unit?: string;
+    referenceRange?: string;
+    labName?: string;
+    status?: string;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<LabResultItem>>('/lab-results', {
+    method: 'POST',
+    body: {
+      ...input,
+      status: input.status || 'FINAL',
+      resultDate: new Date().toISOString(),
+    },
+    token,
+  });
+  return unwrap(data);
+}
+
+export type MedicalDocumentItem = {
+  id: string;
+  title: string;
+  documentType: string;
+  fileUrl: string;
+  description?: string | null;
+  documentDate?: string | null;
+};
+
+export async function listMedicalDocumentsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<MedicalDocumentItem>>>(
+    '/medical-documents',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function createMedicalDocumentRequest(
+  input: {
+    title: string;
+    documentType?: string;
+    fileUrl: string;
+    description?: string;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<MedicalDocumentItem>>(
+    '/medical-documents',
+    {
+      method: 'POST',
+      body: {
+        ...input,
+        documentType: input.documentType || 'REPORT',
+        documentDate: new Date().toISOString(),
+      },
+      token,
+    },
+  );
+  return unwrap(data);
+}
+
+export async function listEmergencyContactsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<EmergencyContactItem>>>(
+    '/emergency-contacts',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function createEmergencyContactRequest(
+  input: {
+    fullName: string;
+    phone: string;
+    relationship: string;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<EmergencyContactItem>>(
+    '/emergency-contacts',
+    { method: 'POST', body: input, token },
+  );
+  return unwrap(data);
+}
+
+export async function getEmergencyCardRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<EmergencyCard | null>>(
+    '/emergency-card',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrap(data) ?? null;
+}
+
+export async function upsertEmergencyCardRequest(
+  input: Partial<EmergencyCard>,
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<EmergencyCard>>('/emergency-card', {
+    method: 'PUT',
+    body: input,
+    token,
+  });
+  return unwrap(data);
+}
+
+export async function listFamilyMembersRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<FamilyMemberItem>>>(
+    '/family-members',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function createFamilyMemberRequest(
+  input: {
+    fullName: string;
+    relationship: string;
+    phone?: string;
+    gender?: string;
+    isEmergencyContact?: boolean;
+  },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<FamilyMemberItem>>(
+    '/family-members',
+    { method: 'POST', body: input, token },
+  );
+  return unwrap(data);
+}
+
+export async function listNotificationsRequest(token: string) {
+  const data = await apiRequest<ApiSuccess<Paginated<NotificationItem>>>(
+    '/notifications',
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return unwrapItems(data);
+}
+
+export async function markNotificationReadRequest(id: string, token: string) {
+  return apiRequest(`/notifications/${encodeURIComponent(id)}/read`, {
+    method: 'PATCH',
+    body: {},
+    token,
+  });
+}
+
+export async function markAllNotificationsReadRequest(token: string) {
+  return apiRequest('/notifications/read-all', {
+    method: 'POST',
+    body: {},
+    token,
+  });
 }

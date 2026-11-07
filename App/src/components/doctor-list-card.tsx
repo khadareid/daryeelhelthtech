@@ -33,33 +33,41 @@ export function DoctorListCard({ doctor, onPress }: Props) {
             {doctor.name}
           </Text>
           <View style={styles.rating}>
-            <Text style={styles.ratingText}>★ {doctor.rating.toFixed(1)}</Text>
+            <Text style={styles.ratingText}>
+              ★ {doctor.rating > 0 ? doctor.rating.toFixed(1) : '—'}
+            </Text>
           </View>
         </View>
         <Text style={[styles.specialty, { color: theme.primary }]}>
           {doctor.specialty}
         </Text>
         <Text style={[styles.meta, { color: theme.textSecondary }]}>
-          {doctor.experienceYears}+ yrs · {doctor.hospitalName}
+          {doctor.experienceYears > 0
+            ? `${doctor.experienceYears}+ yrs · `
+            : ''}
+          {doctor.clinicName}
         </Text>
         <Text style={[styles.meta, { color: theme.textSecondary }]}>
-          {doctor.city} · {doctor.reviews} reviews
+          {doctor.city}
+          {doctor.reviews > 0 ? ` · ${doctor.reviews} reviews` : ''}
         </Text>
         <View style={styles.bottomRow}>
           <Text style={[styles.fee, { color: theme.brandDark }]}>
-            ${doctor.fee}
-            <Text style={[styles.feeUnit, { color: theme.textSecondary }]}>
-              {' '}
-              / visit
-            </Text>
+            {doctor.fee > 0 ? `$${doctor.fee}` : 'Fee TBA'}
+            {doctor.fee > 0 ? (
+              <Text style={[styles.feeUnit, { color: theme.textSecondary }]}>
+                {' '}
+                / visit
+              </Text>
+            ) : null}
           </Text>
           {doctor.availableToday ? (
             <Text style={[styles.available, { color: theme.success }]}>
-              Available Today
+              Available
             </Text>
           ) : (
             <Text style={[styles.busy, { color: theme.textSecondary }]}>
-              Next slots soon
+              Unavailable
             </Text>
           )}
         </View>

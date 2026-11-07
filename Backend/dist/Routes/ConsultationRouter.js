@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const ConsultationController_1 = require("../Controllers/ConsultationController");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const router = (0, express_1.Router)();
+router.use(VerifyToken_1.decodeToken);
+router.get("/", ConsultationController_1.list);
+router.get("/:id", ConsultationController_1.getOne);
+router.post("/", ConsultationController_1.create);
+router.patch("/:id", ConsultationController_1.update);
+router.put("/:id", ConsultationController_1.update);
+exports.default = router;

@@ -1,27 +1,29 @@
-import { PrismaClient, Prisma } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { AuditAction, Prisma } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 
 export interface AuditLogInput {
-  action: string;
+  action: AuditAction | string;
   entity?: string;
   entityId?: string;
-
-  // ✅ Direct metadata object
+  description?: string;
   metadata?: Record<string, unknown> | null;
-
-  // ✅ Backward-compatible (optional)
   oldValue?: unknown;
   newValue?: unknown;
-
   userId?: string;
   ipAddress?: string;
   userAgent?: string;
 }
 
+const toAuditAction = (action: string): AuditAction => {
+  const upper = action.toUpperCase();
+  if ((Object.values(AuditAction) as string[]).includes(upper)) {
+    return upper as AuditAction;
+  }
+  return AuditAction.UPDATE;
+};
+
 export const createAuditLog = async (input: AuditLogInput) => {
   try {
-    // Haddii `metadata` la soo diray, isticmaal. Haddii kale, ka dhis oldValue/newValue
     let metadata: Prisma.InputJsonValue | undefined;
 
     if (input.metadata && Object.keys(input.metadata).length > 0) {
@@ -35,9 +37,10 @@ export const createAuditLog = async (input: AuditLogInput) => {
 
     return await prisma.auditLog.create({
       data: {
-        action: input.action,
-        entity: input.entity ?? null,
+        action: toAuditAction(String(input.action)),
+        entity: input.entity ?? "UNKNOWN",
         entityId: input.entityId ?? null,
+        description: input.description ?? null,
         metadata: metadata ?? undefined,
         userId: input.userId ?? null,
         ipAddress: input.ipAddress ?? null,

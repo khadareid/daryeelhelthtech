@@ -1,28 +1,32 @@
-// routes/user.routes.ts
 import { Router } from "express";
 import {
-  register,
-  login,
-  getUserProfile,
-  updateUserProfile,
-  changePassword,
-  changeRole,
-  listPublicDoctors,
-  getPublicDoctor,
-  getMyPatientId,
+  adminCreate,
+  adminDelete,
+  adminGetUser,
+  adminListUsers,
+  adminUpdate,
+  changeMyPassword,
+  deleteMe,
+  me,
+  updateProfile,
 } from "../Controllers/UserController";
 import { decodeToken } from "../helpers/middleware/VerifyToken";
+import { adminOnly } from "../helpers/middleware/rbac";
 
 const router = Router();
 
-router.post("/register", register);
-router.post("/login", login);
-router.get("/doctors", listPublicDoctors);
-router.get("/doctors/:idOrSlug", getPublicDoctor);
-router.get("/me/patient-id", decodeToken, getMyPatientId);
-router.get("/profile/:userid", decodeToken, getUserProfile);
-router.put("/profile/:userid", decodeToken, updateUserProfile);
-router.put("/profile/:userid/password", decodeToken, changePassword);
-router.patch("/profile/:userid/role", decodeToken, changeRole);
+router.use(decodeToken);
+router.get("/me", me);
+router.put("/me", updateProfile);
+router.patch("/me", updateProfile);
+router.put("/me/password", changeMyPassword);
+router.delete("/me", deleteMe);
+
+router.get("/", adminOnly, adminListUsers);
+router.post("/", adminOnly, adminCreate);
+router.get("/:id", adminOnly, adminGetUser);
+router.patch("/:id", adminOnly, adminUpdate);
+router.put("/:id", adminOnly, adminUpdate);
+router.delete("/:id", adminOnly, adminDelete);
 
 export default router;

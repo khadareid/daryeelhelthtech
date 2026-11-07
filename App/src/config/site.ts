@@ -5,7 +5,7 @@ export const siteConfig = {
   url: 'https://daryeel.so',
   description:
     'Multi-tenant digital health platform for Somaliland and East Africa.',
-  supportEmail: 'khadariidnuah@gmail.com',
+  supportEmail: 'info@daryeel.com',
   supportPhone: '+25261000000',
   supportPhoneDisplay: '+252 61 000 000',
   locations: 'Gabiley & Hargeisa, Somaliland',

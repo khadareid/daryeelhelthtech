@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const DoctorController_1 = require("../Controllers/DoctorController");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const router = (0, express_1.Router)();
+router.use(VerifyToken_1.decodeToken);
+router.get("/", DoctorController_1.getMe);
+router.put("/", DoctorController_1.upsertMe);
+router.patch("/", DoctorController_1.upsertMe);
+router.post("/", DoctorController_1.upsertMe);
+exports.default = router;

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,12 +17,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/config/site';
-import { TIME_SLOTS } from '@/constants/content';
+import { TIME_SLOTS, type DoctorItem } from '@/constants/content';
 import { Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useDoctors } from '@/hooks/use-doctors';
 import { useTheme } from '@/hooks/use-theme';
-import { createAppointmentRequest } from '@/lib/api';
+import { createAppointmentRequest, getDoctorRequest } from '@/lib/api';
 
 function nextDays(count: number) {
   return Array.from({ length: count }, (_, index) => {
@@ -50,42 +50,66 @@ export default function DoctorDetailScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const doctor = useMemo(
-    () => doctors.find((item) => item.id === id) ?? doctors[0],
-    [doctors, id],
-  );
+  const [remoteDoctor, setRemoteDoctor] = useState<DoctorItem | null>(null);
+  const [loadingDoctor, setLoadingDoctor] = useState(false);
+
+  const doctor = useMemo(() => {
+    if (remoteDoctor) return remoteDoctor;
+    return doctors.find((item) => item.id === id) ?? null;
+  }, [doctors, id, remoteDoctor]);
+
   const days = useMemo(() => nextDays(7), []);
   const [dayIndex, setDayIndex] = useState(0);
-  const [slot, setSlot] = useState(TIME_SLOTS[0]);
+  const [slot, setSlot] = useState(TIME_SLOTS[1] || '08:20 AM');
   const [visitType, setVisitType] = useState<'In-Person' | 'Video Call'>(
     'In-Person',
   );
   const [booking, setBooking] = useState(false);
 
-  const chatPeerId = doctor?.userId || doctor?.id || '';
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    (async () => {
+      setLoadingDoctor(true);
+      try {
+        const next = await getDoctorRequest(id, accessToken);
+        if (active) setRemoteDoctor(next);
+      } catch {
+        /* fall back to list cache */
+      } finally {
+        if (active) setLoadingDoctor(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [id, accessToken]);
 
   if (!doctor) {
     return (
       <View style={[styles.missing, { backgroundColor: theme.background }]}>
-        <Text style={{ color: theme.textSecondary, fontFamily: Fonts.medium }}>
-          Doctor not found.
-        </Text>
+        {loadingDoctor ? (
+          <ActivityIndicator color={theme.primary} />
+        ) : (
+          <Text style={{ color: theme.textSecondary, fontFamily: Fonts.medium }}>
+            Doctor not found.
+          </Text>
+        )}
       </View>
     );
   }
 
   function requireAuth(action: string) {
-    Alert.alert(
-      'Sign in required',
-      `Please sign in to ${action}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign in', onPress: () => router.push('/sign-in' as Href) },
-      ],
-    );
+    Alert.alert('Sign in required', `Please sign in to ${action}.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign in', onPress: () => router.push('/sign-in' as Href) },
+    ]);
   }
 
   async function onBook() {
+    if (!doctor) return;
+    const selected = doctor;
+
     if (!isAuthenticated || !accessToken) {
       requireAuth('book an appointment');
       return;
@@ -96,70 +120,52 @@ export default function DoctorDetailScreen() {
     const when = new Date(day);
     when.setHours(h, m, 0, 0);
 
-    Alert.alert(
-      'Share booking details?',
-      `Allow Daryeel to share your booking and contact information with ${doctor.hospitalName || 'this hospital'} for this appointment?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
+    setBooking(true);
+    try {
+      const appt = await createAppointmentRequest(
         {
-          text: 'Agree & request',
-          onPress: async () => {
-            setBooking(true);
-            try {
-              const appt = await createAppointmentRequest(
-                {
-                  doctorId: doctor.id,
-                  doctorName: doctor.name,
-                  specialty: doctor.specialty,
-                  facilityName: doctor.hospitalName,
-                  facilityId: doctor.hospitalId,
-                  scheduledAt: when.toISOString(),
-                  reason: `${visitType} visit`,
-                  visitType,
-                },
-                accessToken,
-              );
-              await refreshProfile();
-              Alert.alert(
-                'Request sent',
-                `${doctor.name}\n${when.toLocaleString()}\n${visitType}\nStatus: ${appt.status}\nCode: ${appt.appointmentCode || appt.appointmentid}\n\nThe hospital will respond in My Healthcare / Appointments.`,
-                [
-                  {
-                    text: 'My appointments',
-                    onPress: () => router.push('/(tabs)/appointments' as Href),
-                  },
-                  { text: 'OK', onPress: () => router.back() },
-                ],
-              );
-            } catch (error) {
-              Alert.alert(
-                'Request not confirmed',
-                error instanceof Error
-                  ? error.message
-                  : "We couldn't complete your appointment request. Please try again.",
-              );
-            } finally {
-              setBooking(false);
-            }
-          },
+          doctorId: selected.id,
+          scheduledAt: when.toISOString(),
+          reason: `${visitType} visit`,
+          notes: visitType,
+          consultationFee: selected.fee || undefined,
+          currency: selected.currency || 'USD',
         },
-      ],
-    );
-  }
-
-  function onChat() {
-    if (!isAuthenticated) {
-      requireAuth('chat with a doctor');
-      return;
+        accessToken,
+      );
+      await refreshProfile();
+      const fee = Number(selected.fee || 0);
+      const feeLine =
+        fee > 0
+          ? `Fee: ${selected.currency || 'USD'} ${fee.toFixed(2)} — pay with Zaad / eDahab from Visits or Payments`
+          : 'Fee: Free — no payment needed';
+      Alert.alert(
+        'Request sent',
+        `${selected.name}\n${when.toLocaleString()}\n${visitType}\n${feeLine}\nStatus: ${appt.status}\nCode: ${appt.appointmentCode || appt.id}`,
+        [
+          {
+            text: 'My visits',
+            onPress: () => router.push('/(tabs)/appointments' as Href),
+          },
+          {
+            text: fee > 0 ? 'Payments' : 'OK',
+            onPress: () =>
+              fee > 0
+                ? router.push('/health/payments' as Href)
+                : router.back(),
+          },
+        ],
+      );
+    } catch (error) {
+      Alert.alert(
+        'Request not confirmed',
+        error instanceof Error
+          ? error.message
+          : "We couldn't complete your appointment request. Please try again.",
+      );
+    } finally {
+      setBooking(false);
     }
-    router.push({
-      pathname: '/chat/[peerId]',
-      params: {
-        peerId: chatPeerId,
-        name: doctor.name,
-        specialty: doctor.specialty,
-      },
-    } as Href);
   }
 
   function onCall() {
@@ -190,31 +196,40 @@ export default function DoctorDetailScreen() {
             {doctor.specialty}
           </Text>
 
-          <Pressable
-            onPress={() =>
-              router.push(`/hospital/${doctor.hospitalId}` as Href)
-            }
+          <View
             style={[
-              styles.hospitalChip,
+              styles.clinicChip,
               {
                 backgroundColor: theme.backgroundSelected,
                 borderColor: theme.border,
               },
             ]}>
-            <Text style={[styles.hospitalText, { color: theme.brandDark }]}>
-              {doctor.hospitalName}
+            <Text style={[styles.clinicText, { color: theme.brandDark }]}>
+              {doctor.clinicName}
             </Text>
-            <Text style={[styles.hospitalMeta, { color: theme.textSecondary }]}>
-              {doctor.city} · Tap for facility
+            <Text style={[styles.clinicMeta, { color: theme.textSecondary }]}>
+              {doctor.city}
             </Text>
-          </Pressable>
+          </View>
 
           <View style={styles.stats}>
-            <Stat label="Rating" value={doctor.rating.toFixed(1)} theme={theme} />
-            <Stat label="Reviews" value={String(doctor.reviews)} theme={theme} />
+            <Stat
+              label="Rating"
+              value={doctor.rating > 0 ? doctor.rating.toFixed(1) : '—'}
+              theme={theme}
+            />
+            <Stat
+              label="Reviews"
+              value={String(doctor.reviews)}
+              theme={theme}
+            />
             <Stat
               label="Years"
-              value={`${doctor.experienceYears}+`}
+              value={
+                doctor.experienceYears > 0
+                  ? `${doctor.experienceYears}+`
+                  : '—'
+              }
               theme={theme}
             />
           </View>
@@ -225,7 +240,7 @@ export default function DoctorDetailScreen() {
           </Text>
 
           <Text style={[styles.section, { color: theme.brandDark }]}>
-            Specializes in
+            Focus areas
           </Text>
           <View style={styles.tags}>
             {doctor.tags.map((tag) => (
@@ -242,46 +257,52 @@ export default function DoctorDetailScreen() {
             ))}
           </View>
 
-          <Text style={[styles.section, { color: theme.brandDark }]}>
-            Patient ratings
-          </Text>
-          {(doctor.reviewSamples?.length
-            ? doctor.reviewSamples
-            : [
-                {
-                  id: 'fallback',
-                  author: 'Daryeel patient',
-                  rating: doctor.rating,
-                  comment: 'Helpful visit with clear next steps.',
-                  date: '2026-09-01',
-                },
-              ]
-          ).map((review) => (
-            <View
-              key={review.id}
-              style={[
-                styles.reviewCard,
-                {
-                  backgroundColor: theme.backgroundElement,
-                  borderColor: theme.border,
-                },
-              ]}>
-              <View style={styles.reviewTop}>
-                <Text style={[styles.reviewAuthor, { color: theme.brandDark }]}>
-                  {review.author}
-                </Text>
-                <Text style={[styles.reviewStars, { color: '#EA580C' }]}>
-                  ★ {review.rating.toFixed(1)}
-                </Text>
-              </View>
-              <Text style={[styles.reviewBody, { color: theme.textSecondary }]}>
-                {review.comment}
+          {doctor.reviewSamples && doctor.reviewSamples.length > 0 ? (
+            <>
+              <Text style={[styles.section, { color: theme.brandDark }]}>
+                Patient ratings
               </Text>
-              <Text style={[styles.reviewDate, { color: theme.textSecondary }]}>
-                {review.date}
-              </Text>
-            </View>
-          ))}
+              {doctor.reviewSamples.map((review) => (
+                <View
+                  key={review.id}
+                  style={[
+                    styles.reviewCard,
+                    {
+                      backgroundColor: theme.backgroundElement,
+                      borderColor: theme.border,
+                    },
+                  ]}>
+                  <View style={styles.reviewTop}>
+                    <Text
+                      style={[styles.reviewAuthor, { color: theme.brandDark }]}>
+                      {review.author}
+                    </Text>
+                    <Text style={[styles.reviewStars, { color: '#EA580C' }]}>
+                      ★ {review.rating.toFixed(1)}
+                    </Text>
+                  </View>
+                  {review.comment ? (
+                    <Text
+                      style={[
+                        styles.reviewBody,
+                        { color: theme.textSecondary },
+                      ]}>
+                      {review.comment}
+                    </Text>
+                  ) : null}
+                  {review.date ? (
+                    <Text
+                      style={[
+                        styles.reviewDate,
+                        { color: theme.textSecondary },
+                      ]}>
+                      {review.date}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </>
+          ) : null}
 
           <Text style={[styles.section, { color: theme.brandDark }]}>
             Select date
@@ -325,7 +346,7 @@ export default function DoctorDetailScreen() {
           </ScrollView>
 
           <Text style={[styles.section, { color: theme.brandDark }]}>
-            Available time
+            Available time (every 20 min)
           </Text>
           <View style={styles.slots}>
             {TIME_SLOTS.map((item) => {
@@ -391,14 +412,6 @@ export default function DoctorDetailScreen() {
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
         <View style={styles.actionRow}>
           <Pressable
-            onPress={onChat}
-            style={[styles.iconBtn, { borderColor: theme.border }]}>
-            <Ionicons name="chatbubble-ellipses" size={20} color={theme.primary} />
-            <Text style={[styles.iconBtnText, { color: theme.brandDark }]}>
-              Chat
-            </Text>
-          </Pressable>
-          <Pressable
             onPress={onCall}
             style={[styles.iconBtn, { borderColor: theme.border }]}>
             <Ionicons name="call" size={20} color={theme.primary} />
@@ -413,14 +426,14 @@ export default function DoctorDetailScreen() {
               Visit fee
             </Text>
             <Text style={[styles.feeValue, { color: theme.brandDark }]}>
-              ${doctor.fee}
+              {doctor.fee > 0 ? `$${doctor.fee}` : 'TBA'}
             </Text>
           </View>
           {booking ? (
             <ActivityIndicator color={theme.primary} style={{ flex: 1 }} />
           ) : (
             <Button
-              title="Book Appointment"
+              title={`Book · ${slot}`}
               onPress={onBook}
               style={{ flex: 1 }}
             />
@@ -459,6 +472,11 @@ function Stat({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  missing: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: { paddingBottom: 24, alignItems: 'center' },
   hero: {
     width: '100%',
@@ -477,18 +495,18 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 15,
   },
-  hospitalChip: {
+  clinicChip: {
     marginTop: 4,
     borderWidth: 1,
     borderRadius: Radius.lg,
     padding: Spacing.three,
     gap: 2,
   },
-  hospitalText: {
+  clinicText: {
     fontFamily: Fonts.semibold,
     fontSize: 14,
   },
-  hospitalMeta: {
+  clinicMeta: {
     fontFamily: Fonts.regular,
     fontSize: 12,
   },
@@ -520,12 +538,12 @@ const styles = StyleSheet.create({
   about: {
     fontFamily: Fonts.regular,
     fontSize: 14,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   tags: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
+    gap: 8,
   },
   tag: {
     borderRadius: Radius.full,
@@ -537,19 +555,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   reviewCard: {
-    borderWidth: 1,
     borderRadius: Radius.lg,
+    borderWidth: 1,
     padding: Spacing.three,
     gap: 4,
   },
   reviewTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: Spacing.two,
   },
   reviewAuthor: {
     fontFamily: Fonts.semibold,
-    fontSize: 14,
+    fontSize: 13,
   },
   reviewStars: {
     fontFamily: Fonts.medium,
@@ -558,103 +575,67 @@ const styles = StyleSheet.create({
   reviewBody: {
     fontFamily: Fonts.regular,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 18,
   },
   reviewDate: {
     fontFamily: Fonts.regular,
     fontSize: 11,
   },
-  days: { gap: Spacing.two },
+  days: { gap: 8 },
   day: {
-    width: 64,
-    height: 72,
+    width: 56,
     borderRadius: Radius.md,
     borderWidth: 1,
+    paddingVertical: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
   },
-  dayName: {
-    fontFamily: Fonts.medium,
-    fontSize: 12,
-  },
-  dayNum: {
-    fontFamily: Fonts.bold,
-    fontSize: 18,
-  },
+  dayName: { fontFamily: Fonts.medium, fontSize: 11 },
+  dayNum: { fontFamily: Fonts.bold, fontSize: 16, marginTop: 2 },
   slots: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
+    gap: 8,
   },
   slot: {
-    minWidth: '30%',
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: Radius.md,
+    borderRadius: Radius.full,
     borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  slotText: {
-    fontFamily: Fonts.medium,
-    fontSize: 13,
-  },
-  visitRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
+  slotText: { fontFamily: Fonts.medium, fontSize: 13 },
+  visitRow: { flexDirection: 'row', gap: 10 },
   visit: {
     flex: 1,
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-  },
-  visitText: {
-    fontFamily: Fonts.medium,
-    fontSize: 14,
-  },
-  footer: {
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  iconBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
     borderRadius: Radius.lg,
+    borderWidth: 1,
     paddingVertical: 12,
+    alignItems: 'center',
   },
-  iconBtnText: {
-    fontFamily: Fonts.semibold,
-    fontSize: 14,
+  visitText: { fontFamily: Fonts.semibold, fontSize: 13 },
+  footer: {
+    borderTopWidth: 1,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.three,
+    gap: Spacing.three,
+    backgroundColor: '#fff',
   },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  iconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  iconBtnText: { fontFamily: Fonts.medium, fontSize: 13 },
   bookRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
   },
   feeBlock: { minWidth: 72 },
-  feeLabel: {
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-  },
-  feeValue: {
-    fontFamily: Fonts.bold,
-    fontSize: 20,
-  },
-  missing: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  feeLabel: { fontFamily: Fonts.regular, fontSize: 11 },
+  feeValue: { fontFamily: Fonts.bold, fontSize: 20 },
 });

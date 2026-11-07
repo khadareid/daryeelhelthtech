@@ -1,247 +1,155 @@
-// src/service/users/UsersApi.ts
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { apiBaseQuery } from '@/lib/apiBaseQuery';
-import {   User,
-  UserInput,
-  UserUpdateInput,
-  UserLoginInput,
+import { createApi } from "@reduxjs/toolkit/query/react"
+import { apiBaseQuery } from "@/lib/apiBaseQuery"
+import { unwrapList, unwrapResult } from "@/Redex/lib/ownedApi"
+import type {
   ApiResponse,
-  AuthResponse, } from '@/Redex/types/Types';
-
-/* ==================================================================
-   RESPONSE SHAPES
-================================================================== */
-
-interface UsersListResponse {
-  isSuccess: boolean;
-  users: User[];
-  total?: number;
-}
-
-interface UserResponse {
-  isSuccess: boolean;
-  message?: string;
-  user?: User;
-}
-
-/* ==================================================================
-   API
-================================================================== */
+  AuthResponse,
+  Paginated,
+  User,
+  UserInput,
+  UserLoginInput,
+  UserUpdateInput,
+} from "@/Redex/types/Types"
 
 export const usersApi = createApi({
-  reducerPath: 'usersApi',
+  reducerPath: "usersApi",
   baseQuery: apiBaseQuery,
-  tagTypes: ['User', 'Profile'],
+  tagTypes: ["User", "Profile"],
   endpoints: (builder) => ({
-    /* ---------- AUTH ---------- */
-
     register: builder.mutation<AuthResponse, UserInput>({
       query: (body) => ({
-        url: '/user/register',
-        method: 'POST',
+        url: "/auth/register",
+        method: "POST",
         body,
       }),
-      invalidatesTags: ['User'],
+      invalidatesTags: ["User"],
     }),
 
     login: builder.mutation<AuthResponse, UserLoginInput>({
       query: (body) => ({
-        url: '/user/login',
-        method: 'POST',
+        url: "/auth/login",
+        method: "POST",
         body,
       }),
-      invalidatesTags: ['User', 'Profile'],
+      invalidatesTags: ["User", "Profile"],
     }),
 
-    logout: builder.mutation<{ isSuccess: boolean; message: string }, { refreshToken: string }>({
-      query: (body) => ({
-        url: '/user/logout',
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: ['User', 'Profile'],
-    }),
-
-    /* ---------- PROFILE (self) ---------- */
-
-    getMyProfile: builder.query<User, void>({
-      query: () => ({ url: '/user/profile/me', method: 'GET' }),
-      transformResponse: (response: UserResponse) =>
-        (response.user ?? response) as User,
-      providesTags: [{ type: 'Profile', id: 'ME' }],
-    }),
-
-    updateMyProfile: builder.mutation<
-      UserResponse & { result?: { accessToken: string; refreshToken: string } },
-      UserUpdateInput & {
-        avatarUrl?: string;
-        picture?: string;
-        profile?: {
-          nationality?: string;
-          country?: string;
-          region?: string;
-          city?: string;
-          district?: string;
-          addressLine?: string;
-          occupation?: string;
-          maritalStatus?: string;
-          bloodType?: string;
-          height?: number | null;
-          weight?: number | null;
-          alternatePhone?: string;
-          preferredLanguage?: string;
-          preferredContact?: string;
-        };
-      }
+    refreshToken: builder.mutation<
+      ApiResponse<{ accessToken: string; refreshToken: string }>,
+      { refreshToken: string }
     >({
       query: (body) => ({
-        url: '/user/profile/me',
-        method: 'PUT',
+        url: "/refresh",
+        method: "POST",
         body,
       }),
-      invalidatesTags: [{ type: 'Profile', id: 'ME' }, 'User'],
+    }),
+
+    getMyProfile: builder.query<User, void>({
+      query: () => ({ url: "/users/me", method: "GET" }),
+      transformResponse: (response: ApiResponse<User>) => unwrapResult(response),
+      providesTags: [{ type: "Profile", id: "ME" }],
+    }),
+
+    updateMyProfile: builder.mutation<User, UserUpdateInput>({
+      query: (body) => ({
+        url: "/users/me",
+        method: "PUT",
+        body,
+      }),
+      transformResponse: (response: ApiResponse<User>) => unwrapResult(response),
+      invalidatesTags: [{ type: "Profile", id: "ME" }, "User"],
     }),
 
     changeMyPassword: builder.mutation<
-      { isSuccess: boolean; message: string },
+      { isSuccess: boolean; message?: string },
       { currentPassword: string; newPassword: string }
     >({
       query: (body) => ({
-        url: '/user/profile/me/password',
-        method: 'PUT',
+        url: "/users/me/password",
+        method: "PUT",
         body,
       }),
     }),
 
-    changeMyRole: builder.mutation<
-      UserResponse & {
-        result?: {
-          accessToken?: string
-          refreshToken?: string
-          applicationPending?: boolean
-          application?: unknown
-        }
-      },
-      { role: string; reason?: string }
-    >({
-      query: (body) => ({
-        url: '/user/profile/me/role',
-        method: 'PATCH',
-        body,
+    deleteMe: builder.mutation<{ isSuccess: boolean; message?: string }, void>({
+      query: () => ({
+        url: "/users/me",
+        method: "DELETE",
       }),
-      invalidatesTags: [{ type: 'Profile', id: 'ME' }, 'User'],
+      invalidatesTags: ["User", "Profile"],
     }),
-
-    getMySessions: builder.query<{ isSuccess: boolean; sessions: any[] }, void>({
-      query: () => ({ url: '/user/profile/me/sessions', method: 'GET' }),
-      providesTags: ['Profile'],
-    }),
-
-    /* ---------- PROFILE (by id) ---------- */
-
-    getUserProfile: builder.query<User, string>({
-      query: (userid) => ({
-        url: `/user/profile/${userid}`,
-        method: 'GET',
-      }),
-      transformResponse: (response: UserResponse) =>
-        (response.user ?? response) as User,
-      providesTags: (_r, _e, userid) => [{ type: 'Profile', id: userid }],
-    }),
-
-    /* ---------- ADMIN ---------- */
 
     getUsers: builder.query<
-      UsersListResponse,
+      Paginated<User>,
       { page?: number; limit?: number; role?: string; search?: string } | void
     >({
       query: (params) => ({
-        url: '/users',
-        method: 'GET',
+        url: "/users",
+        method: "GET",
         params: params ?? undefined,
       }),
-      providesTags: ['User'],
+      transformResponse: (response: ApiResponse<Paginated<User>>) => {
+        const raw = unwrapResult(response)
+        if (raw && typeof raw === "object" && "items" in raw) return raw
+        return {
+          items: unwrapList(response),
+          meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+        }
+      },
+      providesTags: ["User"],
     }),
 
     getOneUser: builder.query<User, string>({
-      query: (id) => ({
-        url: `/users/${id}`,
-        method: 'GET',
+      query: (id) => ({ url: `/users/${id}`, method: "GET" }),
+      transformResponse: (response: ApiResponse<User>) => unwrapResult(response),
+      providesTags: (_r, _e, id) => [{ type: "User", id }],
+    }),
+
+    createUser: builder.mutation<User, UserInput & { role?: string }>({
+      query: (body) => ({
+        url: "/users",
+        method: "POST",
+        body,
       }),
-      transformResponse: (response: UserResponse) => (response.user ?? response) as User,
-      providesTags: (_r, _e, id) => [{ type: 'User', id }],
+      transformResponse: (response: ApiResponse<User>) => unwrapResult(response),
+      invalidatesTags: ["User"],
     }),
 
     updateUser: builder.mutation<
-      UserResponse,
-      { id: string; data: UserUpdateInput & { password?: string } }
+      User,
+      { id: string; data: UserUpdateInput & { role?: string; isActive?: boolean; isSuspended?: boolean; password?: string } }
     >({
       query: ({ id, data }) => ({
         url: `/users/${id}`,
-        method: 'PUT',
+        method: "PATCH",
         body: data,
       }),
-      invalidatesTags: (_r, _e, { id }) => [{ type: 'User', id }, 'User'],
+      transformResponse: (response: ApiResponse<User>) => unwrapResult(response),
+      invalidatesTags: (_r, _e, { id }) => [{ type: "User", id }, "User"],
     }),
 
-    deleteUser: builder.mutation<{ isSuccess: boolean; message: string }, string>({
+    deleteUser: builder.mutation<{ isSuccess: boolean; message?: string }, string>({
       query: (id) => ({
         url: `/users/${id}`,
-        method: 'DELETE',
+        method: "DELETE",
       }),
-      invalidatesTags: ['User'],
-    }),
-
-    toggleActivateUser: builder.mutation<
-      { isSuccess: boolean; message: string; user: User },
-      string
-    >({
-      query: (id) => ({
-        url: `/users/${id}/toggle-active`,
-        method: 'PATCH',
-      }),
-      invalidatesTags: (_r, _e, id) => [{ type: 'User', id }, 'User'],
-    }),
-
-    changeUserRole: builder.mutation<
-      { isSuccess: boolean; message: string; result: User },
-      { id: string; role: string }
-    >({
-      query: ({ id, role }) => ({
-        url: `/users/${id}/role`,
-        method: 'PATCH',
-        body: { role },
-      }),
-      invalidatesTags: (_r, _e, { id }) => [{ type: 'User', id }, 'User'],
+      invalidatesTags: ["User"],
     }),
   }),
-});
-
-/* ==================================================================
-   HOOKS
-================================================================== */
+})
 
 export const {
-  // Auth
   useRegisterMutation,
   useLoginMutation,
-  useLogoutMutation,
-
-  // Self profile
+  useRefreshTokenMutation,
   useGetMyProfileQuery,
   useUpdateMyProfileMutation,
   useChangeMyPasswordMutation,
-  useChangeMyRoleMutation,
-  useGetMySessionsQuery,
-
-  // Public profile
-  useGetUserProfileQuery,
-
-  // Admin
+  useDeleteMeMutation,
   useGetUsersQuery,
   useGetOneUserQuery,
+  useCreateUserMutation,
   useUpdateUserMutation,
   useDeleteUserMutation,
-  useToggleActivateUserMutation,
-  useChangeUserRoleMutation,
-} = usersApi;
+} = usersApi

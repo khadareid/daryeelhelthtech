@@ -1,161 +1,167 @@
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Link } from "react-router-dom"
+import { useSelector } from "react-redux"
 import {
-  useGetFeatureFlagsQuery,
-  useGetNewsReportsQuery,
-  useGetProfessionalApplicationsQuery,
-  useReviewNewsReportMutation,
-  useReviewProfessionalApplicationMutation,
-  useUpdateFeatureFlagMutation,
-} from '@/Redex/service/admin/AdminApi'
+  CalendarCheck,
+  CreditCard,
+  FileText,
+  LayoutDashboard,
+  Settings2,
+  Stethoscope,
+  Users,
+} from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { AdminPageHeader, AdminPanel } from "@/components/admin/AdminShell"
+import { RootState } from "@/Redex/store/store"
+import { siteConfig } from "@/config/site"
+import { enumLabel } from "@/lib/enums"
+
+const LINKS = [
+  {
+    to: "/admin/dashboard",
+    title: "Overview",
+    desc: "Live KPIs and recent activity",
+    icon: LayoutDashboard,
+  },
+  {
+    to: "/admin/users",
+    title: "Users",
+    desc: "Create, edit, suspend, or delete accounts",
+    icon: Users,
+  },
+  {
+    to: "/admin/doctors",
+    title: "Doctors",
+    desc: "Verify clinicians and manage fees",
+    icon: Stethoscope,
+  },
+  {
+    to: "/admin/appointments",
+    title: "Bookings",
+    desc: "Confirm, cancel, or reopen visits",
+    icon: CalendarCheck,
+  },
+  {
+    to: "/admin/payments",
+    title: "Payments",
+    desc: "Invoices, Zaad / eDahab, refunds",
+    icon: CreditCard,
+  },
+  {
+    to: "/admin/audits",
+    title: "Audits",
+    desc: "Review platform actions",
+    icon: FileText,
+  },
+]
 
 export default function AdminSettings() {
-  const { data: flags = [], isLoading: flagsLoading } = useGetFeatureFlagsQuery()
-  const { data: apps = [] } = useGetProfessionalApplicationsQuery()
-  const { data: reports = [] } = useGetNewsReportsQuery()
-  const [updateFlag] = useUpdateFeatureFlagMutation()
-  const [reviewApp] = useReviewProfessionalApplicationMutation()
-  const [reviewReport] = useReviewNewsReportMutation()
+  const session = useSelector((s: RootState) => s.userInfo)
+  const role = String(session.role || "").toUpperCase()
+  const isSuper = role === "SUPER_ADMIN"
 
   return (
-    <div className="space-y-4">
-      <header className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
-        <h1 className="font-heading text-2xl font-bold text-brand-dark">
-          Settings & governance
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Feature modules, professional approvals, and news moderation.
-        </p>
-      </header>
+    <div className="space-y-3">
+      <AdminPageHeader
+        eyebrow={isSuper ? "Super Admin" : "Admin"}
+        title="Settings"
+        subtitle="Platform identity, operator role, and management shortcuts."
+        actions={
+          <Button asChild size="sm" variant="outline" className="h-8 rounded-lg border-blue-100">
+            <Link to="/admin/dashboard">Back to overview</Link>
+          </Button>
+        }
+      />
 
-      <section className="space-y-2 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
-        <h2 className="font-heading font-semibold text-brand-dark">Modules</h2>
-        {flagsLoading ? <Skeleton className="h-24 rounded-2xl" /> : null}
-        {flags.map((f: any) => (
-          <article
-            key={f.featureflagid}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-blue-50 p-3"
-          >
+      <div className="grid gap-3 lg:grid-cols-2">
+        <AdminPanel title="Platform">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <Item label="App name" value={siteConfig.appName} />
+            <Item label="Support email" value={siteConfig.supportEmail || "—"} />
+            <Item label="Support phone" value={siteConfig.supportPhone || "—"} />
+            <Item label="Signed in as" value={session.name || "—"} />
             <div>
-              <p className="font-heading font-semibold text-brand-dark">
-                {f.label}
-              </p>
-              <p className="text-xs text-muted-foreground">{f.key}</p>
+              <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Role
+              </dt>
+              <dd className="mt-1">
+                <Badge variant="secondary" className="text-[10px]">
+                  {enumLabel(role)}
+                </Badge>
+              </dd>
             </div>
-            <Button
-              size="sm"
-              variant={f.enabled ? 'default' : 'outline'}
-              onClick={() =>
-                updateFlag({ key: f.key, body: { enabled: !f.enabled } })
+            <Item
+              label="Permissions"
+              value={
+                isSuper
+                  ? "Full control · create admins · delete users"
+                  : "Manage users, doctors, bookings, payments"
               }
+            />
+          </dl>
+        </AdminPanel>
+
+        <AdminPanel title="Operator tips">
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li className="rounded-lg border border-blue-50 bg-brand-light/40 px-3 py-2">
+              Doctor fee <strong className="text-brand-dark">0</strong> makes
+              visits free; set a fee for Zaad / eDahab invoices.
+            </li>
+            <li className="rounded-lg border border-blue-50 bg-brand-light/40 px-3 py-2">
+              Enable <strong className="text-brand-dark">Video</strong> /{" "}
+              <strong className="text-brand-dark">Chat</strong> on doctor edit
+              for remote visit features.
+            </li>
+            <li className="rounded-lg border border-blue-50 bg-brand-light/40 px-3 py-2">
+              Suspend users to block login without deleting history; deactivate
+              doctors to hide them from the directory.
+            </li>
+          </ul>
+        </AdminPanel>
+      </div>
+
+      <AdminPanel
+        title="Management modules"
+        action={
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Settings2 className="h-3 w-3" />
+            Same view style as Overview
+          </span>
+        }
+      >
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {LINKS.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="flex items-start gap-3 rounded-lg border border-blue-50 bg-brand-light/40 px-3 py-2.5 transition hover:border-primary/30 hover:bg-white"
             >
-              {f.enabled ? 'Enabled' : 'Disabled'}
-            </Button>
-          </article>
-        ))}
-      </section>
-
-      <section className="space-y-2 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
-        <h2 className="font-heading font-semibold text-brand-dark">
-          Professional applications
-        </h2>
-        {apps.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No applications.</p>
-        ) : null}
-        {apps.map((app: any) => (
-          <article
-            key={app.professionalapplicationid}
-            className="rounded-2xl border border-blue-50 p-3"
-          >
-            <p className="font-heading font-semibold text-brand-dark">
-              {app.user?.fullName} → {app.requestedRole}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {app.specialization || '—'} · {app.status}
-            </p>
-            {app.notes ? (
-              <p className="mt-1 text-xs text-brand-dark">Reason: {app.notes}</p>
-            ) : null}
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                onClick={() =>
-                  reviewApp({
-                    id: app.professionalapplicationid,
-                    decision: 'APPROVED',
-                  })
-                }
-              >
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => {
-                  const reason = prompt('Rejection reason') || 'Rejected'
-                  reviewApp({
-                    id: app.professionalapplicationid,
-                    decision: 'REJECTED',
-                    rejectionReason: reason,
-                  })
-                }}
-              >
-                Reject
-              </Button>
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className="space-y-2 rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
-        <h2 className="font-heading font-semibold text-brand-dark">
-          News reports
-        </h2>
-        {reports.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No open reports.</p>
-        ) : null}
-        {reports.map((r: any) => (
-          <article
-            key={r.newsreportid}
-            className="rounded-2xl border border-blue-50 p-3"
-          >
-            <div className="flex items-center gap-2">
-              <Badge>{r.reason}</Badge>
-              <span className="text-sm font-semibold text-brand-dark">
-                {r.post?.title || 'Comment report'}
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <item.icon className="h-3.5 w-3.5" />
               </span>
-            </div>
-            <div className="mt-2 flex gap-2">
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() =>
-                  reviewReport({
-                    id: r.newsreportid,
-                    status: 'RESOLVED',
-                    hideContent: true,
-                  })
-                }
-              >
-                Hide content
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  reviewReport({
-                    id: r.newsreportid,
-                    status: 'DISMISSED',
-                  })
-                }
-              >
-                Dismiss
-              </Button>
-            </div>
-          </article>
-        ))}
-      </section>
+              <span className="min-w-0">
+                <p className="text-sm font-semibold text-brand-dark">
+                  {item.title}
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {item.desc}
+                </p>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </AdminPanel>
+    </div>
+  )
+}
+
+function Item({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-0.5 text-sm font-medium text-brand-dark">{value}</dd>
     </div>
   )
 }

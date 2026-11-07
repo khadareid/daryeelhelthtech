@@ -1,23 +1,19 @@
-import { NextFunction, Request, Response, Router } from "express";
-import { decodeToken } from "../helpers/middleware/VerifyToken";
+import { Router } from "express";
 import {
-  cancelAppointment,
-  createAppointment,
-  listMyAppointments,
+  create,
+  getOne,
+  list,
+  remove,
+  update,
 } from "../Controllers/AppointmentController";
+import { decodeToken } from "../helpers/middleware/VerifyToken";
 
 const router = Router();
-
-const handle =
-  (fn: (req: Request, res: Response) => Promise<unknown>) =>
-  (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res)).catch(next);
-  };
-
 router.use(decodeToken);
-
-router.post("/", handle(createAppointment));
-router.get("/", handle(listMyAppointments));
-router.patch("/:id/cancel", handle(cancelAppointment));
-
+router.get("/", list);
+router.get("/:id", getOne);
+router.post("/", create);
+router.patch("/:id", update);
+router.put("/:id", update);
+router.delete("/:id", remove);
 export default router;

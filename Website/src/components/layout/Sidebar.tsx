@@ -1,23 +1,25 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import {
   Activity,
+  AlertTriangle,
   Bell,
-  Building2,
   Calendar,
   CalendarPlus,
+  CreditCard,
+  Droplets,
   FlaskConical,
   HeartPulse,
   LayoutDashboard,
-  MessageSquare,
-  Newspaper,
-  Phone,
+  Pill,
   Plus,
+  ShieldAlert,
   ShieldCheck,
   Stethoscope,
   UserRound,
   Users,
 } from "lucide-react"
+import { useGetMyDoctorProfileQuery } from "@/Redex/service/doctors/DoctorsApi"
 import {
   Sheet,
   SheetContent,
@@ -29,54 +31,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { siteConfig } from "@/config/site"
 
-/* ==================================================================
-   ROLES
-================================================================== */
-
-export type AppRole =
-  | "SUPER_ADMIN"
-  | "ADMIN"
-  | "DOCTOR"
-  | "NURSE"
-  | "MIDWIFE"
-  | "LAB_TECH"
-  | "PHARMACIST"
-  | "RECEPTIONIST"
-  | "PATIENT"
-  | "USER"
-
-const CLINICAL_ROLES: AppRole[] = [
-  "DOCTOR",
-  "NURSE",
-  "MIDWIFE",
-  "LAB_TECH",
-  "PHARMACIST",
-  "RECEPTIONIST",
-]
+export type AppRole = "SUPER_ADMIN" | "ADMIN" | "USER"
 
 export const normalizeRole = (role?: string): AppRole => {
   const r = (role ?? "").toUpperCase().replace(/[\s-]+/g, "_")
   if (r === "SUPER_ADMIN" || r === "ADMIN") return r
-  if (CLINICAL_ROLES.includes(r as AppRole)) return r as AppRole
-  if (r === "PATIENT") return "PATIENT"
   return "USER"
 }
 
-export const isClinicalRole = (role: AppRole) => CLINICAL_ROLES.includes(role)
 export const isAdminRole = (role: AppRole) =>
   role === "ADMIN" || role === "SUPER_ADMIN"
 
-export type Workspace = "admin" | "clinical" | "patient"
+export type Workspace = "admin" | "patient"
 
-export const workspaceForRole = (role: AppRole): Workspace => {
-  if (isAdminRole(role)) return "admin"
-  if (isClinicalRole(role)) return "clinical"
-  return "patient"
-}
-
-/* ==================================================================
-   LINKS
-================================================================== */
+export const workspaceForRole = (role: AppRole): Workspace =>
+  isAdminRole(role) ? "admin" : "patient"
 
 export type DashIcon = React.ElementType
 
@@ -89,12 +58,11 @@ export interface DashLink {
   bar?: boolean
 }
 
-/** Bottom bar tabs (no top header tabs). Center slot is the + FAB. */
 export const PRIMARY_TABS: DashLink[] = [
   {
     id: "dashboard",
-    label: "Dashboard",
-    description: "Your care home — hospitals, news, and health",
+    label: "Home",
+    description: "Your health home",
     to: "/dashboard",
     icon: LayoutDashboard,
     bar: true,
@@ -102,30 +70,29 @@ export const PRIMARY_TABS: DashLink[] = [
   {
     id: "doctors",
     label: "Doctors",
-    description: "Verified clinicians from Daryeel database",
+    description: "Find and book clinicians",
     to: "/dashboard?section=doctors",
     icon: Stethoscope,
     bar: true,
   },
   {
-    id: "hospitals",
-    label: "Hospitals",
-    description: "Find hospitals and book their doctors",
-    to: "/dashboard?section=hospitals",
-    icon: Building2,
-    bar: true,
-  },
-  {
-    id: "messages",
-    label: "Messages",
-    description: "Care team inbox",
-    to: "/dashboard?section=messages",
-    icon: MessageSquare,
+    id: "appointments",
+    label: "Visits",
+    description: "Upcoming and past appointments",
+    to: "/dashboard?section=appointments",
+    icon: Calendar,
     bar: true,
   },
 ]
 
-/** Opened from the raised + button — booking & shortcuts */
+const CLINIC_ACTION: DashLink = {
+  id: "clinic",
+  label: "My clinic",
+  description: "Patients, payments & doctor profile",
+  to: "/dashboard?section=clinic",
+  icon: Stethoscope,
+}
+
 const QUICK_ACTIONS: DashLink[] = [
   {
     id: "book",
@@ -135,74 +102,67 @@ const QUICK_ACTIONS: DashLink[] = [
     icon: CalendarPlus,
   },
   {
-    id: "healthcare",
-    label: "My Healthcare",
-    description: "Hospital bookings, OPD tickets & reviews",
-    to: "/dashboard?section=healthcare",
-    icon: ShieldCheck,
-  },
-  {
-    id: "appointments",
-    label: "Appointments",
-    description: "Upcoming and history",
-    to: "/dashboard?section=appointments",
-    icon: Calendar,
-  },
-  {
-    id: "profile",
-    label: "My Profile",
-    description: "Account, Patient ID & settings",
-    to: "/dashboard/UserProfile",
-    icon: UserRound,
-  },
-  {
-    id: "doctors",
-    label: "Doctors",
-    description: "Browse clinicians",
-    to: "/dashboard?section=doctors",
-    icon: Stethoscope,
-  },
-  {
-    id: "patients",
-    label: "Patients",
-    description: "People in care",
-    to: "/dashboard?section=patients",
-    icon: Users,
-  },
-  {
-    id: "hospitals",
-    label: "Hospitals",
-    description: "Find care facilities",
-    to: "/dashboard?section=hospitals",
-    icon: Building2,
+    id: "payments",
+    label: "Payments",
+    description: "Free vs paid visits & invoices",
+    to: "/dashboard?section=payments",
+    icon: CreditCard,
   },
   {
     id: "health",
-    label: "Health Daily",
-    description: "Steps, water, sleep & vitals",
+    label: "Daily health",
+    description: "Daily health log",
     to: "/dashboard?section=health",
     icon: HeartPulse,
   },
   {
-    id: "news",
-    label: "Health news",
-    description: "Tips and wellness guides",
-    to: "/dashboard?section=news",
-    icon: Newspaper,
+    id: "vitals",
+    label: "Vitals",
+    description: "Blood pressure, heart rate & more",
+    to: "/dashboard?section=vitals",
+    icon: Activity,
   },
   {
-    id: "labs",
-    label: "Labs",
-    description: "Orders and results",
-    to: "/dashboard?section=labs",
+    id: "medications",
+    label: "Medications",
+    description: "Your active medicines",
+    to: "/dashboard?section=medications",
+    icon: Pill,
+  },
+  {
+    id: "allergies",
+    label: "Allergies",
+    description: "Allergens and reactions",
+    to: "/dashboard?section=allergies",
+    icon: AlertTriangle,
+  },
+  {
+    id: "prescriptions",
+    label: "Prescriptions",
+    description: "Issued prescriptions",
+    to: "/dashboard?section=prescriptions",
     icon: FlaskConical,
   },
   {
-    id: "connections",
-    label: "Connections",
-    description: "Your healthcare professionals",
-    to: "/dashboard?section=connections",
+    id: "records",
+    label: "Records",
+    description: "Medical records & documents",
+    to: "/dashboard?section=records",
+    icon: Droplets,
+  },
+  {
+    id: "family",
+    label: "Family",
+    description: "Family members",
+    to: "/dashboard?section=family",
     icon: Users,
+  },
+  {
+    id: "emergency",
+    label: "Emergency",
+    description: "Contacts & emergency card",
+    to: "/dashboard?section=emergency",
+    icon: ShieldAlert,
   },
   {
     id: "notifications",
@@ -212,30 +172,19 @@ const QUICK_ACTIONS: DashLink[] = [
     icon: Bell,
   },
   {
-    id: "consents",
-    label: "Consents",
-    description: "Who can see your records",
-    to: "/dashboard?section=consents",
-    icon: ShieldCheck,
-  },
-  {
-    id: "activity",
-    label: "Audit",
-    description: "Recent system activity",
-    to: "/dashboard?section=activity",
-    icon: Activity,
+    id: "profile",
+    label: "My Profile",
+    description: "Account & health ID",
+    to: "/dashboard/UserProfile",
+    icon: UserRound,
   },
 ]
 
-const MORE_LINKS = QUICK_ACTIONS
-
-/** Keep alias for older call sites that used "home" / "care" */
 const LEGACY_ALIASES: Record<string, string> = {
   home: "dashboard",
   care: "appointments",
-  prescriptions: "appointments",
-  pharmacy: "doctors",
-  users: "patients",
+  labs: "prescriptions",
+  healthcare: "appointments",
 }
 
 export const linksForRole = (role: AppRole): DashLink[] => [
@@ -244,30 +193,14 @@ export const linksForRole = (role: AppRole): DashLink[] => [
     ? [
         {
           id: "admin",
-          label: "Super Admin",
-          description: "Users, plans, subscriptions, homepage CMS",
+          label: "Admin",
+          description: "Users, doctors, audits",
           to: "/admin",
           icon: ShieldCheck,
         } satisfies DashLink,
       ]
     : []),
-  {
-    id: "apply-professional",
-    label: "Apply pro",
-    description: "Request healthcare professional access",
-    to: "/dashboard?section=apply-professional",
-    icon: Stethoscope,
-  },
-  {
-    id: "patients",
-    label: "Patients",
-    description: "People in care and patient records",
-    to: "/dashboard?section=patients",
-    icon: Users,
-  },
-  ...MORE_LINKS.filter(
-    (l) => l.id !== "doctors" && l.id !== "messages" && l.id !== "hospitals",
-  ),
+  ...QUICK_ACTIONS.filter((l) => !PRIMARY_TABS.some((t) => t.id === l.id)),
 ]
 
 export const sectionFromLocation = (pathname: string, search: string): string => {
@@ -275,10 +208,6 @@ export const sectionFromLocation = (pathname: string, search: string): string =>
   const raw = new URLSearchParams(search).get("section") || "dashboard"
   return LEGACY_ALIASES[raw] || raw
 }
-
-/* ==================================================================
-   BOTTOM BAR — tabs + raised + (booking / actions)
-================================================================== */
 
 interface DashboardSidebarProps {
   userRole?: string
@@ -294,14 +223,32 @@ export function DashboardSidebar({
   const navigate = useNavigate()
   const location = useLocation()
   const [actionsOpen, setActionsOpen] = useState(false)
+  const { data: myDoctor } = useGetMyDoctorProfileQuery()
+  const isDoctor = Boolean(myDoctor?.id)
 
   const role = normalizeRole(userRole)
   const current = sectionFromLocation(location.pathname, location.search)
-  const left = PRIMARY_TABS.filter((t) =>
-    ["dashboard", "doctors"].includes(t.id),
+  const primaryTabs = useMemo(() => {
+    if (!isDoctor) return PRIMARY_TABS
+    return PRIMARY_TABS.map((t) =>
+      t.id === "doctors"
+        ? {
+            ...t,
+            id: "clinic",
+            label: "Clinic",
+            description: "Patients, payments & your doctor profile",
+            to: "/dashboard?section=clinic",
+          }
+        : t
+    )
+  }, [isDoctor])
+  const left = primaryTabs.filter((t) =>
+    ["dashboard", "doctors", "clinic"].includes(t.id)
   )
-  const right = PRIMARY_TABS.filter((t) =>
-    ["hospitals", "messages"].includes(t.id),
+  const right = primaryTabs.filter((t) => t.id === "appointments")
+  const quickActions = useMemo(
+    () => (isDoctor ? [CLINIC_ACTION, ...QUICK_ACTIONS] : QUICK_ACTIONS),
+    [isDoctor]
   )
 
   const go = (to: string) => {
@@ -340,9 +287,7 @@ export function DashboardSidebar({
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-brand-dark text-white shadow-lg shadow-primary/40 ring-4 ring-white transition active:scale-95 sm:h-14 sm:w-14">
                 <Plus className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2.4} />
               </span>
-              <span className="text-[10px] font-semibold text-primary">
-                Actions
-              </span>
+              <span className="text-[10px] font-semibold text-primary">Actions</span>
             </button>
 
             {right.map((item) => (
@@ -359,7 +304,7 @@ export function DashboardSidebar({
               onClick={() => go("/dashboard/UserProfile")}
               className={cn(
                 "relative flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-0.5 py-1.5 transition sm:px-1",
-                current === "profile" && "bg-primary/8",
+                current === "profile" && "bg-primary/8"
               )}
               aria-label="Profile"
             >
@@ -368,7 +313,7 @@ export function DashboardSidebar({
                   "relative flex h-9 w-9 items-center justify-center rounded-full transition",
                   current === "profile"
                     ? "ring-[2.5px] ring-primary ring-offset-2 ring-offset-white"
-                    : "ring-2 ring-slate-200",
+                    : "ring-2 ring-slate-200"
                 )}
               >
                 <Avatar className="h-9 w-9">
@@ -381,7 +326,7 @@ export function DashboardSidebar({
               <span
                 className={cn(
                   "max-w-full truncate text-[10px] font-semibold leading-none",
-                  current === "profile" ? "text-primary" : "text-slate-400",
+                  current === "profile" ? "text-primary" : "text-slate-400"
                 )}
               >
                 Profile
@@ -402,13 +347,12 @@ export function DashboardSidebar({
               Quick actions
             </SheetTitle>
             <SheetDescription className="text-xs sm:text-sm">
-              Book a visit, open hospitals, health log, and more —{" "}
-              {workspaceForRole(role)} workspace.
+              Health records, booking, and alerts — {workspaceForRole(role)} workspace.
             </SheetDescription>
           </SheetHeader>
 
           <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4">
-            {QUICK_ACTIONS.map((item) => (
+            {quickActions.map((item) => (
               <button
                 key={`${item.id}-${item.label}`}
                 type="button"
@@ -424,13 +368,28 @@ export function DashboardSidebar({
               </button>
             ))}
 
+            {isAdminRole(role) ? (
+              <button
+                type="button"
+                onClick={() => go("/admin")}
+                className="flex flex-col items-center gap-2 rounded-2xl border border-blue-100 bg-brand-light/50 px-2 py-3 text-center transition hover:border-primary/40 hover:bg-white"
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
+                  <ShieldCheck className="h-5 w-5" />
+                </span>
+                <span className="text-[11px] font-semibold leading-tight text-brand-dark">
+                  Admin
+                </span>
+              </button>
+            ) : null}
+
             <a
               href={`tel:${siteConfig.supportPhone}`}
               className="flex flex-col items-center gap-2 rounded-2xl border border-rose-100 bg-rose-50/80 px-2 py-3 text-center transition hover:border-rose-200"
               onClick={() => setActionsOpen(false)}
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-rose-600 shadow-sm">
-                <Phone className="h-5 w-5" />
+                <ShieldAlert className="h-5 w-5" />
               </span>
               <span className="text-[11px] font-semibold leading-tight text-rose-700">
                 Emergency
@@ -459,7 +418,7 @@ function BarItem({
       onClick={onSelect}
       className={cn(
         "relative flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-1.5 transition",
-        active && "bg-primary/8",
+        active && "bg-primary/8"
       )}
     >
       <span
@@ -467,7 +426,7 @@ function BarItem({
           "flex h-9 w-9 items-center justify-center rounded-2xl transition",
           active
             ? "bg-primary text-white shadow-md shadow-primary/35"
-            : "bg-transparent text-slate-400",
+            : "bg-transparent text-slate-400"
         )}
       >
         <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.4 : 1.9} />
@@ -475,7 +434,7 @@ function BarItem({
       <span
         className={cn(
           "max-w-full truncate text-[9px] font-semibold leading-none sm:text-[10px]",
-          active ? "text-primary" : "text-slate-400",
+          active ? "text-primary" : "text-slate-400"
         )}
       >
         {item.label}

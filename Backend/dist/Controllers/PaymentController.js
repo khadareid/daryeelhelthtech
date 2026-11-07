@@ -9,120 +9,48 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deletePayment = exports.updatePayment = exports.getPaymentById = exports.getAllPayments = exports.createPayment = void 0;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
-const createPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+exports.update = exports.create = exports.getOne = exports.list = void 0;
+const payment_service_1 = require("../services/payment.service");
+const errors_1 = require("../utils/errors");
+const ownership_1 = require("../utils/ownership");
+const response_1 = require("../utils/response");
+const list = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { studentId, amount, semester, method, paymentStatus, // optional, defaults to PENDING
-        donorId, } = req.body;
-        // Ensure user ID is available
-        if (!((_a = req.user) === null || _a === void 0 ? void 0 : _a.Userid)) {
-            return res.status(401).json({ message: "Unauthorized: Missing user ID" });
-        }
-        // Validate or default payment status
-        const status = paymentStatus && Object.values(client_1.PaymentStatus).includes(paymentStatus)
-            ? paymentStatus
-            : client_1.PaymentStatus.PENDING;
-        const payment = yield prisma.payment.create({
-            data: {
-                studentId,
-                amount,
-                semester,
-                method,
-                PaymentStatus: status,
-                donorId,
-                userUserid: req.user.Userid,
-            },
-        });
-        return res.status(201).json({ message: "Payment recorded successfully", data: payment });
+        const user = (0, ownership_1.requireUser)(req);
+        (0, response_1.ok)(res, yield (0, payment_service_1.listPayments)(user, req.query));
     }
     catch (error) {
-        console.error("Create Payment Error:", error);
-        return res.status(500).json({ message: "Failed to create payment", error });
+        (0, errors_1.handleRouteError)(error, res);
     }
 });
-exports.createPayment = createPayment;
-// Get All Payments
-const getAllPayments = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+exports.list = list;
+const getOne = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const payments = yield prisma.payment.findMany({
-            where: { isdeleted: false },
-            include: {
-                student: true,
-                Donor: true,
-                User: true,
-            },
-        });
-        res.status(200).json({ data: payments });
+        const user = (0, ownership_1.requireUser)(req);
+        (0, response_1.ok)(res, yield (0, payment_service_1.getPayment)(req.params.id, user));
     }
     catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to fetch payments', error });
+        (0, errors_1.handleRouteError)(error, res);
     }
 });
-exports.getAllPayments = getAllPayments;
-// Get Payment by ID
-const getPaymentById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+exports.getOne = getOne;
+const create = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const paymentId = parseInt(req.params.id);
-        const payment = yield prisma.payment.findUnique({
-            where: { id: paymentId },
-            include: {
-                student: true,
-                Donor: true,
-                User: true,
-            },
-        });
-        if (!payment || payment.isdeleted) {
-            return res.status(404).json({ message: 'Payment not found' });
-        }
-        res.status(200).json({ data: payment });
+        const user = (0, ownership_1.requireUser)(req);
+        (0, response_1.created)(res, yield (0, payment_service_1.createPayment)(user, req.body || {}));
     }
     catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to fetch payment', error });
+        (0, errors_1.handleRouteError)(error, res);
     }
 });
-exports.getPaymentById = getPaymentById;
-// Update Payment
-const updatePayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+exports.create = create;
+const update = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const paymentId = parseInt(req.params.id);
-        const updates = req.body;
-        // If status is being updated, validate it
-        if (updates.PaymentStatus && !Object.values(client_1.PaymentStatus).includes(updates.PaymentStatus)) {
-            return res.status(400).json({ message: 'Invalid PaymentStatus value' });
-        }
-        const updated = yield prisma.payment.update({
-            where: { id: paymentId },
-            data: Object.assign(Object.assign({}, updates), { updatedAt: new Date() }),
-        });
-        res.status(200).json({ message: 'Payment updated successfully', data: updated });
+        const user = (0, ownership_1.requireUser)(req);
+        (0, response_1.ok)(res, yield (0, payment_service_1.updatePayment)(req.params.id, user, req.body || {}), "Updated");
     }
     catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to update payment', error });
+        (0, errors_1.handleRouteError)(error, res);
     }
 });
-exports.updatePayment = updatePayment;
-// Soft Delete Payment
-const deletePayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const paymentId = parseInt(req.params.id);
-        const deleted = yield prisma.payment.update({
-            where: { id: paymentId },
-            data: {
-                isdeleted: true,
-                isactive: false,
-            },
-        });
-        res.status(200).json({ message: 'Payment soft-deleted successfully', data: deleted });
-    }
-    catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to delete payment', error });
-    }
-});
-exports.deletePayment = deletePayment;
+exports.update = update;
