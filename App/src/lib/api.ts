@@ -433,10 +433,22 @@ export async function getProfileRequest(_userId: string, token: string) {
   return getMeRequest(token);
 }
 
-export async function updateMeRequest(
-  input: Partial<AuthUser>,
-  token: string,
-) {
+export type UpdateMeInput = {
+  fullName?: string;
+  phone?: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  avatarUrl?: string | null;
+  picture?: string | null;
+  country?: string | null;
+  region?: string | null;
+  city?: string | null;
+  district?: string | null;
+  language?: string | null;
+  timezone?: string | null;
+};
+
+export async function updateMeRequest(input: UpdateMeInput, token: string) {
   const data = await apiRequest<ApiSuccess<AuthUser>>('/users/me', {
     method: 'PUT',
     body: input,
@@ -445,6 +457,31 @@ export async function updateMeRequest(
   const user = unwrap(data);
   if (!user) throw new Error(data.message || 'Update failed');
   return user;
+}
+
+export async function changeMyPasswordRequest(
+  input: { currentPassword: string; newPassword: string },
+  token: string,
+) {
+  return apiRequest<ApiSuccess<{ ok?: boolean }>>('/users/me/password', {
+    method: 'PUT',
+    body: input,
+    token,
+  });
+}
+
+export async function upsertMedicalProfileRequest(
+  input: Partial<MedicalProfile> & { bloodType?: string | null },
+  token: string,
+) {
+  const data = await apiRequest<ApiSuccess<MedicalProfile>>('/medical-profile', {
+    method: 'PUT',
+    body: input,
+    token,
+  });
+  const row = unwrap(data);
+  if (!row) throw new Error(data.message || 'Could not save medical profile');
+  return row;
 }
 
 const DEFAULT_DOCTOR_IMAGE =
@@ -695,7 +732,9 @@ export async function createPaymentRequest(
     body: input,
     token,
   });
-  return unwrap(data);
+  const result = unwrap(data);
+  if (!result) throw new Error(data.message || 'Payment failed');
+  return result;
 }
 
 export async function updatePaymentRequest(
@@ -712,7 +751,48 @@ export async function updatePaymentRequest(
     `/payments/${encodeURIComponent(id)}`,
     { method: 'PATCH', body, token },
   );
-  return unwrap(data);
+  const result = unwrap(data);
+  if (!result) throw new Error(data.message || 'Payment update failed');
+  return result;
+}
+
+/** Same as website: pay pending invoice or create PAID payment for a booking. */
+export async function payBookingInvoiceRequest(
+  input: {
+    appointmentId: string;
+    paymentId?: string;
+    amount: number;
+    currency?: string;
+    method: string;
+    provider: string;
+    transactionId?: string;
+  },
+  token: string,
+) {
+  if (input.paymentId) {
+    return updatePaymentRequest(
+      input.paymentId,
+      {
+        status: 'PAID',
+        method: input.method,
+        provider: input.provider,
+        transactionId: input.transactionId,
+      },
+      token,
+    );
+  }
+  return createPaymentRequest(
+    {
+      appointmentId: input.appointmentId,
+      amount: input.amount,
+      currency: input.currency || 'USD',
+      method: input.method,
+      status: 'PAID',
+      provider: input.provider,
+      transactionId: input.transactionId,
+    },
+    token,
+  );
 }
 
 export async function cancelAppointmentRequest(id: string, token: string) {

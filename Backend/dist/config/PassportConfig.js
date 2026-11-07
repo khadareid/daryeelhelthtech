@@ -22,7 +22,7 @@ const codes_1 = require("../utils/codes");
 dotenv_1.default.config();
 const clean = (value) => (value || "").replace(/"/g, "").trim();
 const callbackURL = clean(process.env.GOOGLE_CALLBACK_URL) ||
-    "https://daryeel-healthtech-gamma.vercel.app/api/v1/auth/google/callback";
+    "https://daryeelhelthtech.vercel.app/api/v1/auth/google/callback";
 passport_1.default.use(new passport_google_oauth20_1.Strategy({
     clientID: clean(process.env.GOOGLE_CLIENT_ID),
     clientSecret: clean(process.env.GOOGLE_CLIENT_SECRET),

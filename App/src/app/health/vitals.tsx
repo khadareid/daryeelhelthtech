@@ -14,6 +14,7 @@ import {
   formStyles,
 } from '@/components/form-ui';
 import { Screen } from '@/components/screen';
+import { CardListSkeleton } from '@/components/skeleton';
 import { Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -30,13 +31,19 @@ export default function VitalsScreen() {
   const [dia, setDia] = useState('');
   const [weight, setWeight] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
     try {
       setItems(await listVitalSignsRequest(accessToken));
     } catch {
       setItems([]);
+    } finally {
+      setLoading(false);
     }
   }, [accessToken]);
 
@@ -129,25 +136,30 @@ export default function VitalsScreen() {
         </Pressable>
       </View>
 
-      <TableHead columns={['When', 'BP', 'HR']} />
-      {items.length === 0 ? (
-        <Text style={formStyles.empty}>No vital signs yet.</Text>
-      ) : (
-        items.map((item) => (
-          <TableRow
-            key={item.id}
-            cells={[
-              item.recordedAt
-                ? new Date(item.recordedAt).toLocaleString()
-                : 'Reading',
-              item.bloodPressureSys != null && item.bloodPressureDia != null
-                ? `${item.bloodPressureSys}/${item.bloodPressureDia}`
-                : '—',
-              item.heartRate != null ? String(item.heartRate) : '—',
-            ]}
-          />
-        ))
-      )}
+      {loading ? <CardListSkeleton rows={3} /> : null}
+      {!loading ? (
+        <>
+          <TableHead columns={['When', 'BP', 'HR']} />
+          {items.length === 0 ? (
+            <Text style={formStyles.empty}>No vital signs yet.</Text>
+          ) : (
+            items.map((item) => (
+              <TableRow
+                key={item.id}
+                cells={[
+                  item.recordedAt
+                    ? new Date(item.recordedAt).toLocaleString()
+                    : 'Reading',
+                  item.bloodPressureSys != null && item.bloodPressureDia != null
+                    ? `${item.bloodPressureSys}/${item.bloodPressureDia}`
+                    : '—',
+                  item.heartRate != null ? String(item.heartRate) : '—',
+                ]}
+              />
+            ))
+          )}
+        </>
+      ) : null}
     </Screen>
   );
 }

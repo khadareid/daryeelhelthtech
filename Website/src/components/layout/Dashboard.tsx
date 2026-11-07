@@ -24,6 +24,7 @@ import {
   RecordsSection,
   VitalsSection,
 } from "./HealthSections"
+import { PageLoader } from "@/components/common/PageLoader"
 import { PatientIdCard } from "@/components/common/PatientIdCard"
 import { Link } from "react-router-dom"
 import { ShieldCheck } from "lucide-react"
@@ -35,11 +36,14 @@ export function Dashboard() {
   const role = normalizeRole(session.role)
   const section = sectionFromLocation(location.pathname, location.search)
 
-  const { data: profile } = useGetMyProfileQuery()
-  const { data } = useGetDashboardQuery()
-  const { data: myDoctor } = useGetMyDoctorProfileQuery(undefined, {
-    skip: !session.isAuthenticated,
-  })
+  const { data: profile, isLoading: profileLoading } = useGetMyProfileQuery()
+  const { data, isLoading: dashLoading } = useGetDashboardQuery()
+  const { data: myDoctor, isLoading: doctorLoading } = useGetMyDoctorProfileQuery(
+    undefined,
+    {
+      skip: !session.isAuthenticated,
+    }
+  )
   const isDoctor = Boolean(myDoctor?.id)
 
   const name = profile?.fullName || session.name || "User"
@@ -47,6 +51,12 @@ export function Dashboard() {
   const healthId = profile?.healthId
 
   const isHome = section === "dashboard" || section === "home"
+  const bootLoading =
+    isHome && (profileLoading || dashLoading || doctorLoading) && !data && !profile
+
+  if (bootLoading) {
+    return <PageLoader />
+  }
 
   return (
     <div className="space-y-5">

@@ -87,11 +87,14 @@ const getAppointment = (id, actor) => __awaiter(void 0, void 0, void 0, function
 });
 exports.getAppointment = getAppointment;
 const createAppointment = (actor, body) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const userId = (0, rbac_1.isAdminRole)(actor.role) && body.userId
         ? (0, validation_1.requireString)(body.userId, "userId")
         : actor.userId;
     const scheduledAt = (0, validation_1.parseDate)(body.scheduledAt, "scheduledAt", true);
+    if (scheduledAt.getTime() <= Date.now()) {
+        throw new ownership_1.HttpError(400, "Cannot book a time that has already passed");
+    }
     const doctorId = (_a = (0, validation_1.optionalString)(body.doctorId)) !== null && _a !== void 0 ? _a : null;
     let fee = (0, validation_1.parseNumber)(body.consultationFee, "consultationFee");
     let paymentRequired = (0, validation_1.parseBool)(body.paymentRequired);
@@ -147,6 +150,31 @@ const createAppointment = (actor, body) => __awaiter(void 0, void 0, void 0, fun
             paidAt: isFree ? new Date() : null,
         },
     });
+    const doctorName = ((_f = appt.doctor) === null || _f === void 0 ? void 0 : _f.fullName) || "your clinician";
+    const whenLabel = new Date(scheduledAt).toLocaleString();
+    try {
+        yield prisma_1.prisma.notification.create({
+            data: {
+                userId,
+                title: isFree
+                    ? "Visit booked successfully"
+                    : "Booking request sent successfully",
+                body: isFree
+                    ? `Connected with ${doctorName} · ${whenLabel}. Fee Free ($0) — payment marked Paid. Open My Visits to track status.`
+                    : `Connected with ${doctorName} · ${whenLabel}. Fee ${currency} ${amount.toFixed(2)} — pay from My Visits when ready.`,
+                type: "APPOINTMENT",
+                channel: "IN_APP",
+                data: {
+                    appointmentId: appt.id,
+                    appointmentCode: appt.appointmentCode,
+                    paymentStatus: isFree ? "PAID" : "PENDING",
+                },
+            },
+        });
+    }
+    catch (_g) {
+        /* booking still succeeds if notification write fails */
+    }
     return prisma_1.prisma.appointment.findUnique({
         where: { id: appt.id },
         include: { doctor: true, payments: true },

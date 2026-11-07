@@ -191,6 +191,25 @@ export const createPayment = async (
         paymentRequired: Number(amount) > 0,
       },
     });
+    try {
+      await prisma.notification.create({
+        data: {
+          userId,
+          title: isFree ? "Free visit confirmed" : "Payment successful",
+          body: isFree
+            ? "Your booking fee is Free ($0) and marked Paid."
+            : `Payment marked Paid with ${optionalString(body.provider) || "local money"}. Open My Visits to track the booking.`,
+          type: isFree ? "PAYMENT" : "PAYMENT_SUCCESS",
+          channel: "IN_APP",
+          data: {
+            paymentId: payment.id,
+            appointmentId,
+          },
+        },
+      });
+    } catch {
+      /* payment still succeeds */
+    }
   }
 
   return payment;
@@ -236,6 +255,23 @@ export const updatePayment = async (
         where: { id: row.appointmentId },
         data: { paymentStatus: PaymentStatus.PAID },
       });
+      try {
+        await prisma.notification.create({
+          data: {
+            userId: row.userId,
+            title: "Payment successful",
+            body: `Your visit payment is marked Paid (${optionalString(body.provider) || row.provider || "local money"}). Open My Visits to track the booking.`,
+            type: "PAYMENT_SUCCESS",
+            channel: "IN_APP",
+            data: {
+              paymentId: row.id,
+              appointmentId: row.appointmentId,
+            },
+          },
+        });
+      } catch {
+        /* payment still succeeds */
+      }
     }
   }
   if (body.method !== undefined) {

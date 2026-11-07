@@ -18,17 +18,24 @@ import { useTheme } from '@/hooks/use-theme';
 
 SplashScreen.preventAutoHideAsync();
 
+/** Stack screens (outside tabs) always show a clear Back header. Tabs keep their own footer. */
 function stackHeader(theme: ReturnType<typeof useTheme>, title: string) {
   return {
     headerShown: true,
     title,
+    headerBackTitle: 'Back',
+    headerBackVisible: true,
     headerTintColor: theme.primary,
     headerStyle: { backgroundColor: theme.backgroundElement },
+    headerShadowVisible: false,
     headerTitleStyle: {
       fontFamily: 'Inter_600SemiBold',
+      fontSize: 17,
       color: theme.brandDark,
     },
+    contentStyle: { backgroundColor: theme.background },
     presentation: 'card' as const,
+    animation: 'slide_from_right' as const,
   };
 }
 
@@ -45,21 +52,27 @@ function RootNavigation() {
           contentStyle: { backgroundColor: theme.background },
           animation: 'fade',
         }}>
+        {/* Entry / auth — no tab footer, no back needed */}
         <Stack.Screen name="index" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
-        <Stack.Screen name="(tabs)" />
+
+        {/* Main tabs — bottom footer only, no back */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+        {/* Detail / health stack — full header with Back */}
         <Stack.Screen
           name="doctor/[id]"
-          options={stackHeader(theme, 'Doctor profile')}
+          options={stackHeader(theme, 'Book visit')}
         />
         <Stack.Screen
           name="notifications"
-          options={{
-            ...stackHeader(theme, 'Notifications'),
-            presentation: 'modal',
-          }}
+          options={stackHeader(theme, 'Notifications')}
+        />
+        <Stack.Screen
+          name="health/payments"
+          options={stackHeader(theme, 'Payments')}
         />
         <Stack.Screen
           name="health/allergies"

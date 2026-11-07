@@ -84,8 +84,15 @@ import {
   type InvoiceDraft,
 } from "@/lib/payments"
 import { PayInvoiceDialog } from "@/components/payments/PayInvoiceDialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import type { Appointment } from "@/Redex/types/Types"
+import type { Appointment, Payment } from "@/Redex/types/Types"
 
 function visitFeeLabel(a: {
   paymentRequired?: boolean
@@ -646,6 +653,7 @@ export function PaymentsSection() {
     ...(isDoctor ? { as: "doctor" } : {}),
   })
   const [invoice, setInvoice] = useState<InvoiceDraft | null>(null)
+  const [receipt, setReceipt] = useState<Payment | null>(null)
 
   const unpaid = appointments.filter(
     (a) =>
@@ -667,43 +675,125 @@ export function PaymentsSection() {
     })
   }
 
+  const receiptFields = (p: Payment) => {
+    const amount = Number(p.amount || 0)
+    const isFree = amount <= 0 || p.provider === "FREE"
+    return {
+      reference: p.paymentReference || p.id.slice(0, 10),
+      doctor: p.appointment?.doctor?.fullName || "Doctor",
+      code: p.appointment?.appointmentCode || "—",
+      visitWhen: p.appointment?.scheduledAt
+        ? new Date(p.appointment.scheduledAt).toLocaleString()
+        : "—",
+      reason: p.appointment?.reason || "—",
+      amount: isFree
+        ? "Free ($0)"
+        : `${p.currency || "USD"} ${amount.toFixed(2)}`,
+      method: isFree
+        ? "Free"
+        : localPayLabel(p.provider, String(p.method || "")),
+      status: isFree ? "Free · Paid" : enumLabel(String(p.status)),
+      paidAt: p.createdAt ? new Date(p.createdAt).toLocaleString() : "—",
+      isFree,
+    }
+  }
+
+  const printOne = (p: Payment) => {
+    const r = receiptFields(p)
+    const win = window.open("", "_blank", "noopener,noreferrer")
+    if (!win) {
+      toast.error("Pop-up blocked — allow pop-ups to print")
+      return
+    }
+    win.document.write(`<!doctype html><html><head><title>Receipt ${r.reference}</title>
+      <style>
+        body{font-family:system-ui,sans-serif;padding:28px;color:#0f172a;max-width:440px;margin:0 auto}
+        .brand{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#146AFB;font-weight:700}
+        h1{font-size:22px;margin:6px 0 4px}
+        .sub{color:#64748b;font-size:13px;margin-bottom:16px}
+        .amount{font-size:28px;font-weight:700;margin:8px 0 4px}
+        .status{display:inline-block;padding:4px 10px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:12px;font-weight:700}
+        .box{border:1px solid #dbeafe;border-radius:16px;padding:12px 16px;margin-top:16px;background:#f8fafc}
+        .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #e2e8f0;font-size:13px}
+        .row:last-child{border-bottom:0}
+        .label{color:#64748b}
+        .value{font-weight:600;text-align:right}
+      </style></head><body>
+      <div class="brand">Daryeel Health</div>
+      <h1>Payment receipt</h1>
+      <p class="sub">View &amp; print · one payment</p>
+      <div class="amount">${r.amount}</div>
+      <span class="status">${r.status}</span>
+      <div class="box">
+        <div class="row"><span class="label">Reference</span><span class="value">${r.reference}</span></div>
+        <div class="row"><span class="label">Doctor</span><span class="value">${r.doctor}</span></div>
+        <div class="row"><span class="label">Visit code</span><span class="value">${r.code}</span></div>
+        <div class="row"><span class="label">Visit time</span><span class="value">${r.visitWhen}</span></div>
+        <div class="row"><span class="label">Reason</span><span class="value">${r.reason}</span></div>
+        <div class="row"><span class="label">Method</span><span class="value">${r.method}</span></div>
+        <div class="row"><span class="label">Paid at</span><span class="value">${r.paidAt}</span></div>
+      </div>
+      <script>window.onload=function(){window.print()}</script>
+      </body></html>`)
+    win.document.close()
+  }
+
+  const exportCsv = () => {
+    if (items.length === 0) {
+      toast.error("No payments to export")
+      return
+    }
+    const header = [
+      "Reference",
+      "Visit",
+      "Amount",
+      "Method",
+      "Status",
+      "Date",
+    ]
+    const lines = items.map((p) => {
+      const amount = Number(p.amount || 0)
+      const isFree = amount <= 0 || p.provider === "FREE"
+      const cells = [
+        p.paymentReference || p.id.slice(0, 10),
+        p.appointment?.appointmentCode ||
+          p.appointment?.doctor?.fullName ||
+          "—",
+        isFree ? "Free" : `${p.currency || "USD"} ${amount.toFixed(2)}`,
+        isFree ? "Free" : localPayLabel(p.provider, String(p.method || "")),
+        enumLabel(String(p.status)),
+        p.createdAt ? new Date(p.createdAt).toLocaleString() : "",
+      ]
+      return cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")
+    })
+    const blob = new Blob([[header.join(","), ...lines].join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `daryeel-payments-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success("Payments exported")
+  }
+
   return (
     <SectionShell
       title={isDoctor ? "Clinic payments" : "Payments"}
-      subtitle={
-        isDoctor
-          ? "Payments for visits booked with you — Zaad, eDahab, cash, and free visits."
-          : "Free when the doctor fee is $0. Pay with Zaad, eDahab, Sahal and see your invoice."
-      }
       action={
-        isAdminRole(role) ? (
-          <Button asChild size="sm" variant="outline">
-            <Link to="/admin/payments">Admin payments</Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={exportCsv}>
+            Export
           </Button>
-        ) : undefined
+          {isAdminRole(role) ? (
+            <Button asChild size="sm" variant="outline">
+              <Link to="/admin/payments">Admin payments</Link>
+            </Button>
+          ) : null}
+        </div>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card className="border-emerald-100 bg-emerald-50/50">
-          <CardContent className="p-4 text-sm">
-            <p className="font-semibold text-emerald-900">Free visits</p>
-            <p className="mt-1 text-emerald-800/80">
-              Doctors with consultation fee $0 (or empty) are free. Booking marks
-              payment as Paid automatically.
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-100 bg-amber-50/50">
-          <CardContent className="p-4 text-sm">
-            <p className="font-semibold text-amber-950">Local money</p>
-            <p className="mt-1 text-amber-900/80">
-              Pay now opens your invoice — choose Zaad, eDahab, Sahal, EVC Plus,
-              cash, bank, or card.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
       {unpaid.length > 0 ? (
         <Card className="border-blue-100">
           <CardContent className="space-y-3 p-4">
@@ -739,6 +829,9 @@ export function PaymentsSection() {
 
       {isLoading ? <Skeleton className="h-32 rounded-2xl" /> : null}
 
+      <p className="text-sm font-semibold text-brand-dark">
+        Payment list · {items.length}
+      </p>
       <div className="overflow-x-auto rounded-2xl border border-blue-100 bg-white">
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-blue-50 bg-brand-light/60 text-xs uppercase tracking-wide text-muted-foreground">
@@ -789,29 +882,43 @@ export function PaymentsSection() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    {pending && !isFree ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <Button
                         size="sm"
-                        disabled={saving || paying}
-                        onClick={() => {
-                          const appt = p.appointment
-                          setInvoice({
-                            appointmentId: p.appointmentId || appt?.id || "",
-                            paymentId: p.id,
-                            appointmentCode: appt?.appointmentCode,
-                            doctorName: appt?.doctor?.fullName || "Doctor",
-                            scheduledAt: appt?.scheduledAt,
-                            amount,
-                            currency: p.currency || "USD",
-                            reason: appt?.reason,
-                          })
-                        }}
+                        variant="outline"
+                        onClick={() => setReceipt(p)}
                       >
-                        Pay now
+                        View
                       </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => printOne(p)}
+                      >
+                        Print
+                      </Button>
+                      {pending && !isFree ? (
+                        <Button
+                          size="sm"
+                          disabled={saving || paying}
+                          onClick={() => {
+                            const appt = p.appointment
+                            setInvoice({
+                              appointmentId: p.appointmentId || appt?.id || "",
+                              paymentId: p.id,
+                              appointmentCode: appt?.appointmentCode,
+                              doctorName: appt?.doctor?.fullName || "Doctor",
+                              scheduledAt: appt?.scheduledAt,
+                              amount,
+                              currency: p.currency || "USD",
+                              reason: appt?.reason,
+                            })
+                          }}
+                        >
+                          Pay now
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               )
@@ -824,6 +931,72 @@ export function PaymentsSection() {
           </p>
         ) : null}
       </div>
+
+      <Dialog open={Boolean(receipt)} onOpenChange={(o) => !o && setReceipt(null)}>
+        <DialogContent className="max-w-md">
+          {receipt ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Payment receipt</DialogTitle>
+                <DialogDescription>
+                  View one payment, then print.
+                </DialogDescription>
+              </DialogHeader>
+              {(() => {
+                const r = receiptFields(receipt)
+                return (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-3xl font-bold text-brand-dark">
+                        {r.amount}
+                      </p>
+                      <Badge className="mt-2" variant="secondary">
+                        {r.status}
+                      </Badge>
+                    </div>
+                    <dl className="space-y-2 rounded-2xl border border-blue-100 bg-brand-light/40 p-4 text-sm">
+                      {[
+                        ["Reference", r.reference],
+                        ["Doctor", r.doctor],
+                        ["Visit code", r.code],
+                        ["Visit time", r.visitWhen],
+                        ["Reason", r.reason],
+                        ["Method", r.method],
+                        ["Paid at", r.paidAt],
+                      ].map(([label, value]) => (
+                        <div
+                          key={label}
+                          className="flex items-start justify-between gap-3 border-b border-blue-50 pb-2 last:border-0 last:pb-0"
+                        >
+                          <dt className="text-muted-foreground">{label}</dt>
+                          <dd className="text-right font-semibold text-brand-dark">
+                            {value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setReceipt(null)}
+                      >
+                        Close
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => printOne(receipt)}
+                      >
+                        Print
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <PayInvoiceDialog
         open={Boolean(invoice)}
@@ -1942,45 +2115,72 @@ export function NotificationsSection() {
   const { data = [], isLoading, refetch } = useListNotificationsQuery({ limit: 40 })
   const [markOne] = useMarkAsReadMutation()
   const [markAll] = useMarkAllAsReadMutation()
+  const unread = data.filter((n) => !n.isRead).length
 
   return (
     <SectionShell
       title="Notifications"
       subtitle="Appointments, payments, and system alerts"
       action={
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={async () => {
-            await markAll()
-            refetch()
-          }}
-        >
-          Mark all read
-        </Button>
+        unread > 0 ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              await markAll()
+              refetch()
+            }}
+          >
+            Mark all read
+          </Button>
+        ) : null
       }
     >
-      {isLoading ? <Skeleton className="h-24 rounded-2xl" /> : null}
-      <div className="space-y-2">
-        {data.map((n) => (
-          <Card
-            key={n.id}
-            className={n.isRead ? "border-blue-50 opacity-80" : "border-blue-100"}
-          >
-            <CardContent className="flex items-start justify-between gap-3 p-4">
-              <div>
-                <p className="font-semibold">{n.title}</p>
-                <p className="text-sm text-muted-foreground">{n.body}</p>
-              </div>
-              {!n.isRead ? (
-                <Button size="sm" variant="ghost" onClick={() => markOne(n.id)}>
-                  Read
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-2xl" />
+          ))}
+        </div>
+      ) : null}
+      {!isLoading ? (
+        <div className="space-y-2">
+          {unread > 0 ? (
+            <p className="text-xs font-semibold text-primary">{unread} unread</p>
+          ) : null}
+          {data.map((n) => (
+            <Card
+              key={n.id}
+              className={
+                n.isRead ? "border-blue-50 opacity-80" : "border-primary/40 bg-brand-light/40"
+              }
+            >
+              <CardContent className="flex items-start justify-between gap-3 p-4">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-brand-dark">{n.title}</p>
+                    {!n.isRead ? (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    ) : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{n.body}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {String(n.type || "ALERT").replace(/_/g, " ")}
+                    {n.createdAt
+                      ? ` · ${new Date(n.createdAt).toLocaleString()}`
+                      : ""}
+                  </p>
+                </div>
+                {!n.isRead ? (
+                  <Button size="sm" variant="ghost" onClick={() => markOne(n.id)}>
+                    Read
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
       {!isLoading && data.length === 0 ? <Empty text="No notifications." /> : null}
     </SectionShell>
   )

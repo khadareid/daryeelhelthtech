@@ -3,7 +3,6 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Linking,
   Pressable,
@@ -15,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DetailSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/config/site';
 import { TIME_SLOTS, type DoctorItem } from '@/constants/content';
@@ -23,25 +23,12 @@ import { useAuth } from '@/context/auth-context';
 import { useDoctors } from '@/hooks/use-doctors';
 import { useTheme } from '@/hooks/use-theme';
 import { createAppointmentRequest, getDoctorRequest } from '@/lib/api';
-
-function nextDays(count: number) {
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() + index);
-    return date;
-  });
-}
-
-function slotToHours(slot: string): { h: number; m: number } {
-  const match = slot.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!match) return { h: 9, m: 0 };
-  let h = Number(match[1]);
-  const m = Number(match[2]);
-  const ampm = (match[3] || '').toUpperCase();
-  if (ampm === 'PM' && h < 12) h += 12;
-  if (ampm === 'AM' && h === 12) h = 0;
-  return { h, m };
-}
+import {
+  combineDayAndSlot,
+  firstAvailableSlot,
+  isSlotInPast,
+  nextBookingDays,
+} from '@/lib/bookingSlots';
 
 export default function DoctorDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,20 +38,43 @@ export default function DoctorDetailScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [remoteDoctor, setRemoteDoctor] = useState<DoctorItem | null>(null);
-  const [loadingDoctor, setLoadingDoctor] = useState(false);
+  const [loadingDoctor, setLoadingDoctor] = useState(true);
 
   const doctor = useMemo(() => {
     if (remoteDoctor) return remoteDoctor;
     return doctors.find((item) => item.id === id) ?? null;
   }, [doctors, id, remoteDoctor]);
 
-  const days = useMemo(() => nextDays(7), []);
+  const days = useMemo(() => nextBookingDays(7), []);
   const [dayIndex, setDayIndex] = useState(0);
-  const [slot, setSlot] = useState(TIME_SLOTS[1] || '08:20 AM');
+  const [slot, setSlot] = useState(
+    () => firstAvailableSlot(days[0], TIME_SLOTS) || TIME_SLOTS[0],
+  );
   const [visitType, setVisitType] = useState<'In-Person' | 'Video Call'>(
     'In-Person',
   );
   const [booking, setBooking] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  useEffect(() => {
+    const idTimer = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(idTimer);
+  }, []);
+
+  const selectedDay = days[dayIndex];
+  const now = useMemo(() => new Date(nowTick), [nowTick]);
+  const slotPast = isSlotInPast(selectedDay, slot, now);
+  const availableSlots = useMemo(
+    () => TIME_SLOTS.filter((s) => !isSlotInPast(selectedDay, s, now)),
+    [selectedDay, now],
+  );
+
+  useEffect(() => {
+    if (slotPast || !availableSlots.includes(slot)) {
+      const next = firstAvailableSlot(selectedDay, TIME_SLOTS, now);
+      if (next) setSlot(next);
+    }
+  }, [selectedDay, slotPast, availableSlots, slot, now]);
 
   useEffect(() => {
     if (!id) return;
@@ -89,7 +99,7 @@ export default function DoctorDetailScreen() {
     return (
       <View style={[styles.missing, { backgroundColor: theme.background }]}>
         {loadingDoctor ? (
-          <ActivityIndicator color={theme.primary} />
+          <DetailSkeleton />
         ) : (
           <Text style={{ color: theme.textSecondary, fontFamily: Fonts.medium }}>
             Doctor not found.
@@ -106,6 +116,10 @@ export default function DoctorDetailScreen() {
     ]);
   }
 
+  function goToVisits() {
+    router.replace('/(tabs)/appointments' as Href);
+  }
+
   async function onBook() {
     if (!doctor) return;
     const selected = doctor;
@@ -115,47 +129,44 @@ export default function DoctorDetailScreen() {
       return;
     }
 
-    const day = days[dayIndex];
-    const { h, m } = slotToHours(slot);
-    const when = new Date(day);
-    when.setHours(h, m, 0, 0);
+    const when = combineDayAndSlot(days[dayIndex], slot);
+    if (when.getTime() <= Date.now()) {
+      Alert.alert(
+        'Time passed',
+        'That slot is no longer available. Pick a later time.',
+      );
+      return;
+    }
 
     setBooking(true);
     try {
+      const fee = Number(selected.fee || 0);
+      const isFree = fee <= 0;
       const appt = await createAppointmentRequest(
         {
           doctorId: selected.id,
           scheduledAt: when.toISOString(),
           reason: `${visitType} visit`,
           notes: visitType,
-          consultationFee: selected.fee || undefined,
+          consultationFee: fee,
           currency: selected.currency || 'USD',
+          paymentRequired: !isFree,
         },
         accessToken,
       );
       await refreshProfile();
-      const fee = Number(selected.fee || 0);
-      const feeLine =
-        fee > 0
-          ? `Fee: ${selected.currency || 'USD'} ${fee.toFixed(2)} — pay with Zaad / eDahab from Visits or Payments`
-          : 'Fee: Free — no payment needed';
-      Alert.alert(
-        'Request sent',
-        `${selected.name}\n${when.toLocaleString()}\n${visitType}\n${feeLine}\nStatus: ${appt.status}\nCode: ${appt.appointmentCode || appt.id}`,
-        [
-          {
-            text: 'My visits',
-            onPress: () => router.push('/(tabs)/appointments' as Href),
-          },
-          {
-            text: fee > 0 ? 'Payments' : 'OK',
-            onPress: () =>
-              fee > 0
-                ? router.push('/health/payments' as Href)
-                : router.back(),
-          },
-        ],
+      const payStatus = String(
+        appt.paymentStatus || (isFree ? 'PAID' : 'PENDING'),
       );
+      const feeLine = isFree
+        ? 'Fee: Free ($0) · payment Paid'
+        : `Fee: ${selected.currency || 'USD'} ${fee.toFixed(2)} · ${payStatus}`;
+      Alert.alert(
+        'Booking confirmed',
+        `Visit with ${selected.name}.\n${when.toLocaleString()}\n${visitType}\n${feeLine}\nCode: ${appt.appointmentCode || appt.id}`,
+        [{ text: 'My visits', onPress: goToVisits }],
+      );
+      goToVisits();
     } catch (error) {
       Alert.alert(
         'Request not confirmed',
@@ -181,7 +192,6 @@ export default function DoctorDetailScreen() {
         styles.root,
         {
           backgroundColor: theme.background,
-          paddingBottom: insets.bottom + 16,
         },
       ]}>
       <ScrollView
@@ -348,12 +358,19 @@ export default function DoctorDetailScreen() {
           <Text style={[styles.section, { color: theme.brandDark }]}>
             Available time (every 20 min)
           </Text>
+          {availableSlots.length === 0 ? (
+            <Text style={[styles.about, { color: theme.textSecondary }]}>
+              No times left today — pick another day.
+            </Text>
+          ) : null}
           <View style={styles.slots}>
             {TIME_SLOTS.map((item) => {
-              const active = item === slot;
+              const past = isSlotInPast(selectedDay, item, now);
+              const active = item === slot && !past;
               return (
                 <Pressable
                   key={item}
+                  disabled={past}
                   onPress={() => setSlot(item)}
                   style={[
                     styles.slot,
@@ -362,12 +379,19 @@ export default function DoctorDetailScreen() {
                         ? theme.primary
                         : theme.backgroundElement,
                       borderColor: active ? theme.primary : theme.border,
+                      opacity: past ? 0.35 : 1,
                     },
                   ]}>
                   <Text
                     style={[
                       styles.slotText,
-                      { color: active ? '#FFFFFF' : theme.brandDark },
+                      {
+                        color: active
+                          ? '#FFFFFF'
+                          : past
+                            ? theme.textSecondary
+                            : theme.brandDark,
+                      },
                     ]}>
                     {item}
                   </Text>
@@ -409,35 +433,64 @@ export default function DoctorDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: theme.border }]}>
-        <View style={styles.actionRow}>
+      <View
+        style={[
+          styles.footer,
+          {
+            borderTopColor: theme.border,
+            paddingBottom: Math.max(insets.bottom, 12),
+            backgroundColor: theme.backgroundElement,
+          },
+        ]}>
+        <Text style={[styles.footerHint, { color: theme.textSecondary }]}>
+          {days[dayIndex].toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          })}{' '}
+          · {slot} · {visitType}
+        </Text>
+        <View style={styles.bookRow}>
           <Pressable
             onPress={onCall}
             style={[styles.iconBtn, { borderColor: theme.border }]}>
             <Ionicons name="call" size={20} color={theme.primary} />
-            <Text style={[styles.iconBtnText, { color: theme.brandDark }]}>
-              Call
-            </Text>
           </Pressable>
-        </View>
-        <View style={styles.bookRow}>
           <View style={styles.feeBlock}>
             <Text style={[styles.feeLabel, { color: theme.textSecondary }]}>
               Visit fee
             </Text>
-            <Text style={[styles.feeValue, { color: theme.brandDark }]}>
-              {doctor.fee > 0 ? `$${doctor.fee}` : 'TBA'}
+            <Text
+              style={[
+                styles.feeValue,
+                {
+                  color:
+                    Number(doctor.fee || 0) <= 0
+                      ? theme.success
+                      : theme.brandDark,
+                },
+              ]}>
+              {Number(doctor.fee || 0) > 0
+                ? `$${Number(doctor.fee).toFixed(2)}`
+                : 'Free'}
+            </Text>
+            <Text style={[styles.feeHint, { color: theme.textSecondary }]}>
+              {Number(doctor.fee || 0) <= 0 ? '$0 · no payment' : 'Pay after book'}
             </Text>
           </View>
-          {booking ? (
-            <ActivityIndicator color={theme.primary} style={{ flex: 1 }} />
-          ) : (
-            <Button
-              title={`Book · ${slot}`}
-              onPress={onBook}
-              style={{ flex: 1 }}
-            />
-          )}
+          <Button
+            title={
+              availableSlots.length === 0
+                ? 'No times left'
+                : booking
+                  ? 'Booking…'
+                  : `Book · ${slot}`
+            }
+            onPress={onBook}
+            loading={booking}
+            disabled={booking || availableSlots.length === 0 || slotPast}
+            style={{ flex: 1 }}
+          />
         </View>
       </View>
     </View>
@@ -616,26 +669,29 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
-    gap: Spacing.three,
+    gap: Spacing.two,
     backgroundColor: '#fff',
   },
-  actionRow: { flexDirection: 'row', gap: 10 },
+  footerHint: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    textAlign: 'center',
+  },
   iconBtn: {
-    flexDirection: 'row',
+    width: 48,
+    height: 48,
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
     borderWidth: 1,
     borderRadius: Radius.full,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
   },
-  iconBtnText: { fontFamily: Fonts.medium, fontSize: 13 },
   bookRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
   },
-  feeBlock: { minWidth: 72 },
+  feeBlock: { minWidth: 78 },
   feeLabel: { fontFamily: Fonts.regular, fontSize: 11 },
   feeValue: { fontFamily: Fonts.bold, fontSize: 20 },
+  feeHint: { fontFamily: Fonts.regular, fontSize: 10, marginTop: 1 },
 });

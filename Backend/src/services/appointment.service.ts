@@ -115,6 +115,9 @@ export const createAppointment = async (
       : actor.userId;
 
   const scheduledAt = parseDate(body.scheduledAt, "scheduledAt", true)!;
+  if (scheduledAt.getTime() <= Date.now()) {
+    throw new HttpError(400, "Cannot book a time that has already passed");
+  }
   const doctorId = optionalString(body.doctorId) ?? null;
 
   let fee = parseNumber(body.consultationFee, "consultationFee");
@@ -175,6 +178,31 @@ export const createAppointment = async (
       paidAt: isFree ? new Date() : null,
     },
   });
+
+  const doctorName = appt.doctor?.fullName || "your clinician";
+  const whenLabel = new Date(scheduledAt).toLocaleString();
+  try {
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: isFree
+          ? "Visit booked successfully"
+          : "Booking request sent successfully",
+        body: isFree
+          ? `Connected with ${doctorName} · ${whenLabel}. Fee Free ($0) — payment marked Paid. Open My Visits to track status.`
+          : `Connected with ${doctorName} · ${whenLabel}. Fee ${currency} ${amount.toFixed(2)} — pay from My Visits when ready.`,
+        type: "APPOINTMENT",
+        channel: "IN_APP",
+        data: {
+          appointmentId: appt.id,
+          appointmentCode: appt.appointmentCode,
+          paymentStatus: isFree ? "PAID" : "PENDING",
+        },
+      },
+    });
+  } catch {
+    /* booking still succeeds if notification write fails */
+  }
 
   return prisma.appointment.findUnique({
     where: { id: appt.id },

@@ -122,6 +122,63 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
+/** Notification / alert row placeholders. */
+export function NotificationSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <View style={styles.list}>
+      {Array.from({ length: rows }).map((_, index) => (
+        <View key={index} style={styles.noteCard}>
+          <View style={styles.noteTop}>
+            <SkeletonBone width="62%" height={15} />
+            <SkeletonBone width={8} height={8} radius={4} />
+          </View>
+          <SkeletonBone width="92%" height={12} />
+          <SkeletonBone width="48%" height={11} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Card stack for visits / payments / health lists. */
+export function CardListSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <View style={styles.list}>
+      {Array.from({ length: rows }).map((_, index) => (
+        <View key={index} style={styles.stackCard}>
+          <SkeletonBone width="55%" height={15} />
+          <SkeletonBone width="40%" height={12} />
+          <SkeletonBone width="70%" height={12} />
+          <SkeletonBone width="100%" height={36} radius={Radius.md} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Doctor detail / booking page placeholder. */
+export function DetailSkeleton() {
+  return (
+    <View style={styles.detail}>
+      <SkeletonBone width="100%" height={220} radius={Radius.xl} />
+      <SkeletonBone width="55%" height={22} />
+      <SkeletonBone width="35%" height={14} />
+      <View style={styles.grid}>
+        <SkeletonBone width="30%" height={64} radius={Radius.lg} />
+        <SkeletonBone width="30%" height={64} radius={Radius.lg} />
+        <SkeletonBone width="30%" height={64} radius={Radius.lg} />
+      </View>
+      <SkeletonBone width="100%" height={72} radius={Radius.lg} />
+      <SkeletonBone width={140} height={16} />
+      <View style={styles.slotRow}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonBone key={i} width={72} height={40} radius={Radius.md} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -166,5 +223,36 @@ const styles = StyleSheet.create({
   rowCopy: {
     flex: 1,
     gap: 8,
+  },
+  noteCard: {
+    gap: 10,
+    padding: Spacing.three,
+    borderRadius: Radius.lg,
+    backgroundColor: Brand.white,
+    borderWidth: 1,
+    borderColor: Brand.border,
+  },
+  noteTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  stackCard: {
+    gap: 10,
+    padding: Spacing.three,
+    borderRadius: Radius.lg,
+    backgroundColor: Brand.white,
+    borderWidth: 1,
+    borderColor: Brand.border,
+  },
+  detail: {
+    gap: Spacing.three,
+    padding: Spacing.four,
+  },
+  slotRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
 });

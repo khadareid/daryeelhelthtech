@@ -15,11 +15,12 @@ const prisma_1 = require("../lib/prisma");
 const ownership_1 = require("../utils/ownership");
 const validation_1 = require("../utils/validation");
 const getMedicalProfile = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const profile = yield prisma_1.prisma.medicalProfile.findUnique({ where: { userId } });
-    if (!profile) {
-        return prisma_1.prisma.medicalProfile.create({ data: { userId } });
-    }
-    return profile;
+    // Single round-trip upsert avoids find+create races that hold extra pool slots.
+    return prisma_1.prisma.medicalProfile.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+    });
 });
 exports.getMedicalProfile = getMedicalProfile;
 const upsertMedicalProfile = (userId, body) => __awaiter(void 0, void 0, void 0, function* () {

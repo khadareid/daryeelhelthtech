@@ -117,7 +117,7 @@ const ACTIONS: {
     icon: 'notifications',
     color: '#C2410C',
     bg: '#FFEDD5',
-    href: '/notifications',
+    href: '/(tabs)/notifications',
   },
   {
     id: 'profile',

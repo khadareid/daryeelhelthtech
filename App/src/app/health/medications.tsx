@@ -14,6 +14,7 @@ import {
   formStyles,
 } from '@/components/form-ui';
 import { Screen } from '@/components/screen';
+import { CardListSkeleton } from '@/components/skeleton';
 import { Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -29,13 +30,19 @@ export default function MedicationsScreen() {
   const [dosage, setDosage] = useState('');
   const [frequency, setFrequency] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
     try {
       setItems(await listMedicationsRequest(accessToken));
     } catch {
       setItems([]);
+    } finally {
+      setLoading(false);
     }
   }, [accessToken]);
 
@@ -116,21 +123,27 @@ export default function MedicationsScreen() {
         </Pressable>
       </View>
 
-      <TableHead columns={['Medicine', 'Dosage', 'Status']} />
-      {items.length === 0 ? (
-        <Text style={formStyles.empty}>No medications yet.</Text>
-      ) : (
-        items.map((item) => (
-          <TableRow
-            key={item.id}
-            cells={[
-              item.name,
-              [item.dosage, item.frequency].filter(Boolean).join(' · ') || '—',
-              item.isActive === false ? 'Inactive' : 'Active',
-            ]}
-          />
-        ))
-      )}
+      {loading ? <CardListSkeleton rows={3} /> : null}
+      {!loading ? (
+        <>
+          <TableHead columns={['Medicine', 'Dosage', 'Status']} />
+          {items.length === 0 ? (
+            <Text style={formStyles.empty}>No medications yet.</Text>
+          ) : (
+            items.map((item) => (
+              <TableRow
+                key={item.id}
+                cells={[
+                  item.name,
+                  [item.dosage, item.frequency].filter(Boolean).join(' · ') ||
+                    '—',
+                  item.isActive === false ? 'Inactive' : 'Active',
+                ]}
+              />
+            ))
+          )}
+        </>
+      ) : null}
     </Screen>
   );
 }

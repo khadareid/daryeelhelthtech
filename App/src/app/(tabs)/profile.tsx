@@ -1,21 +1,36 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { ConfirmSheet } from '@/components/confirm-sheet';
+import { EnumChips, FieldLabel, formStyles } from '@/components/form-ui';
 import { Screen } from '@/components/screen';
+import { CardListSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
+import { UserAvatar } from '@/components/user-avatar';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
+  changeMyPasswordRequest,
   listMedicationsRequest,
+  updateMeRequest,
+  upsertMedicalProfileRequest,
   type MedicationItem,
 } from '@/lib/api';
-import { enumLabel } from '@/lib/enums';
+import {
+  BLOOD_TYPE_OPTIONS,
+  enumLabel,
+  GENDER_OPTIONS,
+} from '@/lib/enums';
 
-/** Same care sections as the web Actions sheet */
 const MENU: { id: string; label: string; href: Href }[] = [
   { id: 'visits', label: 'Visits', href: '/(tabs)/appointments' },
   { id: 'payments', label: 'Payments', href: '/health/payments' },
@@ -27,9 +42,18 @@ const MENU: { id: string; label: string; href: Href }[] = [
   { id: 'records', label: 'Records', href: '/health/medical-records' },
   { id: 'family', label: 'Family', href: '/health/family' },
   { id: 'emergency', label: 'Emergency', href: '/health/emergency-card' },
-  { id: 'notifications', label: 'Alerts', href: '/notifications' },
+  { id: 'notifications', label: 'Alerts', href: '/(tabs)/notifications' },
   { id: 'doctors', label: 'Doctors', href: '/(tabs)/doctors' },
 ];
+
+type Tab = 'account' | 'security';
+
+function toDateInput(d?: string | null) {
+  if (!d) return '';
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
 
 export default function ProfileScreen() {
   const { user, profile, logout, refreshProfile, apiOnline, accessToken } =
@@ -37,9 +61,51 @@ export default function ProfileScreen() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [meds, setMeds] = useState<MedicationItem[]>([]);
-  const photo = user?.avatarUrl || user?.picture;
+  const [tab, setTab] = useState<Tab>('account');
+  const [saving, setSaving] = useState(false);
+  const [changingPw, setChangingPw] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [form, setForm] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    image: '',
+    gender: '',
+    dateOfBirth: '',
+    country: '',
+    region: '',
+    city: '',
+    bloodType: 'UNKNOWN',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  const photo = form.image || user?.avatarUrl || user?.picture;
+  const gender = form.gender || user?.gender || profile?.gender;
   const healthId = profile?.healthId || user?.healthId;
-  const bloodType = profile?.medicalProfile?.bloodType;
+
+  const syncForm = () => {
+    setForm((prev) => ({
+      ...prev,
+      fullName: profile?.fullName || user?.fullName || '',
+      email: profile?.email || user?.email || '',
+      phone: profile?.phone || user?.phone || '',
+      image: profile?.avatarUrl || profile?.picture || user?.avatarUrl || '',
+      gender: profile?.gender || user?.gender || '',
+      dateOfBirth: toDateInput(profile?.dateOfBirth || user?.dateOfBirth),
+      country: profile?.country || user?.country || '',
+      region: profile?.region || user?.region || '',
+      city: profile?.city || user?.city || '',
+      bloodType: profile?.medicalProfile?.bloodType || 'UNKNOWN',
+    }));
+  };
+
+  useEffect(() => {
+    syncForm();
+    setLoading(false);
+  }, [profile, user]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -47,6 +113,87 @@ export default function ProfileScreen() {
       .then(setMeds)
       .catch(() => setMeds([]));
   }, [accessToken]);
+
+  const onChange = (key: keyof typeof form, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  async function onSaveProfile() {
+    if (!accessToken) return;
+    if (!form.fullName.trim()) {
+      Alert.alert('Full name required', 'Enter your full name.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateMeRequest(
+        {
+          fullName: form.fullName.trim(),
+          phone: form.phone.trim() || null,
+          gender: form.gender || null,
+          dateOfBirth: form.dateOfBirth || null,
+          avatarUrl: form.image.trim() || null,
+          country: form.country.trim() || null,
+          region: form.region.trim() || null,
+          city: form.city.trim() || null,
+        },
+        accessToken,
+      );
+      await upsertMedicalProfileRequest(
+        { bloodType: form.bloodType || 'UNKNOWN' },
+        accessToken,
+      );
+      await refreshProfile();
+      Alert.alert('Profile updated', 'Your My Profile details were saved.');
+    } catch (error) {
+      Alert.alert(
+        'Could not update',
+        error instanceof Error ? error.message : 'Try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onChangePassword() {
+    if (!accessToken) return;
+    if (form.newPassword.length < 6) {
+      Alert.alert('Weak password', 'New password must be at least 6 characters.');
+      return;
+    }
+    if (form.newPassword !== form.confirmPassword) {
+      Alert.alert('Mismatch', 'New password and confirm password must match.');
+      return;
+    }
+    if (!form.currentPassword) {
+      Alert.alert('Current password', 'Enter your current password.');
+      return;
+    }
+    setChangingPw(true);
+    try {
+      await changeMyPasswordRequest(
+        {
+          currentPassword: form.currentPassword,
+          newPassword: form.newPassword,
+        },
+        accessToken,
+      );
+      setForm((p) => ({
+        ...p,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      }));
+      Alert.alert('Password updated', 'Use your new password next time you sign in.');
+    } catch (error) {
+      Alert.alert(
+        'Could not change password',
+        error instanceof Error ? error.message : 'Try again.',
+      );
+    } finally {
+      setChangingPw(false);
+    }
+  }
 
   async function confirmLogout() {
     setLoggingOut(true);
@@ -64,6 +211,7 @@ export default function ProfileScreen() {
       <Screen
         onRefresh={async () => {
           await refreshProfile();
+          syncForm();
           if (accessToken) {
             setMeds(await listMedicationsRequest(accessToken).catch(() => []));
           }
@@ -72,20 +220,22 @@ export default function ProfileScreen() {
         <View style={styles.hero}>
           <Text style={styles.brand}>Daryeel</Text>
           <Text style={styles.heroTitle}>My Profile</Text>
-          <Text style={styles.heroSub}>Account, medical profile & settings</Text>
+          <Text style={styles.heroSub}>
+            Add or update your account and medical details
+          </Text>
         </View>
 
+        {loading ? <CardListSkeleton rows={2} /> : null}
+
         <View style={styles.header}>
-          <Image
-            source={
-              photo ||
-              'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&q=80'
-            }
-            style={styles.avatar}
-            contentFit="cover"
+          <UserAvatar
+            name={form.fullName || user?.fullName}
+            photo={photo}
+            gender={gender}
+            size={88}
           />
-          <Text style={styles.name}>{user?.fullName || 'Daryeel user'}</Text>
-          <Text style={styles.email}>{user?.email}</Text>
+          <Text style={styles.name}>{form.fullName || 'Daryeel user'}</Text>
+          <Text style={styles.email}>{form.email}</Text>
           {healthId ? (
             <Text style={styles.patientId}>Health ID · {healthId}</Text>
           ) : null}
@@ -101,14 +251,187 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
-        <View style={styles.card}>
-          <Row label="Phone" value={user?.phone || '—'} />
-          <Row label="City" value={profile?.city || user?.city || '—'} />
-          <Row label="Blood type" value={enumLabel(bloodType)} />
-          <Row label="Gender" value={enumLabel(user?.gender)} />
-          <Row label="Role" value={enumLabel(user?.role || 'USER')} />
-          <Row label="API" value={apiOnline ? 'Connected' : 'Offline'} />
+        <View style={styles.tabs}>
+          <Pressable
+            onPress={() => setTab('account')}
+            style={[styles.tab, tab === 'account' && styles.tabOn]}>
+            <Text style={[styles.tabText, tab === 'account' && styles.tabTextOn]}>
+              Account
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setTab('security')}
+            style={[styles.tab, tab === 'security' && styles.tabOn]}>
+            <Text
+              style={[styles.tabText, tab === 'security' && styles.tabTextOn]}>
+              Security
+            </Text>
+          </Pressable>
         </View>
+
+        {tab === 'account' ? (
+          <View style={formStyles.form}>
+            <Text style={formStyles.section}>Profile details</Text>
+            <Text style={formStyles.sub}>
+              Update how you appear on Daryeel — same as the website.
+            </Text>
+
+            <FieldLabel>Full name *</FieldLabel>
+            <TextInput
+              value={form.fullName}
+              onChangeText={(v) => onChange('fullName', v)}
+              placeholder="Your full name"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <FieldLabel>Email</FieldLabel>
+            <TextInput
+              value={form.email}
+              editable={false}
+              style={[formStyles.input, styles.inputDisabled]}
+            />
+
+            <FieldLabel>Phone</FieldLabel>
+            <TextInput
+              value={form.phone}
+              onChangeText={(v) => onChange('phone', v)}
+              placeholder="+252…"
+              keyboardType="phone-pad"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <FieldLabel>Gender</FieldLabel>
+            <EnumChips
+              options={GENDER_OPTIONS}
+              value={form.gender}
+              onChange={(v) => onChange('gender', v)}
+            />
+
+            <FieldLabel>Date of birth (YYYY-MM-DD)</FieldLabel>
+            <TextInput
+              value={form.dateOfBirth}
+              onChangeText={(v) => onChange('dateOfBirth', v)}
+              placeholder="1995-01-15"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+              autoCapitalize="none"
+            />
+
+            <FieldLabel>Blood type</FieldLabel>
+            <EnumChips
+              options={BLOOD_TYPE_OPTIONS}
+              value={form.bloodType}
+              onChange={(v) => onChange('bloodType', v)}
+            />
+
+            <FieldLabel>Country</FieldLabel>
+            <TextInput
+              value={form.country}
+              onChangeText={(v) => onChange('country', v)}
+              placeholder="Somalia"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <FieldLabel>Region</FieldLabel>
+            <TextInput
+              value={form.region}
+              onChangeText={(v) => onChange('region', v)}
+              placeholder="Banaadir"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <FieldLabel>City</FieldLabel>
+            <TextInput
+              value={form.city}
+              onChangeText={(v) => onChange('city', v)}
+              placeholder="Mogadishu"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <FieldLabel>Avatar URL</FieldLabel>
+            <TextInput
+              value={form.image}
+              onChangeText={(v) => onChange('image', v)}
+              placeholder="https://…"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+              autoCapitalize="none"
+            />
+
+            <View style={styles.metaRow}>
+              <Text style={styles.meta}>
+                Role · {enumLabel(user?.role || 'USER')}
+              </Text>
+              <Text style={styles.meta}>
+                API · {apiOnline ? 'Connected' : 'Offline'}
+              </Text>
+            </View>
+
+            <Button
+              title={saving ? 'Saving…' : 'Save profile'}
+              loading={saving}
+              onPress={onSaveProfile}
+              icon={
+                <Ionicons name="save-outline" size={18} color={Brand.white} />
+              }
+            />
+          </View>
+        ) : (
+          <View style={formStyles.form}>
+            <Text style={formStyles.section}>Change password</Text>
+            <Text style={formStyles.sub}>
+              Keep your Daryeel account secure.
+            </Text>
+
+            <FieldLabel>Current password</FieldLabel>
+            <TextInput
+              value={form.currentPassword}
+              onChangeText={(v) => onChange('currentPassword', v)}
+              secureTextEntry
+              placeholder="Current password"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <FieldLabel>New password</FieldLabel>
+            <TextInput
+              value={form.newPassword}
+              onChangeText={(v) => onChange('newPassword', v)}
+              secureTextEntry
+              placeholder="At least 6 characters"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <FieldLabel>Confirm password</FieldLabel>
+            <TextInput
+              value={form.confirmPassword}
+              onChangeText={(v) => onChange('confirmPassword', v)}
+              secureTextEntry
+              placeholder="Repeat new password"
+              placeholderTextColor={Brand.muted}
+              style={formStyles.input}
+            />
+
+            <Button
+              title={changingPw ? 'Updating…' : 'Update password'}
+              loading={changingPw}
+              onPress={onChangePassword}
+              icon={
+                <Ionicons
+                  name="key-outline"
+                  size={18}
+                  color={Brand.white}
+                />
+              }
+            />
+          </View>
+        )}
 
         <View style={styles.menu}>
           {MENU.map((item) => (
@@ -170,15 +493,6 @@ export default function ProfileScreen() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   hero: {
     backgroundColor: Brand.white,
@@ -209,13 +523,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     paddingVertical: Spacing.two,
-  },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Brand.light,
-    marginBottom: Spacing.two,
   },
   name: {
     fontFamily: Fonts.bold,
@@ -261,30 +568,40 @@ const styles = StyleSheet.create({
     color: Brand.muted,
     marginTop: 2,
   },
-  card: {
+  tabs: {
+    flexDirection: 'row',
+    gap: 8,
     backgroundColor: Brand.white,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Brand.border,
-    padding: Spacing.four,
-    gap: Spacing.three,
+    padding: 4,
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: Radius.full,
   },
-  rowLabel: {
-    fontFamily: Fonts.medium,
+  tabOn: { backgroundColor: Brand.primary },
+  tabText: {
+    fontFamily: Fonts.semibold,
     fontSize: 13,
     color: Brand.muted,
   },
-  rowValue: {
-    flex: 1,
-    textAlign: 'right',
-    fontFamily: Fonts.semibold,
-    fontSize: 13,
-    color: Brand.dark,
+  tabTextOn: { color: Brand.white },
+  inputDisabled: { opacity: 0.65 },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  meta: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    color: Brand.muted,
   },
   menu: {
     backgroundColor: Brand.white,

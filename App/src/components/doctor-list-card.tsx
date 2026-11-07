@@ -53,13 +53,11 @@ export function DoctorListCard({ doctor, onPress }: Props) {
         </Text>
         <View style={styles.bottomRow}>
           <Text style={[styles.fee, { color: theme.brandDark }]}>
-            {doctor.fee > 0 ? `$${doctor.fee}` : 'Fee TBA'}
-            {doctor.fee > 0 ? (
-              <Text style={[styles.feeUnit, { color: theme.textSecondary }]}>
-                {' '}
-                / visit
-              </Text>
-            ) : null}
+            {doctor.fee > 0 ? `$${Number(doctor.fee).toFixed(0)}` : 'Free'}
+            <Text style={[styles.feeUnit, { color: theme.textSecondary }]}>
+              {' '}
+              / visit
+            </Text>
           </Text>
           {doctor.availableToday ? (
             <Text style={[styles.available, { color: theme.success }]}>

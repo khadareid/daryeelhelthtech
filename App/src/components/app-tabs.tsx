@@ -82,7 +82,12 @@ export default function AppTabs() {
             />
           </TabTrigger>
 
-          {/* Registered routes, visually hidden */}
+          {/* Registered routes, visually hidden — open from Home bell / Actions */}
+          <TabTrigger
+            name="notifications"
+            href="/(tabs)/notifications"
+            style={styles.hiddenTrigger}
+          />
           <TabTrigger
             name="health"
             href="/(tabs)/health"

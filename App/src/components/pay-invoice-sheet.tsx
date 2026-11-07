@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -47,6 +48,7 @@ export function PayInvoiceSheet({
 
   const submit = async () => {
     if (needsPhone && phone.trim().length < 7) {
+      Alert.alert('Mobile number required', 'Enter a valid Zaad / eDahab number.');
       return;
     }
     await onPay({
