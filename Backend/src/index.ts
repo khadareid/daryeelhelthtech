@@ -70,14 +70,14 @@ function normalizeOrigin(value: string): string {
 }
 
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:5175",
-  "http://localhost:8081",
-  "http://localhost:8082",
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "https://daryeel-healthtech.vercel.app",
+  // "http://localhost:5173",
+  // "http://localhost:5174",
+  // "http://localhost:5175",
+  // "http://localhost:8081",
+  // "http://localhost:8082",
+  // "http://localhost:3000",
+  // "http://localhost:3001",
+  "https://daryeelhelthtech.vercel.app",
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ORIGINS || "")
     .split(",")
