@@ -32,6 +32,15 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -93,16 +102,14 @@ function normalizeOrigin(value) {
     return value.trim().replace(/\/$/, "");
 }
 const allowedOrigins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
+    // "http://localhost:5173",
+    // "http://localhost:5174",
+    // "http://localhost:5175",
     "http://localhost:8081",
     "http://localhost:8082",
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://daryeel-healthtech.vercel.app",
-    "https://daryeel-healthtech-gamma.vercel.app",
-    "https://daryeel-saas-healthtech.vercel.app",
+    // "http://localhost:3000",
+    // "http://localhost:3001",
+    "https://daryeelhelthtech.vercel.app",
     process.env.FRONTEND_URL,
     ...(process.env.CORS_ORIGINS || "")
         .split(",")
@@ -262,5 +269,21 @@ app.all("/{*splat}", (_req, res) => {
 });
 exports.default = app;
 if (!process.env.VERCEL) {
-    app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));
+    const server = app.listen(PORT, () => console.log(`🚀 Server is running on PORT ${PORT}`));
+    const shutdown = (signal) => __awaiter(void 0, void 0, void 0, function* () {
+        console.log(`${signal} received — closing server & Prisma…`);
+        server.close(() => __awaiter(void 0, void 0, void 0, function* () {
+            try {
+                const { disconnectPrisma } = yield Promise.resolve().then(() => __importStar(require("./lib/prisma")));
+                yield disconnectPrisma();
+            }
+            catch (_a) {
+                /* ignore */
+            }
+            process.exit(0);
+        }));
+        setTimeout(() => process.exit(1), 10000).unref();
+    });
+    process.once("SIGINT", () => void shutdown("SIGINT"));
+    process.once("SIGTERM", () => void shutdown("SIGTERM"));
 }

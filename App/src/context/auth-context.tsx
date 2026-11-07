@@ -71,8 +71,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (token: string) => {
     try {
       const next = await getMeRequest(token);
+      const authUser = toAuthUser(next);
       setProfile(next);
-      setUser(toAuthUser(next));
+      setUser(authUser);
+      const session = await loadSession();
+      if (session?.refreshToken) {
+        await saveSession({
+          accessToken: token,
+          refreshToken: session.refreshToken,
+          user: authUser,
+        });
+      }
     } catch {
       /* keep cached user if profile fetch fails */
     }

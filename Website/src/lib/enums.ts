@@ -48,7 +48,6 @@ export const RELATIONSHIP_LABELS: Record<string, string> = {
 export const GENDER_LABELS: Record<string, string> = {
   MALE: "Male",
   FEMALE: "Female",
-  OTHER: "Other",
 }
 
 export const BLOOD_TYPE_LABELS: Record<string, string> = {

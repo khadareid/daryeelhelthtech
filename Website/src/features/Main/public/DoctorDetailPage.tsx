@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useSelector } from "react-redux"
 import { toast } from "sonner"
@@ -24,6 +24,8 @@ import { siteConfig } from "@/config/site"
 import {
   BOOKING_TIME_SLOTS,
   combineDayAndSlot,
+  firstAvailableSlot,
+  isSlotInPast,
   nextBookingDays,
   toDateInputValue,
 } from "@/lib/bookingSlots"
@@ -41,8 +43,31 @@ export default function DoctorDetailPage() {
   const [createAppt, { isLoading: booking }] = useCreateAppointmentMutation()
   const days = useMemo(() => nextBookingDays(14), [])
   const [dayIndex, setDayIndex] = useState(0)
-  const [slot, setSlot] = useState(BOOKING_TIME_SLOTS[1] || "08:20 AM")
+  const [slot, setSlot] = useState(
+    () => firstAvailableSlot(days[0]) || BOOKING_TIME_SLOTS[0]
+  )
   const [reason, setReason] = useState("")
+  const [nowTick, setNowTick] = useState(() => Date.now())
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
+  const now = useMemo(() => new Date(nowTick), [nowTick])
+  const selectedDay = days[dayIndex]
+  const availableSlots = useMemo(
+    () => BOOKING_TIME_SLOTS.filter((s) => !isSlotInPast(selectedDay, s, now)),
+    [selectedDay, now]
+  )
+  const slotPast = isSlotInPast(selectedDay, slot, now)
+
+  useEffect(() => {
+    if (slotPast || !availableSlots.includes(slot)) {
+      const next = firstAvailableSlot(selectedDay, BOOKING_TIME_SLOTS, now)
+      if (next) setSlot(next)
+    }
+  }, [selectedDay, slotPast, availableSlots, slot, now])
 
   const fee = Number(doctor?.consultationFee || 0)
   const isFree = fee <= 0
@@ -53,12 +78,16 @@ export default function DoctorDetailPage() {
       navigate("/signin", { state: { from: `/doctors/${doctorId}` } })
       return
     }
-    if (!slot) {
-      toast.error("Pick a time like 8:20 AM")
+    if (!slot || availableSlots.length === 0) {
+      toast.error("Pick a future time")
+      return
+    }
+    const when = combineDayAndSlot(days[dayIndex], slot)
+    if (when.getTime() <= Date.now()) {
+      toast.error("That time has already passed — pick a later slot")
       return
     }
     try {
-      const when = combineDayAndSlot(days[dayIndex], slot)
       await createAppt({
         doctorId,
         scheduledAt: when.toISOString(),
@@ -69,8 +98,8 @@ export default function DoctorDetailPage() {
       }).unwrap()
       toast.success(
         isFree
-          ? "Appointment requested — Free visit"
-          : `Appointment requested — pay ${doctor?.currency || "USD"} ${fee.toFixed(2)} (Zaad, eDahab…)`
+          ? "Booking confirmed — opening Visits"
+          : `Booking confirmed — pay ${doctor?.currency || "USD"} ${fee.toFixed(2)} in Visits`
       )
       navigate("/dashboard?section=appointments")
     } catch (err: unknown) {
@@ -84,8 +113,12 @@ export default function DoctorDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="container-page py-10">
-        <Skeleton className="h-64 rounded-3xl" />
+      <div className="container-page space-y-4 py-10">
+        <Skeleton className="h-8 w-40 rounded-full" />
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.9fr]">
+          <Skeleton className="h-80 rounded-3xl" />
+          <Skeleton className="h-96 rounded-3xl" />
+        </div>
       </div>
     )
   }
@@ -295,22 +328,33 @@ export default function DoctorDetailPage() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Time
                 </p>
+                {availableSlots.length === 0 ? (
+                  <p className="mb-2 text-xs text-amber-700">
+                    No times left this day — pick another day.
+                  </p>
+                ) : null}
                 <div className="grid max-h-48 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
-                  {BOOKING_TIME_SLOTS.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setSlot(t)}
-                      className={cn(
-                        "rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold",
-                        slot === t
-                          ? "border-primary bg-primary text-white"
-                          : "border-blue-100 bg-white text-brand-dark hover:border-primary/40"
-                      )}
-                    >
-                      {t}
-                    </button>
-                  ))}
+                  {BOOKING_TIME_SLOTS.map((t) => {
+                    const past = isSlotInPast(selectedDay, t, now)
+                    const active = slot === t && !past
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        disabled={past}
+                        onClick={() => setSlot(t)}
+                        className={cn(
+                          "rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold",
+                          past && "cursor-not-allowed opacity-35",
+                          active
+                            ? "border-primary bg-primary text-white"
+                            : "border-blue-100 bg-white text-brand-dark hover:border-primary/40"
+                        )}
+                      >
+                        {t}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -324,12 +368,20 @@ export default function DoctorDetailPage() {
                   ? "This visit is free."
                   : `Fee ${fee.toFixed(2)} ${doctor.currency || "USD"} — pay with Zaad, eDahab, Sahal after booking.`}
               </p>
-              <Button type="submit" className="w-full" disabled={booking}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  booking || availableSlots.length === 0 || slotPast
+                }
+              >
                 {booking
-                  ? "Requesting…"
-                  : signedIn
-                    ? `Request · ${slot}`
-                    : "Sign in to book"}
+                  ? "Booking…"
+                  : !signedIn
+                    ? "Sign in to book"
+                    : availableSlots.length === 0
+                      ? "No times left"
+                      : `Book · ${slot}`}
               </Button>
               <p className="text-center text-[11px] text-muted-foreground">
                 Support · {siteConfig.supportEmail}

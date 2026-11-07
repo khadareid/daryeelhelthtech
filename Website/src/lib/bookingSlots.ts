@@ -54,3 +54,20 @@ export function toDateInputValue(d: Date): string {
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${mo}-${day}`
 }
+
+/** True when the slot start is at or before now (cannot book). */
+export function isSlotInPast(
+  day: Date,
+  slot: string,
+  now: Date = new Date()
+): boolean {
+  return combineDayAndSlot(day, slot).getTime() <= now.getTime()
+}
+
+export function firstAvailableSlot(
+  day: Date,
+  slots: string[] = BOOKING_TIME_SLOTS,
+  now: Date = new Date()
+): string | null {
+  return slots.find((s) => !isSlotInPast(day, s, now)) ?? null
+}

@@ -11,53 +11,68 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listAuditLogs = exports.getDashboardStats = void 0;
 const prisma_1 = require("../lib/prisma");
+const dbBatch_1 = require("../utils/dbBatch");
 const pagination_1 = require("../utils/pagination");
+const countMap = (rows, key) => {
+    var _a;
+    const map = {};
+    for (const row of rows) {
+        const k = String((_a = row[key]) !== null && _a !== void 0 ? _a : "");
+        const count = row._count;
+        map[k] =
+            typeof count === "number"
+                ? count
+                : typeof count === "object" && count && "_all" in count
+                    ? Number(count._all)
+                    : Number(count !== null && count !== void 0 ? count : 0);
+    }
+    return map;
+};
 const getDashboardStats = () => __awaiter(void 0, void 0, void 0, function* () {
-    const [users, patients, admins, superAdmins, suspendedUsers, doctors, verifiedDoctors, pendingDoctors, rejectedDoctors, suspendedDoctors, appointments, pendingAppointments, confirmedAppointments, completedAppointments, cancelledAppointments, consultations, payments, paidPayments, pendingPayments, refundedPayments, freePayments, paymentAgg, notifications, unreadNotifications, auditLogs, medications, labResults, medicalRecords, familyMembers, emergencyCards, recentAppointments, recentUsers, recentPayments,] = yield Promise.all([
-        prisma_1.prisma.user.count({ where: { deletedAt: null } }),
-        prisma_1.prisma.user.count({ where: { deletedAt: null, role: "USER" } }),
-        prisma_1.prisma.user.count({ where: { deletedAt: null, role: "ADMIN" } }),
-        prisma_1.prisma.user.count({ where: { deletedAt: null, role: "SUPER_ADMIN" } }),
-        prisma_1.prisma.user.count({ where: { deletedAt: null, isSuspended: true } }),
-        prisma_1.prisma.doctor.count({ where: { isActive: true } }),
-        prisma_1.prisma.doctor.count({ where: { verificationStatus: "VERIFIED" } }),
-        prisma_1.prisma.doctor.count({ where: { verificationStatus: "PENDING" } }),
-        prisma_1.prisma.doctor.count({ where: { verificationStatus: "REJECTED" } }),
-        prisma_1.prisma.doctor.count({ where: { verificationStatus: "SUSPENDED" } }),
-        prisma_1.prisma.appointment.count(),
-        prisma_1.prisma.appointment.count({
-            where: { status: { in: ["PENDING", "RESCHEDULE_REQUESTED"] } },
+    // Prefer groupBy + small batches over ~33 parallel count() calls so
+    // Neon’s Prisma pool (often limit 5–8) is not exhausted (P2024).
+    const [users, suspendedUsers, userByRole, doctorsActive, doctorByStatus, appointments, appointmentByStatus, consultations, payments, paymentByStatus, freePayments, paymentAgg, notifications, unreadNotifications, auditLogs, medications, labResults, medicalRecords, familyMembers, emergencyCards, recentAppointments, recentUsers, recentPayments,] = (yield (0, dbBatch_1.runInBatches)([
+        () => prisma_1.prisma.user.count({ where: { deletedAt: null } }),
+        () => prisma_1.prisma.user.count({ where: { deletedAt: null, isSuspended: true } }),
+        () => prisma_1.prisma.user.groupBy({
+            by: ["role"],
+            where: { deletedAt: null },
+            _count: { _all: true },
         }),
-        prisma_1.prisma.appointment.count({
-            where: { status: { in: ["ACCEPTED", "CONFIRMED"] } },
+        () => prisma_1.prisma.doctor.count({ where: { isActive: true } }),
+        () => prisma_1.prisma.doctor.groupBy({
+            by: ["verificationStatus"],
+            _count: { _all: true },
         }),
-        prisma_1.prisma.appointment.count({ where: { status: "COMPLETED" } }),
-        prisma_1.prisma.appointment.count({
-            where: { status: { in: ["CANCELLED", "REJECTED"] } },
+        () => prisma_1.prisma.appointment.count(),
+        () => prisma_1.prisma.appointment.groupBy({
+            by: ["status"],
+            _count: { _all: true },
         }),
-        prisma_1.prisma.consultation.count(),
-        prisma_1.prisma.payment.count(),
-        prisma_1.prisma.payment.count({ where: { status: "PAID" } }),
-        prisma_1.prisma.payment.count({ where: { status: "PENDING" } }),
-        prisma_1.prisma.payment.count({ where: { status: "REFUNDED" } }),
-        prisma_1.prisma.payment.count({
+        () => prisma_1.prisma.consultation.count(),
+        () => prisma_1.prisma.payment.count(),
+        () => prisma_1.prisma.payment.groupBy({
+            by: ["status"],
+            _count: { _all: true },
+        }),
+        () => prisma_1.prisma.payment.count({
             where: {
                 OR: [{ provider: "FREE" }, { amount: { lte: 0 } }],
             },
         }),
-        prisma_1.prisma.payment.aggregate({
+        () => prisma_1.prisma.payment.aggregate({
             where: { status: "PAID", amount: { gt: 0 } },
             _sum: { amount: true },
         }),
-        prisma_1.prisma.notification.count(),
-        prisma_1.prisma.notification.count({ where: { isRead: false } }),
-        prisma_1.prisma.auditLog.count(),
-        prisma_1.prisma.medication.count(),
-        prisma_1.prisma.labResult.count(),
-        prisma_1.prisma.medicalRecord.count(),
-        prisma_1.prisma.familyMember.count(),
-        prisma_1.prisma.emergencyCard.count(),
-        prisma_1.prisma.appointment.findMany({
+        () => prisma_1.prisma.notification.count(),
+        () => prisma_1.prisma.notification.count({ where: { isRead: false } }),
+        () => prisma_1.prisma.auditLog.count(),
+        () => prisma_1.prisma.medication.count(),
+        () => prisma_1.prisma.labResult.count(),
+        () => prisma_1.prisma.medicalRecord.count(),
+        () => prisma_1.prisma.familyMember.count(),
+        () => prisma_1.prisma.emergencyCard.count(),
+        () => prisma_1.prisma.appointment.findMany({
             take: 8,
             orderBy: { createdAt: "desc" },
             include: {
@@ -65,7 +80,7 @@ const getDashboardStats = () => __awaiter(void 0, void 0, void 0, function* () {
                 doctor: { select: { id: true, fullName: true, specialty: true } },
             },
         }),
-        prisma_1.prisma.user.findMany({
+        () => prisma_1.prisma.user.findMany({
             where: { deletedAt: null },
             take: 6,
             orderBy: { createdAt: "desc" },
@@ -78,7 +93,7 @@ const getDashboardStats = () => __awaiter(void 0, void 0, void 0, function* () {
                 createdAt: true,
             },
         }),
-        prisma_1.prisma.payment.findMany({
+        () => prisma_1.prisma.payment.findMany({
             take: 6,
             orderBy: { createdAt: "desc" },
             include: {
@@ -91,31 +106,39 @@ const getDashboardStats = () => __awaiter(void 0, void 0, void 0, function* () {
                 },
             },
         }),
-    ]);
-    const revenuePaid = Number(paymentAgg._sum.amount || 0);
+    ], 4));
+    const roles = countMap(userByRole, "role");
+    const doctorStatus = countMap(doctorByStatus, "verificationStatus");
+    const apptStatus = countMap(appointmentByStatus, "status");
+    const payStatus = countMap(paymentByStatus, "status");
+    const pendingAppointments = (apptStatus.PENDING || 0) + (apptStatus.RESCHEDULE_REQUESTED || 0);
+    const confirmedAppointments = (apptStatus.ACCEPTED || 0) + (apptStatus.CONFIRMED || 0);
+    const cancelledAppointments = (apptStatus.CANCELLED || 0) + (apptStatus.REJECTED || 0);
     return {
         users,
-        patients,
-        admins,
-        superAdmins,
+        patients: roles.USER || 0,
+        admins: roles.ADMIN || 0,
+        superAdmins: roles.SUPER_ADMIN || 0,
         suspendedUsers,
-        doctors,
-        verifiedDoctors,
-        pendingDoctors,
-        rejectedDoctors,
-        suspendedDoctors,
+        doctors: doctorsActive,
+        verifiedDoctors: doctorStatus.VERIFIED || 0,
+        pendingDoctors: doctorStatus.PENDING || 0,
+        rejectedDoctors: doctorStatus.REJECTED || 0,
+        suspendedDoctors: doctorStatus.SUSPENDED || 0,
         appointments,
         pendingAppointments,
         confirmedAppointments,
-        completedAppointments,
+        completedAppointments: apptStatus.COMPLETED || 0,
         cancelledAppointments,
+        noShowAppointments: apptStatus.NO_SHOW || 0,
         consultations,
         payments,
-        paidPayments,
-        pendingPayments,
-        refundedPayments,
+        paidPayments: payStatus.PAID || 0,
+        pendingPayments: payStatus.PENDING || 0,
+        failedPayments: payStatus.FAILED || 0,
+        refundedPayments: payStatus.REFUNDED || 0,
         freePayments,
-        revenuePaid,
+        revenuePaid: Number(paymentAgg._sum.amount || 0),
         notifications,
         unreadNotifications,
         auditLogs,
@@ -150,8 +173,8 @@ const listAuditLogs = (query) => __awaiter(void 0, void 0, void 0, function* () 
             { user: { email: { contains: search, mode: "insensitive" } } },
         ];
     }
-    const [items, total] = yield Promise.all([
-        prisma_1.prisma.auditLog.findMany({
+    const [items, total] = (yield (0, dbBatch_1.runInBatches)([
+        () => prisma_1.prisma.auditLog.findMany({
             where,
             include: {
                 user: { select: { userid: true, fullName: true, email: true } },
@@ -160,8 +183,8 @@ const listAuditLogs = (query) => __awaiter(void 0, void 0, void 0, function* () 
             skip,
             take,
         }),
-        prisma_1.prisma.auditLog.count({ where }),
-    ]);
+        () => prisma_1.prisma.auditLog.count({ where }),
+    ], 2));
     return { items, meta: (0, pagination_1.pageMeta)(total, page, limit) };
 });
 exports.listAuditLogs = listAuditLogs;

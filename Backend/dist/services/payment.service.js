@@ -172,6 +172,26 @@ const createPayment = (actor, body) => __awaiter(void 0, void 0, void 0, functio
                 paymentRequired: Number(amount) > 0,
             },
         });
+        try {
+            yield prisma_1.prisma.notification.create({
+                data: {
+                    userId,
+                    title: isFree ? "Free visit confirmed" : "Payment successful",
+                    body: isFree
+                        ? "Your booking fee is Free ($0) and marked Paid."
+                        : `Payment marked Paid with ${(0, validation_1.optionalString)(body.provider) || "local money"}. Open My Visits to track the booking.`,
+                    type: isFree ? "PAYMENT" : "PAYMENT_SUCCESS",
+                    channel: "IN_APP",
+                    data: {
+                        paymentId: payment.id,
+                        appointmentId,
+                    },
+                },
+            });
+        }
+        catch (_g) {
+            /* payment still succeeds */
+        }
     }
     return payment;
 });
@@ -205,6 +225,24 @@ const updatePayment = (id, actor, body) => __awaiter(void 0, void 0, void 0, fun
                 where: { id: row.appointmentId },
                 data: { paymentStatus: client_1.PaymentStatus.PAID },
             });
+            try {
+                yield prisma_1.prisma.notification.create({
+                    data: {
+                        userId: row.userId,
+                        title: "Payment successful",
+                        body: `Your visit payment is marked Paid (${(0, validation_1.optionalString)(body.provider) || row.provider || "local money"}). Open My Visits to track the booking.`,
+                        type: "PAYMENT_SUCCESS",
+                        channel: "IN_APP",
+                        data: {
+                            paymentId: row.id,
+                            appointmentId: row.appointmentId,
+                        },
+                    },
+                });
+            }
+            catch (_k) {
+                /* payment still succeeds */
+            }
         }
     }
     if (body.method !== undefined) {

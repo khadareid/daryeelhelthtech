@@ -49,6 +49,7 @@ export function Screen({
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
+      {/* Header stays fixed — never scrolls away */}
       {header ? (
         <AppHeader
           title={headerTitle}
@@ -58,8 +59,10 @@ export function Screen({
       ) : null}
       {scroll ? (
         <ScrollView
+          style={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
           contentContainerStyle={[styles.content, padding, contentStyle]}
           refreshControl={
             onRefresh ? (
@@ -84,6 +87,9 @@ export function Screen({
 
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
+  },
+  scroll: {
     flex: 1,
   },
   content: {

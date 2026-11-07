@@ -105,7 +105,7 @@ export default function UserProfile() {
       const user = await updateProfile({
         fullName: form.fullName.trim(),
         phone: form.phone.trim() || null,
-        gender: (form.gender as "MALE" | "FEMALE" | "OTHER") || null,
+        gender: (form.gender as "MALE" | "FEMALE") || null,
         dateOfBirth: form.dateOfBirth || null,
         avatarUrl: form.image || null,
         country: form.country || null,

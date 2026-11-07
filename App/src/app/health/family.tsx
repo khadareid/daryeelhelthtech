@@ -15,6 +15,7 @@ import {
   formStyles,
 } from '@/components/form-ui';
 import { Screen } from '@/components/screen';
+import { CardListSkeleton } from '@/components/skeleton';
 import { Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -36,13 +37,19 @@ export default function FamilyScreen() {
   const [phone, setPhone] = useState('');
   const [gender, setGender] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
     try {
       setItems(await listFamilyMembersRequest(accessToken));
     } catch {
       setItems([]);
+    } finally {
+      setLoading(false);
     }
   }, [accessToken]);
 
@@ -133,21 +140,26 @@ export default function FamilyScreen() {
         </Pressable>
       </View>
 
-      <TableHead columns={['Name', 'Family', 'Phone']} />
-      {items.length === 0 ? (
-        <Text style={formStyles.empty}>No family members yet.</Text>
-      ) : (
-        items.map((item) => (
-          <TableRow
-            key={item.id}
-            cells={[
-              item.fullName,
-              enumLabel(item.relationship),
-              item.phone || '—',
-            ]}
-          />
-        ))
-      )}
+      {loading ? <CardListSkeleton rows={3} /> : null}
+      {!loading ? (
+        <>
+          <TableHead columns={['Name', 'Family', 'Phone']} />
+          {items.length === 0 ? (
+            <Text style={formStyles.empty}>No family members yet.</Text>
+          ) : (
+            items.map((item) => (
+              <TableRow
+                key={item.id}
+                cells={[
+                  item.fullName,
+                  enumLabel(item.relationship),
+                  item.phone || '—',
+                ]}
+              />
+            ))
+          )}
+        </>
+      ) : null}
     </Screen>
   );
 }

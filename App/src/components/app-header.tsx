@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import {
   Pressable,
@@ -9,10 +10,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { siteConfig } from '@/config/site';
-import { UNREAD_NOTIFICATION_COUNT } from '@/constants/notifications';
 import { Fonts, Radius, Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import { useThemePreference } from '@/context/theme-context';
 import { useTheme } from '@/hooks/use-theme';
+import { listNotificationsRequest } from '@/lib/api';
+import { useEffect, useState } from 'react';
 
 type Props = {
   title?: string;
@@ -21,6 +24,7 @@ type Props = {
   compact?: boolean;
 };
 
+/** Full tab header — brand, page title, theme + alerts. Stays fixed (not scrolled away). */
 export function AppHeader({
   title,
   subtitle,
@@ -29,10 +33,21 @@ export function AppHeader({
 }: Props) {
   const theme = useTheme();
   const { isDark, toggleTheme } = useThemePreference();
+  const { accessToken, isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isNarrow = width < 380;
-  const unread = UNREAD_NOTIFICATION_COUNT;
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken) {
+      setUnread(0);
+      return;
+    }
+    listNotificationsRequest(accessToken)
+      .then((items) => setUnread(items.filter((n) => !n.isRead).length))
+      .catch(() => setUnread(0));
+  }, [accessToken, isAuthenticated, title]);
 
   return (
     <View
@@ -63,6 +78,7 @@ export function AppHeader({
                     style={[styles.pageTitle, { color: theme.textSecondary }]}
                     numberOfLines={1}>
                     {title}
+                    {subtitle ? ` · ${subtitle}` : ''}
                   </Text>
                 ) : (
                   <Text
@@ -98,12 +114,16 @@ export function AppHeader({
                 borderColor: theme.border,
               },
             ]}>
-            <Text style={styles.iconGlyph}>{isDark ? '☀️' : '🌙'}</Text>
+            <Ionicons
+              name={isDark ? 'sunny-outline' : 'moon-outline'}
+              size={18}
+              color={theme.primary}
+            />
           </Pressable>
 
           <Pressable
             accessibilityLabel="Notifications"
-            onPress={() => router.push('/notifications')}
+            onPress={() => router.push('/(tabs)/notifications')}
             style={[
               styles.iconBtn,
               {
@@ -111,7 +131,11 @@ export function AppHeader({
                 borderColor: theme.border,
               },
             ]}>
-            <Text style={styles.iconGlyph}>🔔</Text>
+            <Ionicons
+              name="notifications-outline"
+              size={18}
+              color={theme.primary}
+            />
             {unread > 0 ? (
               <View style={[styles.badge, { backgroundColor: theme.danger }]}>
                 <Text style={styles.badgeText}>
@@ -195,9 +219,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconGlyph: {
-    fontSize: 16,
   },
   badge: {
     position: 'absolute',

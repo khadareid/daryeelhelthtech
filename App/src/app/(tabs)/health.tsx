@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ProgressRing } from '@/components/health/progress-ring';
 import { Screen } from '@/components/screen';
+import { UserAvatar } from '@/components/user-avatar';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useGoogleHealthLink } from '@/hooks/use-google-health';
@@ -144,11 +145,12 @@ export default function HealthDailyScreen() {
             Activity like Google Health — auto steps, rings & daily sync.
           </Text>
         </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {firstName.slice(0, 1).toUpperCase()}
-          </Text>
-        </View>
+        <UserAvatar
+          name={user?.fullName}
+          photo={user?.avatarUrl || user?.picture}
+          gender={user?.gender}
+          size={48}
+        />
       </View>
 
       {ready ? (

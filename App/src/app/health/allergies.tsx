@@ -15,6 +15,7 @@ import {
   formStyles,
 } from '@/components/form-ui';
 import { Screen } from '@/components/screen';
+import { CardListSkeleton } from '@/components/skeleton';
 import { Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -35,13 +36,19 @@ export default function AllergiesScreen() {
   const [severity, setSeverity] = useState('MODERATE');
   const [type, setType] = useState('OTHER');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
     try {
       setItems(await listAllergiesRequest(accessToken));
     } catch {
       setItems([]);
+    } finally {
+      setLoading(false);
     }
   }, [accessToken]);
 
@@ -118,21 +125,26 @@ export default function AllergiesScreen() {
         </Pressable>
       </View>
 
-      <TableHead columns={['Allergen', 'Type', 'Severity']} />
-      {items.length === 0 ? (
-        <Text style={formStyles.empty}>No allergies recorded.</Text>
-      ) : (
-        items.map((item) => (
-          <TableRow
-            key={item.id}
-            cells={[
-              item.allergen,
-              enumLabel(item.type),
-              enumLabel(item.severity, 'Unknown'),
-            ]}
-          />
-        ))
-      )}
+      {loading ? <CardListSkeleton rows={3} /> : null}
+      {!loading ? (
+        <>
+          <TableHead columns={['Allergen', 'Type', 'Severity']} />
+          {items.length === 0 ? (
+            <Text style={formStyles.empty}>No allergies recorded.</Text>
+          ) : (
+            items.map((item) => (
+              <TableRow
+                key={item.id}
+                cells={[
+                  item.allergen,
+                  enumLabel(item.type),
+                  enumLabel(item.severity, 'Unknown'),
+                ]}
+              />
+            ))
+          )}
+        </>
+      ) : null}
     </Screen>
   );
 }

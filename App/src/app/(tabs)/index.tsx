@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -8,13 +8,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
 import { DoctorListCard } from '@/components/doctor-list-card';
 import { Screen } from '@/components/screen';
+import { AppLoadingSkeleton, ListSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
+import { UserAvatar } from '@/components/user-avatar';
 import { CATEGORIES } from '@/constants/content';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -39,58 +40,101 @@ type TodayLog = {
   sleepHours?: number | null;
 };
 
-/** Mirrors Website CareHome SERVICES */
-const HEALTH_LINKS: { id: string; title: string; desc: string; href: Href }[] =
-  [
-    {
-      id: 'doctors',
-      title: 'Doctors',
-      desc: 'Book a clinician',
-      href: '/(tabs)/doctors',
-    },
-    {
-      id: 'vitals',
-      title: 'Vitals',
-      desc: 'Log BP & HR',
-      href: '/health/vitals',
-    },
-    {
-      id: 'health',
-      title: 'Health',
-      desc: 'Daily log',
-      href: '/(tabs)/health',
-    },
-    {
-      id: 'visits',
-      title: 'Visits',
-      desc: 'Book & confirm',
-      href: '/(tabs)/appointments',
-    },
-    {
-      id: 'payments',
-      title: 'Payments',
-      desc: 'Free or pay fee',
-      href: '/health/payments',
-    },
-    {
-      id: 'records',
-      title: 'Records',
-      desc: 'Visits, labs, docs',
-      href: '/health/medical-records',
-    },
-    {
-      id: 'emergency',
-      title: 'Emergency',
-      desc: 'Card & contacts',
-      href: '/health/emergency-card',
-    },
-    {
-      id: 'family',
-      title: 'Family',
-      desc: 'Members & phone',
-      href: '/health/family',
-    },
-  ];
+type CareTool = {
+  id: string;
+  title: string;
+  desc: string;
+  href: Href;
+  icon: keyof typeof Ionicons.glyphMap;
+};
+
+/** Mirrors Website CareHome services — compact icon tiles */
+const CARE_TOOLS: CareTool[] = [
+  {
+    id: 'doctors',
+    title: 'Doctors',
+    desc: 'Book a clinician',
+    href: '/(tabs)/doctors',
+    icon: 'medkit-outline',
+  },
+  {
+    id: 'vitals',
+    title: 'Vitals',
+    desc: 'Log BP & HR',
+    href: '/health/vitals',
+    icon: 'pulse-outline',
+  },
+  {
+    id: 'health',
+    title: 'Health',
+    desc: 'Daily log',
+    href: '/(tabs)/health',
+    icon: 'heart-outline',
+  },
+  {
+    id: 'visits',
+    title: 'Visits',
+    desc: 'Book & confirm',
+    href: '/(tabs)/appointments',
+    icon: 'calendar-outline',
+  },
+  {
+    id: 'payments',
+    title: 'Payments',
+    desc: 'Free or pay fee',
+    href: '/health/payments',
+    icon: 'card-outline',
+  },
+  {
+    id: 'records',
+    title: 'Records',
+    desc: 'Visits, labs, docs',
+    href: '/health/medical-records',
+    icon: 'document-text-outline',
+  },
+  {
+    id: 'medications',
+    title: 'Meds',
+    desc: 'Your medicines',
+    href: '/health/medications',
+    icon: 'medical-outline',
+  },
+  {
+    id: 'allergies',
+    title: 'Allergies',
+    desc: 'Reactions',
+    href: '/health/allergies',
+    icon: 'alert-circle-outline',
+  },
+  {
+    id: 'family',
+    title: 'Family',
+    desc: 'Members',
+    href: '/health/family',
+    icon: 'people-outline',
+  },
+  {
+    id: 'emergency',
+    title: 'Emergency',
+    desc: 'Card & contacts',
+    href: '/health/emergency-card',
+    icon: 'shield-checkmark-outline',
+  },
+  {
+    id: 'prescriptions',
+    title: 'Rx',
+    desc: 'Prescriptions',
+    href: '/health/prescriptions',
+    icon: 'clipboard-outline',
+  },
+  {
+    id: 'alerts',
+    title: 'Alerts',
+    desc: 'Notifications',
+    href: '/(tabs)/notifications',
+    icon: 'notifications-outline',
+  },
+];
 
 function greetingForNow() {
   const hour = new Date().getHours();
@@ -105,16 +149,17 @@ function progress(value: number, goal: number) {
 
 export default function HomeScreen() {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
   const { user, profile, accessToken, refreshProfile, apiOnline } = useAuth();
-  const { doctors, refresh } = useDoctors();
+  const { doctors, refresh, loading: doctorsLoading } = useDoctors();
   const [todayLog, setTodayLog] = useState<TodayLog | null>(null);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [medications, setMedications] = useState<MedicationItem[]>([]);
-  const serviceWidth = width < 380 ? '100%' : '48%';
+  const [loadingHome, setLoadingHome] = useState(true);
 
-  const firstName = (user?.fullName || 'there').split(' ')[0];
+  const fullName = user?.fullName || 'there';
+  const firstName = fullName.split(' ')[0];
   const photo = user?.avatarUrl || user?.picture;
+  const gender = user?.gender || profile?.gender;
   const healthId = profile?.healthId || user?.healthId;
   const liveAppointment = appointments[0];
 
@@ -126,15 +171,22 @@ export default function HomeScreen() {
   };
 
   async function loadExtras() {
-    if (!accessToken) return;
-    const [logRes, appts, meds] = await Promise.all([
-      getTodayHealthLog(accessToken),
-      listAppointmentsRequest(accessToken).catch(() => []),
-      listMedicationsRequest(accessToken).catch(() => []),
-    ]);
-    setTodayLog((logRes?.result as TodayLog | null) ?? null);
-    setAppointments(appts);
-    setMedications(meds.filter((m) => m.isActive !== false));
+    if (!accessToken) {
+      setLoadingHome(false);
+      return;
+    }
+    try {
+      const [logRes, appts, meds] = await Promise.all([
+        getTodayHealthLog(accessToken),
+        listAppointmentsRequest(accessToken).catch(() => []),
+        listMedicationsRequest(accessToken).catch(() => []),
+      ]);
+      setTodayLog((logRes?.result as TodayLog | null) ?? null);
+      setAppointments(appts);
+      setMedications(meds.filter((m) => m.isActive !== false));
+    } finally {
+      setLoadingHome(false);
+    }
   }
 
   async function onRefresh() {
@@ -145,85 +197,116 @@ export default function HomeScreen() {
     loadExtras();
   }, [accessToken]);
 
+  if (loadingHome && !todayLog && appointments.length === 0) {
+    return <AppLoadingSkeleton />;
+  }
+
   return (
     <Screen onRefresh={onRefresh} headerTitle="Home">
-      <View
-        style={[
-          styles.greetCard,
-          {
-            backgroundColor: theme.backgroundElement,
-            borderColor: theme.border,
-          },
-        ]}>
-        <Pressable onPress={() => router.push('/(tabs)/profile')}>
-          <Image
-            source={
-              photo ||
-              'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&q=80'
-            }
-            style={styles.avatar}
-            contentFit="cover"
+      {/* Greeting */}
+      <LinearGradient
+        colors={['#FFFFFF', Brand.light, '#E8F1FF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { borderColor: theme.border }]}>
+        <View style={styles.greetRow}>
+          <Pressable onPress={() => router.push('/(tabs)/profile')}>
+            <UserAvatar
+              name={fullName}
+              photo={photo}
+              gender={gender}
+              size={56}
+            />
+          </Pressable>
+          <View style={styles.greetWrap}>
+            <Text style={[styles.brandLabel, { color: theme.primary }]}>
+              Daryeel Health
+            </Text>
+            <Text style={[styles.hello, { color: theme.brandDark }]}>
+              {greetingForNow()}, {firstName}
+            </Text>
+            <Text style={[styles.ready, { color: theme.textSecondary }]}>
+              {fullName}
+              {apiOnline ? ' · Connected' : ' · Offline'}
+            </Text>
+            {healthId ? (
+              <Text style={styles.patientId}>Health ID · {healthId}</Text>
+            ) : null}
+          </View>
+          <Pressable
+            onPress={() => router.push('/(tabs)/notifications')}
+            style={[styles.bell, { backgroundColor: Brand.light }]}>
+            <Ionicons
+              name="notifications-outline"
+              size={20}
+              color={theme.primary}
+            />
+          </Pressable>
+        </View>
+
+        <Pressable
+          onPress={() => router.push('/(tabs)/doctors')}
+          style={[
+            styles.searchBox,
+            {
+              backgroundColor: theme.backgroundElement,
+              borderColor: theme.border,
+            },
+          ]}>
+          <Ionicons
+            name="search-outline"
+            size={18}
+            color={theme.textSecondary}
+          />
+          <TextInput
+            placeholder="Search doctors, specialty, city..."
+            placeholderTextColor={theme.textSecondary}
+            style={[styles.searchInput, { color: theme.text }]}
+            editable={false}
+            pointerEvents="none"
           />
         </Pressable>
-        <View style={styles.greetWrap}>
-          <Text style={[styles.hello, { color: theme.brandDark }]}>
-            {greetingForNow()}, {firstName}
+
+        {/* Care tools — horizontal scroll row (name under icon) */}
+        <View style={styles.careHead}>
+          <Text style={[styles.careTitle, { color: theme.brandDark }]}>
+            Care tools
           </Text>
-          <Text style={[styles.ready, { color: theme.textSecondary }]}>
-            Your care home · {apiOnline ? 'Connected' : 'Offline'}
+          <Text style={[styles.careSub, { color: theme.textSecondary }]}>
+            Swipe sideways · tap a name to open
           </Text>
-          {healthId ? (
-            <Text style={styles.patientId}>Health ID · {healthId}</Text>
-          ) : null}
         </View>
-        <Pressable
-          onPress={() => router.push('/notifications')}
-          style={styles.bell}>
-          <Text style={{ color: theme.primary, fontSize: 18 }}>🔔</Text>
-        </Pressable>
-      </View>
-
-      <View
-        style={[
-          styles.searchBox,
-          {
-            backgroundColor: theme.backgroundElement,
-            borderColor: theme.border,
-          },
-        ]}>
-        <TextInput
-          placeholder="Search doctors, specialty, city..."
-          placeholderTextColor={theme.textSecondary}
-          style={[styles.searchInput, { color: theme.text }]}
-          onFocus={() => router.push('/(tabs)/doctors')}
-        />
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: theme.brandDark }]}>
-        Care tools
-      </Text>
-      <View style={styles.servicesGrid}>
-        {HEALTH_LINKS.map((service) => (
-          <Pressable
-            key={service.id}
-            style={[
-              styles.serviceCard,
-              {
-                width: serviceWidth,
-                backgroundColor: theme.backgroundElement,
-                borderColor: theme.border,
-              },
-            ]}
-            onPress={() => router.push(service.href)}>
-            <Text style={[styles.serviceTitle, { color: theme.brandDark }]}>
-              {service.title}
-            </Text>
-            <Text style={[styles.serviceDesc, { color: theme.textSecondary }]}>
-              {service.desc}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={108}
+          snapToAlignment="start"
+          contentContainerStyle={styles.toolsRow}>
+          {CARE_TOOLS.map((tool) => (
+            <Pressable
+              key={tool.id}
+              style={[
+                styles.toolTile,
+                {
+                  backgroundColor: '#FFFFFF',
+                  borderColor: theme.border,
+                },
+              ]}
+              onPress={() => router.push(tool.href)}>
+              <View style={styles.toolIcon}>
+                <Ionicons name={tool.icon} size={22} color={Brand.primary} />
+              </View>
+              <Text
+                style={[styles.toolTitle, { color: theme.brandDark }]}
+                numberOfLines={2}>
+                {tool.title}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </LinearGradient>
 
       <LinearGradient
         colors={[theme.primary, '#3B82F6']}
@@ -258,36 +341,12 @@ export default function HomeScreen() {
             borderColor: theme.border,
           },
         ]}>
-        <View
-          style={{
-            backgroundColor: theme.primary,
-            borderRadius: 20,
-            padding: 16,
-            marginBottom: 12,
-          }}>
-          <Text
-            style={{
-              color: '#fff',
-              fontFamily: Fonts.semibold,
-              fontSize: 13,
-              marginBottom: 6,
-            }}>
-            Walk · today
-          </Text>
-          <Text
-            style={{
-              color: '#fff',
-              fontFamily: Fonts.bold,
-              fontSize: 28,
-            }}>
+        <View style={styles.walkBanner}>
+          <Text style={styles.walkLabel}>Walk · today</Text>
+          <Text style={styles.walkValue}>
             {Number(daily.steps).toLocaleString()}
           </Text>
-          <Text
-            style={{
-              color: 'rgba(255,255,255,0.85)',
-              fontSize: 12,
-              marginTop: 2,
-            }}>
+          <Text style={styles.walkGoal}>
             of {DEFAULT_STEPS_GOAL.toLocaleString()} goal
           </Text>
         </View>
@@ -336,6 +395,9 @@ export default function HomeScreen() {
         ))}
       </ScrollView>
       <View style={styles.doctorList}>
+        {doctorsLoading && doctors.length === 0 ? (
+          <ListSkeleton rows={3} />
+        ) : null}
         {doctors.slice(0, 4).map((doctor) => (
           <DoctorListCard
             key={doctor.id}
@@ -343,7 +405,7 @@ export default function HomeScreen() {
             onPress={() => router.push(`/doctor/${doctor.id}` as Href)}
           />
         ))}
-        {doctors.length === 0 ? (
+        {!doctorsLoading && doctors.length === 0 ? (
           <Text style={[styles.meta, { color: theme.textSecondary }]}>
             No verified doctors yet. Pull to refresh when the API is online.
           </Text>
@@ -483,7 +545,10 @@ function DailyBar({
         <View
           style={[
             styles.barFill,
-            { width: `${Math.round(ratio * 100)}%`, backgroundColor: theme.primary },
+            {
+              width: `${Math.round(ratio * 100)}%`,
+              backgroundColor: theme.primary,
+            },
           ]}
         />
       </View>
@@ -492,25 +557,29 @@ function DailyBar({
 }
 
 const styles = StyleSheet.create({
-  greetCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
+  hero: {
     borderRadius: Radius.xl,
     borderWidth: 1,
     padding: Spacing.three,
+    gap: Spacing.three,
+    overflow: 'hidden',
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Brand.light,
+  greetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
   },
   greetWrap: { flex: 1, gap: 2 },
+  brandLabel: {
+    fontFamily: Fonts.semibold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
   hello: { fontFamily: Fonts.bold, fontSize: 20 },
   ready: { fontFamily: Fonts.regular, fontSize: 13 },
   patientId: {
-    marginTop: 4,
+    marginTop: 2,
     fontFamily: Fonts.semibold,
     fontSize: 12,
     color: Brand.primary,
@@ -521,18 +590,56 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Brand.light,
   },
   searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderRadius: Radius.full,
     borderWidth: 1,
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.three,
     paddingVertical: 4,
   },
   searchInput: {
+    flex: 1,
     fontFamily: Fonts.regular,
     fontSize: 15,
     paddingVertical: 10,
+  },
+  careHead: { gap: 2 },
+  careTitle: { fontFamily: Fonts.bold, fontSize: 17 },
+  careSub: { fontFamily: Fonts.regular, fontSize: 12 },
+  toolsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+    paddingVertical: 4,
+    paddingRight: 12,
+  },
+  toolTile: {
+    width: 98,
+    minHeight: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    gap: 8,
+  },
+  toolIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Brand.light,
+  },
+  toolTitle: {
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    lineHeight: 16,
+    textAlign: 'center',
   },
   sectionTitle: {
     fontFamily: Fonts.bold,
@@ -543,20 +650,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  servicesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.three,
-    justifyContent: 'space-between',
-  },
-  serviceCard: {
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    padding: Spacing.three,
-    gap: 4,
-  },
-  serviceTitle: { fontFamily: Fonts.semibold, fontSize: 15 },
-  serviceDesc: { fontFamily: Fonts.regular, fontSize: 12 },
   promo: {
     borderRadius: Radius.xl,
     padding: Spacing.four,
@@ -578,6 +671,28 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     borderWidth: 1,
     padding: Spacing.three,
+  },
+  walkBanner: {
+    backgroundColor: Brand.primary,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+  },
+  walkLabel: {
+    color: '#fff',
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    marginBottom: 6,
+  },
+  walkValue: {
+    color: '#fff',
+    fontFamily: Fonts.bold,
+    fontSize: 28,
+  },
+  walkGoal: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    marginTop: 2,
   },
   barTop: {
     flexDirection: 'row',

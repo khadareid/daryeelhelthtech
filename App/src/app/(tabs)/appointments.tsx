@@ -3,15 +3,18 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PayInvoiceSheet } from '@/components/pay-invoice-sheet';
 import { Screen } from '@/components/screen';
+import { CardListSkeleton } from '@/components/skeleton';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
-  createPaymentRequest,
   getMyDoctorRequest,
   listAppointmentsRequest,
+  listPaymentsRequest,
+  payBookingInvoiceRequest,
   updateAppointmentRequest,
   type AppointmentItem,
   type DoctorMe,
+  type PaymentItem,
 } from '@/lib/api';
 import { enumLabel } from '@/lib/enums';
 import { localPayLabel, type InvoiceDraft } from '@/lib/payments';
@@ -57,6 +60,8 @@ export default function AppointmentsScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceDraft | null>(null);
   const [paying, setPaying] = useState(false);
+  const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(
     String(user?.role || '').toUpperCase(),
@@ -66,20 +71,27 @@ export default function AppointmentsScreen() {
     if (!isAuthenticated || !accessToken) {
       setRemote([]);
       setDoctor(null);
+      setLoading(false);
       return;
     }
     try {
       const me = await getMyDoctorRequest(accessToken);
       setDoctor(me);
       const asDoctor = Boolean(me?.id) && mode === 'doctor';
-      setRemote(
-        await listAppointmentsRequest(
+      const [rows, pays] = await Promise.all([
+        listAppointmentsRequest(
           accessToken,
           asDoctor ? { as: 'doctor' } : undefined,
         ),
-      );
+        listPaymentsRequest(accessToken).catch(() => [] as PaymentItem[]),
+      ]);
+      setRemote(rows);
+      setPayments(pays);
     } catch {
       setRemote([]);
+      setPayments([]);
+    } finally {
+      setLoading(false);
     }
   }, [accessToken, isAuthenticated, mode]);
 
@@ -152,14 +164,20 @@ export default function AppointmentsScreen() {
 
   const openPayInvoice = (item: ApptRow) => {
     const a = item.raw;
+    const pendingPay = payments.find(
+      (p) =>
+        p.appointmentId === a.id &&
+        ['PENDING', 'FAILED', 'PROCESSING'].includes(String(p.status || '')),
+    );
     setInvoice({
       appointmentId: a.id,
+      paymentId: pendingPay?.id,
       appointmentCode: a.appointmentCode,
       doctorName: a.doctor?.fullName || 'Doctor',
-      patientName: a.user?.fullName,
+      patientName: a.user?.fullName || undefined,
       scheduledAt: a.scheduledAt,
-      amount: Number(a.consultationFee || 0),
-      currency: a.currency || 'USD',
+      amount: Number(a.consultationFee || pendingPay?.amount || 0),
+      currency: a.currency || pendingPay?.currency || 'USD',
       reason: a.reason,
     });
   };
@@ -221,6 +239,7 @@ export default function AppointmentsScreen() {
       </View>
 
       <View style={styles.list}>
+        {loading && remote.length === 0 ? <CardListSkeleton rows={4} /> : null}
         {appointments.map((item) => {
           const pending = ['PENDING', 'RESCHEDULE_REQUESTED'].includes(
             item.rawStatus,
@@ -233,9 +252,21 @@ export default function AppointmentsScreen() {
                 <Text style={styles.status}>{item.status}</Text>
               </View>
               <Text style={styles.when}>{item.when}</Text>
-              <Text style={styles.fee}>
-                {item.feeLabel} · {item.raw.paymentStatus || 'PENDING'}
-              </Text>
+              <View style={styles.payRow}>
+                <Text style={styles.fee}>{item.feeLabel}</Text>
+                <Text
+                  style={[
+                    styles.payBadge,
+                    String(item.raw.paymentStatus).toUpperCase() === 'PAID' ||
+                    item.feeLabel === 'Free'
+                      ? styles.payBadgePaid
+                      : styles.payBadgePending,
+                  ]}>
+                  {item.feeLabel === 'Free'
+                    ? 'Free · Paid'
+                    : enumLabel(String(item.raw.paymentStatus || 'PENDING'))}
+                </Text>
+              </View>
               {item.detail ? (
                 <Text style={styles.reason}>{item.detail}</Text>
               ) : null}
@@ -296,7 +327,7 @@ export default function AppointmentsScreen() {
           );
         })}
 
-        {appointments.length === 0 ? (
+        {!loading && appointments.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No visits in this tab</Text>
             <Text style={styles.emptyText}>
@@ -313,16 +344,16 @@ export default function AppointmentsScreen() {
         busy={paying}
         onClose={() => setInvoice(null)}
         onPay={async ({ method, provider, phone }) => {
-          if (!accessToken || !invoice) return;
+          if (!accessToken || !invoice?.appointmentId) return;
           setPaying(true);
           try {
-            await createPaymentRequest(
+            const paid = await payBookingInvoiceRequest(
               {
                 appointmentId: invoice.appointmentId,
+                paymentId: invoice.paymentId,
                 amount: invoice.amount,
                 currency: invoice.currency,
                 method,
-                status: 'PAID',
                 provider,
                 transactionId: phone,
               },
@@ -330,9 +361,18 @@ export default function AppointmentsScreen() {
             );
             setInvoice(null);
             await loadRemote();
-            Alert.alert('Paid', `Paid with ${localPayLabel(provider, method)}`);
-          } catch {
-            Alert.alert('Payment failed');
+            Alert.alert(
+              'Payment complete',
+              `Paid with ${localPayLabel(provider, method)}.\nStatus: ${enumLabel(String(paid.status || 'PAID'))}\nYour booking is marked Paid.`,
+              [{ text: 'My visits' }],
+            );
+          } catch (error) {
+            Alert.alert(
+              'Payment failed',
+              error instanceof Error
+                ? error.message
+                : 'Could not complete payment.',
+            );
           } finally {
             setPaying(false);
           }
@@ -343,6 +383,28 @@ export default function AppointmentsScreen() {
 }
 
 const styles = StyleSheet.create({
+  payRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  payBadge: {
+    fontFamily: Fonts.semibold,
+    fontSize: 11,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+  },
+  payBadgePaid: {
+    color: Brand.success,
+    backgroundColor: '#ECFDF5',
+  },
+  payBadgePending: {
+    color: '#B45309',
+    backgroundColor: '#FFFBEB',
+  },
   title: {
     fontFamily: Fonts.bold,
     fontSize: 28,
