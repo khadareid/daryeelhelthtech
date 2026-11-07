@@ -8,7 +8,7 @@ const frontendBase = () => {
   const fromEnv = (process.env.FRONTEND_URL || "").replace(/"/g, "").trim();
   return (
     fromEnv ||
-    "https://daryeel-healthtech-gamma.vercel.app"
+    "https://daryeelhelthtech.vercel.app"
   ).replace(/\/$/, "");
 };
 
