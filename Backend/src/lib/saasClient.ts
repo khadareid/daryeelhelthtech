@@ -19,9 +19,15 @@ export type SaaSJson = {
 const DEFAULT_SAAS_HOST =
   "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
 
+function isLocalSaasUrl(url: string) {
+  return /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(url);
+}
+
 /**
  * Normalize SaaS API base so `/api/v1` is always present exactly once.
- * Fixes common Vercel env mistakes (host only, or duplicated /api/v1).
+ * Fixes common Vercel env mistakes:
+ * - host only / duplicated /api/v1
+ * - production SAAS_API_URL accidentally set to localhost
  */
 function saasBaseUrl() {
   let raw = (
@@ -32,7 +38,14 @@ function saasBaseUrl() {
     .trim()
     .replace(/\/$/, "");
 
-  if (!raw) raw = DEFAULT_SAAS_HOST;
+  // Production must never call localhost SaaS
+  if (
+    !raw ||
+    (process.env.NODE_ENV === "production" && isLocalSaasUrl(raw)) ||
+    (process.env.VERCEL === "1" && isLocalSaasUrl(raw))
+  ) {
+    raw = DEFAULT_SAAS_HOST;
+  }
 
   // Host-only → append /api/v1
   if (!/\/api\/v1$/i.test(raw)) {
