@@ -72,14 +72,10 @@ function normalizeOrigin(value: string): string {
   return value.trim().replace(/\/$/, "");
 }
 
-const allowedOrigins = [
-  // "http://localhost:5173",
-  // "http://localhost:5174",
-  // "http://localhost:5175",
+const allowedOrigins = [ 
   "http://localhost:8081",
-  "http://localhost:8082",
-  // "http://localhost:3000",
-  // "http://localhost:3001",
+  "http://localhost:8082", 
+  "https://daryeel-saas-healthtech-six.vercel.app",
   "https://daryeelhelthtech.vercel.app",
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ORIGINS || "")
@@ -100,9 +96,9 @@ const isPrivateHost = (hostname: string) => {
 
 const isAllowedVercelPreview = (hostname: string) =>
   hostname === "daryeel-healthtech.vercel.app" ||
-  hostname === "daryeel-healthtech-gamma.vercel.app" ||
+  hostname === "https://daryeelhelthtech.vercel.app" ||
   hostname.endsWith(".daryeel-healthtech.vercel.app") ||
-  hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
+  hostname.endsWith(".https://daryeelhelthtech.vercel.app") ||
   /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
 
 const isAllowedOrigin = (origin?: string | null) => {
