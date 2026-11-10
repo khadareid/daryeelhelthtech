@@ -148,7 +148,7 @@ function ensureBookingConsent(input) {
 }
 function createHealthcareBooking(input) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
         const saasTenantId = String(input.tenantId || input.hospitalId || "");
         const saasDoctorId = String(input.doctorId || "");
         const when = new Date(input.scheduledAt);
@@ -173,19 +173,29 @@ function createHealthcareBooking(input) {
             doctor = (_b = doctorRes.data) !== null && _b !== void 0 ? _b : doctorRes.result;
         }
         catch (error) {
-            if ((error === null || error === void 0 ? void 0 : error.status) === 404) {
+            // Fallback: resolve doctor from public hospital detail (no integration key)
+            const fromHospital = Array.isArray(hospital === null || hospital === void 0 ? void 0 : hospital.doctors)
+                ? hospital.doctors.find((d) => String((d === null || d === void 0 ? void 0 : d.doctorId) || (d === null || d === void 0 ? void 0 : d.userId) || (d === null || d === void 0 ? void 0 : d.id) || "") === saasDoctorId)
+                : null;
+            if (fromHospital) {
+                doctor = fromHospital;
+            }
+            else if ((error === null || error === void 0 ? void 0 : error.status) === 404) {
                 throw new healthcareErrors_1.HealthcareError("Doctor not found", 404, healthcareErrors_1.HealthcareErrorCodes.DOCTOR_NOT_FOUND);
             }
-            throw error;
+            else {
+                throw error;
+            }
         }
-        if ((doctor === null || doctor === void 0 ? void 0 : doctor.tenantId) && doctor.tenantId !== saasTenantId) {
+        const doctorTenantId = String((doctor === null || doctor === void 0 ? void 0 : doctor.tenantId) || (doctor === null || doctor === void 0 ? void 0 : doctor.hospitalId) || ((_c = doctor === null || doctor === void 0 ? void 0 : doctor.tenant) === null || _c === void 0 ? void 0 : _c.tenantId) || "");
+        if (doctorTenantId && doctorTenantId !== saasTenantId) {
             throw new healthcareErrors_1.HealthcareError("Doctor does not belong to the selected hospital", 400, healthcareErrors_1.HealthcareErrorCodes.VALIDATION_ERROR);
         }
         // Soft availability check when date provided
         try {
             const date = when.toISOString().slice(0, 10);
             const availRes = yield saasIntegration_service_1.SaasIntegrationService.getDoctorAvailability(saasDoctorId, date);
-            const avail = (_c = availRes.data) !== null && _c !== void 0 ? _c : availRes.result;
+            const avail = (_d = availRes.data) !== null && _d !== void 0 ? _d : availRes.result;
             const slots = Array.isArray(avail === null || avail === void 0 ? void 0 : avail.slots)
                 ? avail.slots
                 : Array.isArray(avail)
@@ -246,10 +256,10 @@ function createHealthcareBooking(input) {
             throw new healthcareErrors_1.HealthcareError("Your profile email is required to book with a hospital", 400, healthcareErrors_1.HealthcareErrorCodes.VALIDATION_ERROR);
         }
         const facilityName = input.facilityName || (hospital === null || hospital === void 0 ? void 0 : hospital.companyName) || (hospital === null || hospital === void 0 ? void 0 : hospital.name) || null;
-        const doctorName = input.doctorName || ((_d = doctor === null || doctor === void 0 ? void 0 : doctor.user) === null || _d === void 0 ? void 0 : _d.name) || (doctor === null || doctor === void 0 ? void 0 : doctor.name) || "Doctor";
+        const doctorName = input.doctorName || ((_e = doctor === null || doctor === void 0 ? void 0 : doctor.user) === null || _e === void 0 ? void 0 : _e.name) || (doctor === null || doctor === void 0 ? void 0 : doctor.name) || "Doctor";
         const specialty = input.specialty ||
             (doctor === null || doctor === void 0 ? void 0 : doctor.specialization) ||
-            ((_e = doctor === null || doctor === void 0 ? void 0 : doctor.professionalProfile) === null || _e === void 0 ? void 0 : _e.specialization) ||
+            ((_f = doctor === null || doctor === void 0 ? void 0 : doctor.professionalProfile) === null || _f === void 0 ? void 0 : _f.specialization) ||
             null;
         const consentRecordId = yield ensureBookingConsent({
             userId: input.userId,
@@ -288,6 +298,15 @@ function createHealthcareBooking(input) {
             return { appointment: existingLocal, created: false };
         }
         const duration = Number(input.duration) > 0 ? Number(input.duration) : 30;
+        const consultationFee = input.consultationFee !== undefined && input.consultationFee !== null
+            ? Number(input.consultationFee)
+            : (doctor === null || doctor === void 0 ? void 0 : doctor.consultationFee) != null
+                ? Number(doctor.consultationFee)
+                : null;
+        const feeAmount = consultationFee != null && !Number.isNaN(consultationFee)
+            ? consultationFee
+            : 0;
+        const paymentRequired = feeAmount > 0;
         const local = yield prisma_1.prisma.appointment.create({
             data: {
                 userId: input.userId,
@@ -316,13 +335,9 @@ function createHealthcareBooking(input) {
                 notes: input.notes ? String(input.notes) : null,
                 status: client_1.AppointmentStatus.PENDING,
                 hospitalPaymentStatus: client_1.HospitalPaymentStatus.UNPAID,
-                paymentRequired: false,
-                paymentStatus: "PENDING",
-                consultationFee: input.consultationFee !== undefined && input.consultationFee !== null
-                    ? Number(input.consultationFee)
-                    : (doctor === null || doctor === void 0 ? void 0 : doctor.consultationFee) != null
-                        ? Number(doctor.consultationFee)
-                        : null,
+                paymentRequired,
+                paymentStatus: paymentRequired ? "PENDING" : "PENDING",
+                consultationFee,
                 currency: input.currency ? String(input.currency) : "USD",
                 consentId: consentRecordId,
             },
