@@ -1,5 +1,6 @@
 import { createApi } from "@reduxjs/toolkit/query/react"
 import { apiBaseQuery } from "@/lib/apiBaseQuery"
+import { env } from "@/config/env"
 import { unwrapList, unwrapResult } from "@/Redex/lib/ownedApi"
 import type { ApiResponse } from "@/Redex/types/Types"
 
@@ -277,6 +278,72 @@ export function normalizeAvailabilitySlots(
 
 const BASE = "/healthcare"
 
+type HospitalQueryArgs = {
+  search?: string
+  city?: string
+  department?: string
+  availableToday?: string | boolean
+  availableThisWeek?: string | boolean
+  page?: number
+  limit?: number
+}
+
+function hospitalQueryParams(params?: HospitalQueryArgs | void) {
+  if (!params) return undefined
+  return {
+    ...params,
+    availableToday:
+      params.availableToday === true
+        ? "true"
+        : params.availableToday === false
+          ? undefined
+          : params.availableToday,
+    availableThisWeek:
+      params.availableThisWeek === true
+        ? "true"
+        : params.availableThisWeek === false
+          ? undefined
+          : params.availableThisWeek,
+  }
+}
+
+/** Public SaaS directory fallback when Healthtech proxy returns SAAS_UNAVAILABLE. */
+async function fetchPublicHospitals(
+  params?: HospitalQueryArgs | void
+): Promise<HealthcareHospital[]> {
+  const url = new URL(`${env.saasPublicApiUrl}/company/public-hospitals`)
+  const q = hospitalQueryParams(params)
+  if (q) {
+    for (const [key, value] of Object.entries(q)) {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, String(value))
+      }
+    }
+  }
+  const res = await fetch(url.toString(), {
+    headers: { Accept: "application/json" },
+  })
+  if (!res.ok) {
+    throw new Error(`Public hospitals failed (${res.status})`)
+  }
+  const json = (await res.json()) as ApiResponse<HealthcareHospital[]>
+  return unwrapList(json)
+}
+
+async function fetchPublicHospital(
+  hospitalId: string
+): Promise<HealthcareHospital> {
+  const res = await fetch(
+    `${env.saasPublicApiUrl}/company/public-hospitals/${encodeURIComponent(hospitalId)}`,
+    { headers: { Accept: "application/json" } }
+  )
+  if (!res.ok) {
+    throw new Error(`Public hospital failed (${res.status})`)
+  }
+  const json = (await res.json()) as ApiResponse<HealthcareHospital>
+  return unwrapResult(json)
+}
+
 export const healthcareApi = createApi({
   reducerPath: "healthcareApi",
   baseQuery: apiBaseQuery,
@@ -284,59 +351,85 @@ export const healthcareApi = createApi({
   endpoints: (builder) => ({
     getHospitals: builder.query<
       HealthcareHospital[],
-      {
-        search?: string
-        city?: string
-        department?: string
-        availableToday?: string | boolean
-        availableThisWeek?: string | boolean
-        page?: number
-        limit?: number
-      } | void
+      HospitalQueryArgs | void
     >({
-      query: (params) => ({
-        url: `${BASE}/hospitals`,
-        method: "GET",
-        params: params
-          ? {
-              ...params,
-              availableToday:
-                params.availableToday === true
-                  ? "true"
-                  : params.availableToday === false
-                    ? undefined
-                    : params.availableToday,
-              availableThisWeek:
-                params.availableThisWeek === true
-                  ? "true"
-                  : params.availableThisWeek === false
-                    ? undefined
-                    : params.availableThisWeek,
-            }
-          : undefined,
-      }),
-      transformResponse: (res: ApiResponse<HealthcareHospital[]>) =>
-        unwrapList(res),
+      async queryFn(params, _api, _extra, baseQuery) {
+        const result = await baseQuery({
+          url: `${BASE}/hospitals`,
+          method: "GET",
+          params: hospitalQueryParams(params),
+        })
+        if (!result.error) {
+          return {
+            data: unwrapList(
+              result.data as ApiResponse<HealthcareHospital[]>
+            ),
+          }
+        }
+        try {
+          const data = await fetchPublicHospitals(params)
+          return { data }
+        } catch {
+          return { error: result.error }
+        }
+      },
       providesTags: ["HealthcareHospitals"],
     }),
 
     getHospital: builder.query<HealthcareHospital, string>({
-      query: (hospitalId) => ({
-        url: `${BASE}/hospitals/${hospitalId}`,
-        method: "GET",
-      }),
-      transformResponse: (res: ApiResponse<HealthcareHospital>) =>
-        unwrapResult(res),
+      async queryFn(hospitalId, _api, _extra, baseQuery) {
+        const result = await baseQuery({
+          url: `${BASE}/hospitals/${hospitalId}`,
+          method: "GET",
+        })
+        if (!result.error) {
+          return {
+            data: unwrapResult(
+              result.data as ApiResponse<HealthcareHospital>
+            ),
+          }
+        }
+        try {
+          const data = await fetchPublicHospital(hospitalId)
+          return { data }
+        } catch {
+          return { error: result.error }
+        }
+      },
       providesTags: (_r, _e, id) => [{ type: "HealthcareHospitals", id }],
     }),
 
     getDepartments: builder.query<HealthcareDepartment[], string>({
-      query: (hospitalId) => ({
-        url: `${BASE}/hospitals/${hospitalId}/departments`,
-        method: "GET",
-      }),
-      transformResponse: (res: ApiResponse<HealthcareDepartment[]>) =>
-        unwrapList(res),
+      async queryFn(hospitalId, _api, _extra, baseQuery) {
+        const result = await baseQuery({
+          url: `${BASE}/hospitals/${hospitalId}/departments`,
+          method: "GET",
+        })
+        if (!result.error) {
+          return {
+            data: unwrapList(
+              result.data as ApiResponse<HealthcareDepartment[]>
+            ),
+          }
+        }
+        try {
+          const hospital = await fetchPublicHospital(hospitalId)
+          const facilities = Array.isArray(hospital.facilities)
+            ? hospital.facilities
+            : []
+          const departments: HealthcareDepartment[] = facilities.map((f) => ({
+            departmentId: f.facilityId,
+            name: f.name,
+            type: "FACILITY",
+            hospitalId,
+            city: f.city || null,
+            isMain: Boolean(f.isMain),
+          }))
+          return { data: departments }
+        } catch {
+          return { error: result.error }
+        }
+      },
       providesTags: (_r, _e, id) => [{ type: "HealthcareHospitals", id }],
     }),
 
@@ -375,13 +468,43 @@ export const healthcareApi = createApi({
         limit?: number
       }
     >({
-      query: ({ hospitalId, ...params }) => ({
-        url: `${BASE}/hospitals/${hospitalId}/doctors`,
-        method: "GET",
-        params,
-      }),
-      transformResponse: (res: ApiResponse<HealthcareDoctor[]>) =>
-        unwrapList(res),
+      async queryFn({ hospitalId, ...params }, _api, _extra, baseQuery) {
+        const result = await baseQuery({
+          url: `${BASE}/hospitals/${hospitalId}/doctors`,
+          method: "GET",
+          params,
+        })
+        if (!result.error) {
+          return {
+            data: unwrapList(result.data as ApiResponse<HealthcareDoctor[]>),
+          }
+        }
+        try {
+          const hospital = await fetchPublicHospital(hospitalId)
+          let doctors = Array.isArray(hospital.doctors) ? hospital.doctors : []
+          const q = String(params.search || "").trim().toLowerCase()
+          const specialty = String(
+            params.specialization || params.specialty || params.department || ""
+          )
+            .trim()
+            .toLowerCase()
+          if (q) {
+            doctors = doctors.filter((d) =>
+              `${doctorNameOf(d)} ${doctorSpecialtyOf(d)}`
+                .toLowerCase()
+                .includes(q)
+            )
+          }
+          if (specialty) {
+            doctors = doctors.filter((d) =>
+              doctorSpecialtyOf(d).toLowerCase().includes(specialty)
+            )
+          }
+          return { data: doctors }
+        } catch {
+          return { error: result.error }
+        }
+      },
       providesTags: (_r, _e, arg) => [
         { type: "HealthcareDoctors", id: arg.hospitalId },
       ],
