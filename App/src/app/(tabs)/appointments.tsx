@@ -1,3 +1,4 @@
+import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -7,13 +8,18 @@ import { CardListSkeleton } from '@/components/skeleton';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import {
+  cancelHealthcareAppointment,
   getMyDoctorRequest,
+  isHealthcareAppointment,
   listAppointmentsRequest,
+  listHealthcareAppointments,
+  listHealthcareOpdTickets,
   listPaymentsRequest,
   payBookingInvoiceRequest,
   updateAppointmentRequest,
   type AppointmentItem,
   type DoctorMe,
+  type HealthcareOpdTicket,
   type PaymentItem,
 } from '@/lib/api';
 import { enumLabel } from '@/lib/enums';
@@ -42,6 +48,8 @@ type ApptRow = {
   rawStatus: string;
   feeLabel: string;
   needsPay: boolean;
+  isHealthcare: boolean;
+  opdLabel?: string;
   raw: AppointmentItem;
 };
 
@@ -51,12 +59,21 @@ function feeOf(a: AppointmentItem) {
   return `${a.currency || 'USD'} ${amount.toFixed(2)}`;
 }
 
+function mergeAppointments(
+  healthcare: AppointmentItem[],
+  local: AppointmentItem[],
+) {
+  const seen = new Set(healthcare.map((a) => a.id));
+  return [...healthcare, ...local.filter((a) => !seen.has(a.id))];
+}
+
 export default function AppointmentsScreen() {
   const { accessToken, isAuthenticated, refreshProfile, user } = useAuth();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Upcoming');
   const [mode, setMode] = useState<'patient' | 'doctor'>('patient');
   const [doctor, setDoctor] = useState<DoctorMe | null>(null);
   const [remote, setRemote] = useState<AppointmentItem[]>([]);
+  const [opdTickets, setOpdTickets] = useState<HealthcareOpdTicket[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceDraft | null>(null);
   const [paying, setPaying] = useState(false);
@@ -71,6 +88,7 @@ export default function AppointmentsScreen() {
     if (!isAuthenticated || !accessToken) {
       setRemote([]);
       setDoctor(null);
+      setOpdTickets([]);
       setLoading(false);
       return;
     }
@@ -78,18 +96,37 @@ export default function AppointmentsScreen() {
       const me = await getMyDoctorRequest(accessToken);
       setDoctor(me);
       const asDoctor = Boolean(me?.id) && mode === 'doctor';
-      const [rows, pays] = await Promise.all([
-        listAppointmentsRequest(
-          accessToken,
-          asDoctor ? { as: 'doctor' } : undefined,
-        ),
-        listPaymentsRequest(accessToken).catch(() => [] as PaymentItem[]),
-      ]);
-      setRemote(rows);
-      setPayments(pays);
+
+      if (asDoctor) {
+        const [rows, pays] = await Promise.all([
+          listAppointmentsRequest(accessToken, { as: 'doctor' }),
+          listPaymentsRequest(accessToken).catch(() => [] as PaymentItem[]),
+        ]);
+        setRemote(rows);
+        setPayments(pays);
+        setOpdTickets([]);
+      } else {
+        // Prefer Healthtech /healthcare/appointments for patient hospital bookings
+        const [healthcare, local, pays, tickets] = await Promise.all([
+          listHealthcareAppointments(accessToken).catch(
+            () => [] as AppointmentItem[],
+          ),
+          listAppointmentsRequest(accessToken).catch(
+            () => [] as AppointmentItem[],
+          ),
+          listPaymentsRequest(accessToken).catch(() => [] as PaymentItem[]),
+          listHealthcareOpdTickets(accessToken).catch(
+            () => [] as HealthcareOpdTicket[],
+          ),
+        ]);
+        setRemote(mergeAppointments(healthcare, local));
+        setPayments(pays);
+        setOpdTickets(tickets);
+      }
     } catch {
       setRemote([]);
       setPayments([]);
+      setOpdTickets([]);
     } finally {
       setLoading(false);
     }
@@ -103,6 +140,15 @@ export default function AppointmentsScreen() {
     if (doctor?.id) setMode('doctor');
   }, [doctor?.id]);
 
+  const opdByAppointment = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ticket of opdTickets) {
+      const key = ticket.appointmentId || ticket.externalAppointmentId;
+      if (key && ticket.ticketNumber) map.set(key, ticket.ticketNumber);
+    }
+    return map;
+  }, [opdTickets]);
+
   const appointments = useMemo(() => {
     const now = Date.now();
     const terminal = new Set(['COMPLETED', 'CANCELLED', 'NO_SHOW', 'REJECTED']);
@@ -110,15 +156,26 @@ export default function AppointmentsScreen() {
     const rows: ApptRow[] = remote.map((item) => {
       const time = new Date(item.scheduledAt).getTime();
       const past = time < now || terminal.has(item.status);
+      const healthcare = isHealthcareAppointment(item);
       const title =
         mode === 'doctor'
           ? item.user?.fullName || item.appointmentCode || 'Patient'
-          : item.doctor?.fullName || item.appointmentCode || 'Visit';
+          : item.doctor?.fullName ||
+            item.doctorName ||
+            item.appointmentCode ||
+            'Visit';
       const needsPay =
         mode === 'patient' &&
+        !healthcare &&
         Boolean(item.paymentRequired) &&
         Number(item.consultationFee || 0) > 0 &&
         !['PAID', 'REFUNDED'].includes(String(item.paymentStatus || ''));
+      const opd =
+        item.externalTicketNumber ||
+        opdByAppointment.get(item.id) ||
+        (item.externalAppointmentId
+          ? opdByAppointment.get(item.externalAppointmentId)
+          : undefined);
       return {
         id: item.id,
         title,
@@ -135,11 +192,16 @@ export default function AppointmentsScreen() {
         detail:
           item.reason ||
           item.doctor?.specialty ||
+          item.specialty ||
+          item.facilityName ||
           item.doctor?.clinicName ||
+          item.department ||
           undefined,
         isPast: past,
         feeLabel: feeOf(item),
         needsPay,
+        isHealthcare: healthcare,
+        opdLabel: opd || undefined,
         raw: item,
       };
     });
@@ -147,13 +209,23 @@ export default function AppointmentsScreen() {
     if (tab === 'Upcoming') return rows.filter((item) => !item.isPast);
     if (tab === 'Past') return rows.filter((item) => item.isPast);
     return rows;
-  }, [remote, tab, mode]);
+  }, [remote, tab, mode, opdByAppointment]);
 
   const setStatus = async (id: string, status: string) => {
     if (!accessToken) return;
+    const row = remote.find((item) => item.id === id);
     setBusyId(id);
     try {
-      await updateAppointmentRequest(id, { status }, accessToken);
+      if (
+        status === 'CANCELLED' &&
+        row &&
+        isHealthcareAppointment(row) &&
+        mode === 'patient'
+      ) {
+        await cancelHealthcareAppointment(id, accessToken);
+      } else {
+        await updateAppointmentRequest(id, { status }, accessToken);
+      }
       await loadRemote();
     } catch {
       Alert.alert('Update failed', 'Could not update this visit.');
@@ -173,7 +245,7 @@ export default function AppointmentsScreen() {
       appointmentId: a.id,
       paymentId: pendingPay?.id,
       appointmentCode: a.appointmentCode,
-      doctorName: a.doctor?.fullName || 'Doctor',
+      doctorName: a.doctor?.fullName || a.doctorName || 'Doctor',
       patientName: a.user?.fullName || undefined,
       scheduledAt: a.scheduledAt,
       amount: Number(a.consultationFee || pendingPay?.amount || 0),
@@ -191,9 +263,18 @@ export default function AppointmentsScreen() {
       <View>
         <Text style={styles.title}>Visits</Text>
         <Text style={styles.subtitle}>
-          Free doctors need no payment. Pay now opens invoice (Zaad, eDahab…).
+          Hospital bookings use Healthtech confirmation and OPD. Local doctors
+          may need payment after booking.
         </Text>
       </View>
+
+      {mode === 'patient' ? (
+        <Pressable
+          onPress={() => router.push('/healthcare' as Href)}
+          style={styles.hospitalCta}>
+          <Text style={styles.hospitalCtaText}>Book a hospital visit</Text>
+        </Pressable>
+      ) : null}
 
       {doctor ? (
         <View style={styles.modeRow}>
@@ -241,10 +322,11 @@ export default function AppointmentsScreen() {
       <View style={styles.list}>
         {loading && remote.length === 0 ? <CardListSkeleton rows={4} /> : null}
         {appointments.map((item) => {
-          const pending = ['PENDING', 'RESCHEDULE_REQUESTED'].includes(
+          const pending = ['PENDING', 'RESCHEDULE_REQUESTED', 'ACCEPTED'].includes(
             item.rawStatus,
           );
-          const canManage = mode === 'doctor' || isAdmin;
+          const canManage =
+            (mode === 'doctor' || isAdmin) && !item.isHealthcare;
           return (
             <View key={item.id} style={styles.card}>
               <View style={styles.cardTop}>
@@ -252,21 +334,37 @@ export default function AppointmentsScreen() {
                 <Text style={styles.status}>{item.status}</Text>
               </View>
               <Text style={styles.when}>{item.when}</Text>
+              {item.isHealthcare ? (
+                <Text style={styles.hospitalBadge}>Hospital booking</Text>
+              ) : null}
               <View style={styles.payRow}>
                 <Text style={styles.fee}>{item.feeLabel}</Text>
-                <Text
-                  style={[
-                    styles.payBadge,
-                    String(item.raw.paymentStatus).toUpperCase() === 'PAID' ||
-                    item.feeLabel === 'Free'
-                      ? styles.payBadgePaid
-                      : styles.payBadgePending,
-                  ]}>
-                  {item.feeLabel === 'Free'
-                    ? 'Free · Paid'
-                    : enumLabel(String(item.raw.paymentStatus || 'PENDING'))}
-                </Text>
+                {item.isHealthcare ? (
+                  <Text style={[styles.payBadge, styles.payBadgePaid]}>
+                    Hospital confirms
+                  </Text>
+                ) : (
+                  <Text
+                    style={[
+                      styles.payBadge,
+                      String(item.raw.paymentStatus).toUpperCase() === 'PAID' ||
+                      item.feeLabel === 'Free'
+                        ? styles.payBadgePaid
+                        : styles.payBadgePending,
+                    ]}>
+                    {item.feeLabel === 'Free'
+                      ? 'Free · Paid'
+                      : enumLabel(String(item.raw.paymentStatus || 'PENDING'))}
+                  </Text>
+                )}
               </View>
+              {item.opdLabel ? (
+                <Text style={styles.opd}>OPD · {item.opdLabel}</Text>
+              ) : item.isHealthcare ? (
+                <Text style={styles.opdPending}>
+                  OPD ticket after hospital confirms
+                </Text>
+              ) : null}
               {item.detail ? (
                 <Text style={styles.reason}>{item.detail}</Text>
               ) : null}
@@ -295,7 +393,7 @@ export default function AppointmentsScreen() {
               ) : null}
 
               <View style={styles.actions}>
-                {mode === 'doctor' && pending ? (
+                {mode === 'doctor' && pending && !item.isHealthcare ? (
                   <Pressable
                     disabled={busyId === item.id}
                     onPress={() => setStatus(item.id, 'CONFIRMED')}
@@ -331,9 +429,13 @@ export default function AppointmentsScreen() {
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No visits in this tab</Text>
             <Text style={styles.emptyText}>
-              Book a doctor from Doctors. Free doctors auto-mark payment as Free;
-              paid doctors need Pay now.
+              Book a hospital from Hospitals, or a clinician from Doctors.
             </Text>
+            <Pressable
+              onPress={() => router.push('/healthcare' as Href)}
+              style={[styles.actionBtn, styles.confirmBtn, { marginTop: 8 }]}>
+              <Text style={styles.confirmText}>Browse hospitals</Text>
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -415,6 +517,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Brand.muted,
     marginTop: 4,
+  },
+  hospitalCta: {
+    alignSelf: 'flex-start',
+    backgroundColor: Brand.light,
+    borderRadius: Radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  hospitalCtaText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    color: Brand.primary,
   },
   modeRow: {
     flexDirection: 'row',
@@ -502,10 +616,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Brand.muted,
   },
+  hospitalBadge: {
+    alignSelf: 'flex-start',
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    color: Brand.dark,
+    backgroundColor: Brand.bg,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+  },
   fee: {
     fontFamily: Fonts.medium,
     fontSize: 12,
     color: Brand.dark,
+  },
+  opd: {
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    color: Brand.primary,
+  },
+  opdPending: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    color: Brand.muted,
   },
   reason: {
     fontFamily: Fonts.regular,

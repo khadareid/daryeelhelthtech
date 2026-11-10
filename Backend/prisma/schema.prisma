@@ -52,6 +52,20 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+enum AppointmentSource {
+  LOCAL
+  HEALTHTECH
+}
+
+enum HospitalPaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  WAIVED
+  REFUNDED
+}
+
 // ======================================================
 // CONSULTATION
 // ======================================================
@@ -328,6 +342,7 @@ model User {
   payments Payment[]
 
   notifications Notification[]
+  healthcareActivityEvents HealthcareActivityEvent[]
 
   consents Consent[]
 
@@ -1026,8 +1041,36 @@ model Appointment {
   notes  String?
 
   status AppointmentStatus @default(PENDING)
+  source AppointmentSource @default(LOCAL)
 
   meetingLink String?
+
+  // ====================================================
+  // SAAS / EXTERNAL REFERENCES (no duplicated hospital DB)
+  // ====================================================
+
+  externalAppointmentId String? @unique
+  externalHospitalId    String?
+  externalFacilityId    String?
+  externalDepartmentId  String?
+  externalDoctorId      String?
+  externalTicketId      String?
+  externalTicketNumber  String?
+  externalVisitId       String?
+  externalRequestId     String?
+  idempotencyKey        String? @unique
+  consentId             String?
+
+  doctorName    String?
+  facilityName  String?
+  specialty     String?
+  department    String?
+
+  proposedScheduledAt DateTime?
+  proposedMessage     String?
+  rejectionReason     String?
+
+  hospitalPaymentStatus HospitalPaymentStatus @default(UNPAID)
 
   // ====================================================
   // PAYMENT
@@ -1078,10 +1121,16 @@ model Appointment {
 
   doctorReviews DoctorReview[]
 
+  healthcareActivityEvents HealthcareActivityEvent[]
+
   @@index([userId, scheduledAt])
   @@index([doctorId, scheduledAt])
   @@index([status])
   @@index([paymentStatus])
+  @@index([source])
+  @@index([externalHospitalId])
+  @@index([externalDoctorId])
+  @@index([externalAppointmentId])
 }
 
 // ======================================================
@@ -1258,8 +1307,9 @@ model Consent {
 
   requesterId String?
 
-  doctorId   String?
-  hospitalId String?
+  doctorId     String?
+  hospitalId   String?
+  hospitalName String?
 
   accessLevel AccessLevel
   status      ConsentStatus @default(PENDING)
@@ -1267,6 +1317,7 @@ model Consent {
   expiresAt DateTime?
   grantedAt DateTime?
   revokedAt DateTime?
+  revokedReason String?
 
   medicalRecords    Boolean @default(false)
   vitalSigns        Boolean @default(false)
@@ -1288,6 +1339,7 @@ model Consent {
   @@index([userId])
   @@index([requesterId])
   @@index([doctorId])
+  @@index([hospitalId])
   @@index([status])
 }
 
@@ -1554,4 +1606,26 @@ model EmergencyCardScan {
 
   @@index([cardId])
   @@index([scannedAt])
+}
+
+// ======================================================
+// HEALTHCARE INTEGRATION ACTIVITY (lightweight audit)
+// ======================================================
+
+model HealthcareActivityEvent {
+  id            String   @id @default(cuid())
+  userId        String
+  appointmentId String?
+  type          String
+  title         String
+  body          String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([appointmentId])
+  @@index([type])
 }

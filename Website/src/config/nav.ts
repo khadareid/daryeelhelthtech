@@ -6,6 +6,7 @@ export type NavItem = {
 
 export const publicNav: NavItem[] = [
   { title: "Home", href: "/" },
+  { title: "Hospitals", href: "/hospitals" },
   { title: "Doctors", href: "/doctors" },
   { title: "About", href: "/#services" },
   { title: "Contact", href: "/#contact" },
@@ -15,6 +16,7 @@ export const dashboardNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard" },
   { title: "Doctors", href: "/dashboard?section=doctors" },
   { title: "Appointments", href: "/dashboard?section=appointments" },
+  { title: "My Healthcare", href: "/dashboard?section=healthcare" },
   { title: "Daily health", href: "/dashboard?section=health" },
   { title: "Vitals", href: "/dashboard?section=vitals" },
   { title: "Medications", href: "/dashboard?section=medications" },

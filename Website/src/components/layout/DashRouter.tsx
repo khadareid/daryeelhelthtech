@@ -13,6 +13,7 @@ const PAGE_TITLES: Record<string, string> = {
   clinic: "My clinic",
   doctor: "My clinic",
   appointments: "Appointments",
+  healthcare: "My Healthcare",
   health: "Daily health",
   vitals: "Vital signs",
   medications: "Medications",

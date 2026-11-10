@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Stethoscope,
+  Hospital,
   UserRound,
   Users,
 } from "lucide-react"
@@ -102,6 +103,13 @@ const QUICK_ACTIONS: DashLink[] = [
     icon: CalendarPlus,
   },
   {
+    id: "healthcare",
+    label: "My Healthcare",
+    description: "Hospital visits & OPD tickets",
+    to: "/dashboard?section=healthcare",
+    icon: Hospital,
+  },
+  {
     id: "payments",
     label: "Payments",
     description: "Free vs paid visits & invoices",
@@ -184,7 +192,6 @@ const LEGACY_ALIASES: Record<string, string> = {
   home: "dashboard",
   care: "appointments",
   labs: "prescriptions",
-  healthcare: "appointments",
 }
 
 export const linksForRole = (role: AppRole): DashLink[] => [

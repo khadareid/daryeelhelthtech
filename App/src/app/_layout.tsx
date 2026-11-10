@@ -67,6 +67,18 @@ function RootNavigation() {
           options={stackHeader(theme, 'Book visit')}
         />
         <Stack.Screen
+          name="healthcare/index"
+          options={stackHeader(theme, 'Hospitals')}
+        />
+        <Stack.Screen
+          name="healthcare/[id]"
+          options={stackHeader(theme, 'Hospital')}
+        />
+        <Stack.Screen
+          name="healthcare/book"
+          options={stackHeader(theme, 'Hospital booking')}
+        />
+        <Stack.Screen
           name="notifications"
           options={stackHeader(theme, 'Notifications')}
         />

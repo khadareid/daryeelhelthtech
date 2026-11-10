@@ -24,9 +24,10 @@ import { logout } from "@/Redex/service/auth/Userinfo"
 
 const NAV_LINKS = [
   { to: "/", label: "Home", end: true },
+  { to: "/hospitals", label: "Hospitals" },
   { to: "/doctors", label: "Doctors" },
+  { to: "/healthcare/book", label: "Book" },
   { to: "/#services", label: "Services" },
-  { to: "/#how", label: "How it works" },
   { to: "/#contact", label: "Contact" },
 ]
 
@@ -35,6 +36,7 @@ const MOBILE_ACCOUNT = [
   { to: "/dashboard/UserProfile", label: "My Profile", icon: UserIcon },
   { to: "/dashboard?section=doctors", label: "Doctors", icon: Stethoscope },
   { to: "/dashboard?section=appointments", label: "Appointments", icon: Calendar },
+  { to: "/dashboard?section=healthcare", label: "My Healthcare", icon: Calendar },
   { to: "/dashboard/UserProfile", label: "Settings", icon: Settings },
 ]
 
