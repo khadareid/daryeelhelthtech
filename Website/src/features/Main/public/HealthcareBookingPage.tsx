@@ -101,9 +101,7 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
   const hospitalsPath = embedded
     ? "/dashboard?section=hospitals"
     : "/hospitals"
-  const visitsPath = embedded
-    ? "/dashboard?section=healthcare"
-    : "/dashboard?section=healthcare"
+  const visitsPath = "/dashboard?section=healthcare&tab=hospitals"
   const bookBase = embedded ? "/dashboard?section=book" : "/healthcare/book"
 
   const [hospitalId, setHospitalId] = useState(params.get("hospitalId") || "")

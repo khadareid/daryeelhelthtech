@@ -26,7 +26,7 @@ import {
 } from "./HealthSections"
 import { PageLoader } from "@/components/common/PageLoader"
 import { PatientIdCard } from "@/components/common/PatientIdCard"
-import { MyHealthcareSection } from "@/components/healthcare/MyHealthcareSection"
+import { MyVisitsSection } from "@/components/healthcare/MyVisitsSection"
 import { HospitalsSection } from "@/components/healthcare/HospitalsSection"
 import HealthcareBookingPage from "@/features/Main/public/HealthcareBookingPage"
 import { Link } from "react-router-dom"
@@ -94,9 +94,13 @@ export function Dashboard() {
       ) : section === "doctors" ? (
         isDoctor ? <DoctorWorkspace /> : <DoctorsSection />
       ) : section === "appointments" ? (
-        <AppointmentsSection />
+        isDoctor ? (
+          <AppointmentsSection />
+        ) : (
+          <MyVisitsSection defaultTab="daryeel" />
+        )
       ) : section === "healthcare" ? (
-        <MyHealthcareSection />
+        <MyVisitsSection defaultTab="hospitals" />
       ) : section === "payments" ? (
         <PaymentsSection />
       ) : section === "health" ? (

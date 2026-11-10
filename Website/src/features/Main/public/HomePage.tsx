@@ -325,7 +325,7 @@ export default function HomePage() {
             <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {doctors.slice(0, 8).map((d) => {
                 const bookHref = signedIn
-                  ? `/dashboard?section=appointments&doctorId=${encodeURIComponent(d.id)}`
+                  ? `/dashboard?section=healthcare&tab=daryeel&doctorId=${encodeURIComponent(d.id)}`
                   : `/doctors/${d.id}`
                 return (
                   <div

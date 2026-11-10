@@ -49,7 +49,7 @@ const SERVICES = [
   },
   {
     title: "My Visits",
-    desc: "Hospital bookings",
+    desc: "Hospital & doctors",
     icon: Calendar,
     to: "/dashboard?section=healthcare",
   },
@@ -212,7 +212,7 @@ export function CareHome({
               Upcoming visits
             </h2>
             <Link
-              to="/dashboard?section=healthcare"
+              to="/dashboard?section=healthcare&tab=hospitals"
               className="inline-flex items-center gap-1 text-xs font-semibold text-primary"
             >
               See all <ArrowRight className="h-3.5 w-3.5" />
@@ -262,7 +262,7 @@ export function CareHome({
             {doctors.slice(0, 4).map((d) => (
               <Link
                 key={d.id}
-                to={`/dashboard?section=appointments&doctorId=${encodeURIComponent(d.id)}`}
+                to={`/dashboard?section=healthcare&tab=daryeel&doctorId=${encodeURIComponent(d.id)}`}
                 className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-primary/30"
               >
                 <div className="flex items-center gap-3">

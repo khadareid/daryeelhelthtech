@@ -79,7 +79,7 @@ export const PRIMARY_TABS: DashLink[] = [
   {
     id: "healthcare",
     label: "My Visits",
-    description: "Hospital visits & OPD tickets",
+    description: "Hospital & Daryeel doctor bookings",
     to: "/dashboard?section=healthcare",
     icon: Calendar,
     bar: true,
@@ -111,9 +111,9 @@ const QUICK_ACTIONS: DashLink[] = [
   },
   {
     id: "appointments",
-    label: "Daryeel visits",
-    description: "Bookings with Daryeel doctors",
-    to: "/dashboard?section=appointments",
+    label: "Daryeel bookings",
+    description: "Open My Visits · Daryeel doctors tab",
+    to: "/dashboard?section=healthcare&tab=daryeel",
     icon: Calendar,
   },
   {

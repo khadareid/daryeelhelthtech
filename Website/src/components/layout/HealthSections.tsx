@@ -153,7 +153,9 @@ export function DoctorsSection() {
             <Link to="/dashboard?section=hospitals">Hospital booking</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to="/dashboard?section=appointments">My Daryeel visits</Link>
+            <Link to="/dashboard?section=healthcare&tab=daryeel">
+              My Daryeel bookings
+            </Link>
           </Button>
           <Button asChild size="sm">
             <Link to="/doctors/apply">Apply as doctor</Link>
@@ -202,7 +204,7 @@ export function DoctorsSection() {
                   <div className="mt-2.5 flex flex-wrap gap-2">
                     <Button asChild size="sm" className="h-8 text-xs">
                       <Link
-                        to={`/dashboard?section=appointments&doctorId=${encodeURIComponent(d.id)}`}
+                        to={`/dashboard?section=healthcare&tab=daryeel&doctorId=${encodeURIComponent(d.id)}`}
                       >
                         Book visit
                       </Link>
@@ -237,7 +239,11 @@ export function DoctorsSection() {
   )
 }
 
-export function AppointmentsSection() {
+export function AppointmentsSection({
+  embedded = false,
+}: {
+  embedded?: boolean
+}) {
   const session = useSelector((s: RootState) => s.userInfo)
   const role = normalizeRole(session.role)
   const { data: myDoctor } = useGetMyDoctorProfileQuery(undefined, {
@@ -348,43 +354,14 @@ export function AppointmentsSection() {
     }
   }
 
-  return (
-    <SectionShell
-      title="Visits"
-      subtitle={
-        isDoctor
-          ? "Your bookings and patient requests waiting for confirmation"
-          : "Book and manage your visits"
-      }
-      action={
-        isDoctor ? (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={view === "inbox" ? "default" : "outline"}
-              onClick={() => setView("inbox")}
-            >
-              Doctor inbox
-            </Button>
-            <Button
-              size="sm"
-              variant={view === "mine" ? "default" : "outline"}
-              onClick={() => setView("mine")}
-            >
-              My bookings
-            </Button>
-          </div>
-        ) : isAdminRole(role) ? (
-          <Button asChild size="sm" variant="outline">
-            <Link to="/admin/appointments">Admin bookings</Link>
-          </Button>
-        ) : undefined
-      }
-    >
+  const content = (
+    <>
       {view === "mine" ? (
         <Card className="border-blue-100">
           <CardContent className="space-y-3 p-4">
-            <p className="text-sm font-semibold text-brand-dark">Book a visit</p>
+            <p className="text-sm font-semibold text-brand-dark">
+              Book a Daryeel doctor
+            </p>
             <form onSubmit={onBook} className="grid gap-3 sm:grid-cols-2">
               <select
                 className="h-10 rounded-xl border border-blue-100 bg-white px-3 text-sm sm:col-span-2"
@@ -613,7 +590,7 @@ export function AppointmentsSection() {
           <p className="p-4 text-sm text-muted-foreground">
             {view === "inbox"
               ? "No patient requests yet."
-              : "No appointments yet."}
+              : "No Daryeel doctor bookings yet."}
           </p>
         ) : null}
       </div>
@@ -643,6 +620,53 @@ export function AppointmentsSection() {
           }
         }}
       />
+    </>
+  )
+
+  if (embedded) {
+    return <div className="space-y-4">{content}</div>
+  }
+
+  return (
+    <SectionShell
+      title={isDoctor ? "Daryeel visits" : "Daryeel doctor bookings"}
+      subtitle={
+        isDoctor
+          ? "Your bookings and patient requests waiting for confirmation"
+          : "Book and manage visits with Daryeel doctors"
+      }
+      action={
+        isDoctor ? (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={view === "inbox" ? "default" : "outline"}
+              onClick={() => setView("inbox")}
+            >
+              Doctor inbox
+            </Button>
+            <Button
+              size="sm"
+              variant={view === "mine" ? "default" : "outline"}
+              onClick={() => setView("mine")}
+            >
+              My bookings
+            </Button>
+          </div>
+        ) : isAdminRole(role) ? (
+          <Button asChild size="sm" variant="outline">
+            <Link to="/admin/appointments">Admin bookings</Link>
+          </Button>
+        ) : (
+          <Button asChild size="sm" variant="outline">
+            <Link to="/dashboard?section=healthcare&tab=hospitals">
+              Hospital bookings
+            </Link>
+          </Button>
+        )
+      }
+    >
+      {content}
     </SectionShell>
   )
 }
