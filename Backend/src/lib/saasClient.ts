@@ -16,11 +16,34 @@ export type SaaSJson = {
   [key: string]: any;
 };
 
+const DEFAULT_SAAS_HOST =
+  "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
+
+/**
+ * Normalize SaaS API base so `/api/v1` is always present exactly once.
+ * Fixes common Vercel env mistakes (host only, or duplicated /api/v1).
+ */
 function saasBaseUrl() {
-  const raw =
+  let raw = (
     process.env.SAAS_API_URL ||
     process.env.DARYEEL_SAAS_API_URL ||
-    "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
+    DEFAULT_SAAS_HOST
+  )
+    .trim()
+    .replace(/\/$/, "");
+
+  if (!raw) raw = DEFAULT_SAAS_HOST;
+
+  // Host-only → append /api/v1
+  if (!/\/api\/v1$/i.test(raw)) {
+    raw = `${raw.replace(/\/api\/v1$/i, "")}/api/v1`.replace(
+      /([^:]\/)\/+/g,
+      "$1"
+    );
+  }
+
+  // Collapse accidental /api/v1/api/v1
+  raw = raw.replace(/\/api\/v1(\/api\/v1)+/gi, "/api/v1");
   return raw.replace(/\/$/, "");
 }
 
@@ -46,6 +69,15 @@ function integrationKey() {
     return DEFAULT_SAAS_INTEGRATION_KEY;
   }
   return raw;
+}
+
+function integrationKeyCandidates(): string[] {
+  const primary = integrationKey();
+  const keys = [primary];
+  if (primary !== DEFAULT_SAAS_INTEGRATION_KEY) {
+    keys.push(DEFAULT_SAAS_INTEGRATION_KEY);
+  }
+  return keys;
 }
 
 export class SaaSUnavailableError extends Error {
@@ -81,20 +113,11 @@ type RequestOptions = {
   requireAuth?: boolean;
 };
 
-export async function saasRequest(
+async function saasRequestOnce(
   path: string,
-  options: RequestOptions = {}
+  options: RequestOptions,
+  key: string
 ): Promise<SaaSJson> {
-  const requireAuth = options.requireAuth !== false;
-  const key = integrationKey();
-  if (requireAuth && !key) {
-    throw new SaasHttpError(
-      "Hospital integration is not configured",
-      503,
-      "SAAS_UNAVAILABLE"
-    );
-  }
-
   const url = new URL(
     `${saasBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`
   );
@@ -147,7 +170,12 @@ export async function saasRequest(
       throw new SaasHttpError(
         json.message || `Hospital system error (${res.status})`,
         status,
-        json.code || (status === 503 ? "SAAS_UNAVAILABLE" : "BOOKING_FAILED"),
+        json.code ||
+          (status === 401
+            ? "INVALID_INTEGRATION_KEY"
+            : status === 503
+              ? "SAAS_UNAVAILABLE"
+              : "BOOKING_FAILED"),
         json
       );
     }
@@ -161,11 +189,43 @@ export async function saasRequest(
     }
     if (error?.status) throw error;
     throw new SaaSUnavailableError(
-      "We couldn't complete your request right now. Please try again."
+      `We couldn't reach the hospital system (${saasBaseUrl()}). Please try again.`
     );
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function saasRequest(
+  path: string,
+  options: RequestOptions = {}
+): Promise<SaaSJson> {
+  const requireAuth = options.requireAuth !== false;
+
+  if (!requireAuth) {
+    return saasRequestOnce(path, options, "");
+  }
+
+  const keys = integrationKeyCandidates();
+  let lastError: any;
+  for (let i = 0; i < keys.length; i++) {
+    try {
+      return await saasRequestOnce(path, options, keys[i]);
+    } catch (error: any) {
+      lastError = error;
+      // Retry with bootstrap key when env key is rejected
+      if (error?.status === 401 && i < keys.length - 1) continue;
+      throw error;
+    }
+  }
+  throw (
+    lastError ||
+    new SaasHttpError(
+      "Hospital integration is not configured",
+      503,
+      "SAAS_UNAVAILABLE"
+    )
+  );
 }
 
 /** Public discovery — no integration key (matches SaaS /company/public-* routes). */

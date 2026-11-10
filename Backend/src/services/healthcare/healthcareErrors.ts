@@ -48,11 +48,18 @@ export function sendHealthcareError(res: any, error: any, fallback: string) {
       ? HealthcareErrorCodes.SAAS_UNAVAILABLE
       : HealthcareErrorCodes.BOOKING_FAILED);
 
-  // Never leak Prisma / internal details
+  // Prefer a clear integration message over a generic 503 fallback
+  const rawMessage = String(error?.message || "");
   const message =
-    status >= 500 && process.env.NODE_ENV === "production"
-      ? fallback
-      : error?.message || fallback;
+    code === HealthcareErrorCodes.INVALID_INTEGRATION_KEY
+      ? "Hospital integration key is invalid. Set matching SAAS_INTEGRATION_KEY / HEALTHTECH_INTEGRATION_KEY on both APIs."
+      : status >= 500 &&
+          process.env.NODE_ENV === "production" &&
+          !/hospital system|integration|reach|timeout|unavailable/i.test(
+            rawMessage
+          )
+        ? fallback
+        : rawMessage || fallback;
 
   return res.status(status >= 500 ? (status === 503 ? 503 : 500) : status).json({
     success: false,
