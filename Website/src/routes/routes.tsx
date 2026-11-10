@@ -7,6 +7,10 @@ import { NotFoundPage } from "@/features/Main/public/NotFoundPage"
 import DoctorsPage from "@/features/Main/public/DoctorsPage"
 import DoctorDetailPage from "@/features/Main/public/DoctorDetailPage"
 import ApplyDoctorPage from "@/features/Main/public/ApplyDoctorPage"
+import HospitalsPage from "@/features/Main/public/HospitalsPage"
+import HospitalDetailPage from "@/features/Main/public/HospitalDetailPage"
+import HealthcareBookingPage from "@/features/Main/public/HealthcareBookingPage"
+import HealthcareDoctorsPage from "@/features/Main/public/HealthcareDoctorsPage"
 import SignInPage from "@/pages/auth/SignIn"
 import RegisterPage from "@/pages/auth/Register"
 import GoogleCallbackHandler from "@/pages/auth/AuthCallback"
@@ -44,6 +48,10 @@ export const router = createBrowserRouter(
       errorElement: <RouteError />,
       children: [
         { index: true, element: <PublicLayout /> },
+        { path: "hospitals", element: <HospitalsPage /> },
+        { path: "hospitals/:hospitalId", element: <HospitalDetailPage /> },
+        { path: "healthcare/book", element: <HealthcareBookingPage /> },
+        { path: "healthcare/doctors", element: <HealthcareDoctorsPage /> },
         { path: "doctors", element: <DoctorsPage /> },
         { path: "doctors/apply", element: <ApplyDoctorPage /> },
         { path: "doctors/:doctorId", element: <DoctorDetailPage /> },

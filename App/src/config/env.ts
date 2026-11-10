@@ -1,5 +1,9 @@
-/** Daryeel Healthtech API */
-const AUTH_API = 'https://daryeel-healthtech-api.vercel.app/api/v1';
+/** Daryeel Healthtech API
+ * Production:
+ *   App/Website  https://daryeelhelthtech.vercel.app
+ *   API          https://daryeelhelthtech-api.vercel.app
+ */
+const AUTH_API = 'https://daryeelhelthtech-api.vercel.app/api/v1';
 const LOCAL_API = 'http://localhost:5000/api/v1';
 
 function trimSlash(url: string) {
@@ -7,7 +11,7 @@ function trimSlash(url: string) {
 }
 
 export const env = {
-  /** Auth, users, doctors, appointments, health records */
+  /** Auth, users, doctors, appointments, health records, healthcare proxy */
   apiUrl: trimSlash(
     process.env.EXPO_PUBLIC_API_URL || LOCAL_API
   ),
@@ -16,7 +20,7 @@ export const env = {
   productionApiUrl: trimSlash(AUTH_API),
 
   /** Website */
-  websiteUrl: 'https://daryeel-healthtech.vercel.app',
+  websiteUrl: 'https://daryeelhelthtech.vercel.app',
 } as const;
 
 /** @deprecated use env.apiUrl */

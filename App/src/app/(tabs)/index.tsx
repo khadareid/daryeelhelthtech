@@ -24,6 +24,7 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   getTodayHealthLog,
   listAppointmentsRequest,
+  listHealthcareAppointments,
   listMedicationsRequest,
   type AppointmentItem,
   type MedicationItem,
@@ -56,6 +57,13 @@ const CARE_TOOLS: CareTool[] = [
     desc: 'Book a clinician',
     href: '/(tabs)/doctors',
     icon: 'medkit-outline',
+  },
+  {
+    id: 'hospitals',
+    title: 'Hospitals',
+    desc: 'Book hospital visit',
+    href: '/healthcare',
+    icon: 'business-outline',
   },
   {
     id: 'vitals',
@@ -176,13 +184,19 @@ export default function HomeScreen() {
       return;
     }
     try {
-      const [logRes, appts, meds] = await Promise.all([
+      const [logRes, healthcareAppts, localAppts, meds] = await Promise.all([
         getTodayHealthLog(accessToken),
+        listHealthcareAppointments(accessToken).catch(() => []),
         listAppointmentsRequest(accessToken).catch(() => []),
         listMedicationsRequest(accessToken).catch(() => []),
       ]);
+      const seen = new Set(healthcareAppts.map((a) => a.id));
+      const merged = [
+        ...healthcareAppts,
+        ...localAppts.filter((a) => !seen.has(a.id)),
+      ];
       setTodayLog((logRes?.result as TodayLog | null) ?? null);
-      setAppointments(appts);
+      setAppointments(merged);
       setMedications(meds.filter((m) => m.isActive !== false));
     } finally {
       setLoadingHome(false);
@@ -735,3 +749,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -145,12 +145,15 @@ export function DoctorsSection() {
 
   return (
     <SectionShell
-      title="Doctors"
-      subtitle="Verified clinicians on Daryeel — open a profile to see specialty, bio, and book"
+      title="Daryeel doctors"
+      subtitle="Independent clinicians on Daryeel. For hospital doctors, open Hospitals."
       action={
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link to="/doctors">Public directory</Link>
+            <Link to="/dashboard?section=hospitals">Hospital booking</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/dashboard?section=appointments">My Daryeel visits</Link>
           </Button>
           <Button asChild size="sm">
             <Link to="/doctors/apply">Apply as doctor</Link>
@@ -197,11 +200,12 @@ export function DoctorsSection() {
                     {fee <= 0 ? "Free" : `$${fee.toFixed(0)}`}
                   </p>
                   <div className="mt-2.5 flex flex-wrap gap-2">
-                    <Button asChild size="sm" variant="outline" className="h-8 text-xs">
-                      <Link to={`/doctors/${d.id}`}>View profile</Link>
-                    </Button>
                     <Button asChild size="sm" className="h-8 text-xs">
-                      <Link to={`/doctors/${d.id}`}>Book visit</Link>
+                      <Link
+                        to={`/dashboard?section=appointments&doctorId=${encodeURIComponent(d.id)}`}
+                      >
+                        Book visit
+                      </Link>
                     </Button>
                   </div>
                 </div>
@@ -262,12 +266,20 @@ export function AppointmentsSection() {
   const [createAppt, { isLoading: booking }] = useCreateAppointmentMutation()
   const [createPayment, { isLoading: paying }] = useCreatePaymentMutation()
   const { data: doctors = [] } = useListDoctorsQuery({ limit: 20 })
-  const [doctorId, setDoctorId] = useState("")
+  const location = useLocation()
+  const doctorFromUrl =
+    new URLSearchParams(location.search).get("doctorId") || ""
+  const [doctorId, setDoctorId] = useState(doctorFromUrl)
   const days = useMemo(() => nextBookingDays(14), [])
   const [dayIndex, setDayIndex] = useState(0)
   const [slot, setSlot] = useState(BOOKING_TIME_SLOTS[1] || "08:20 AM")
   const [reason, setReason] = useState("")
   const [invoice, setInvoice] = useState<InvoiceDraft | null>(null)
+
+  useEffect(() => {
+    if (doctorFromUrl) setDoctorId(doctorFromUrl)
+  }, [doctorFromUrl])
+
   const selectedDoctor = doctors.find((d) => d.id === doctorId)
   const selectedFee = Number(selectedDoctor?.consultationFee || 0)
   const selectedIsFree = !selectedDoctor || selectedFee <= 0

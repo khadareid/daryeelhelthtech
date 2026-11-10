@@ -44,11 +44,11 @@ export default function DoctorsPage() {
             {siteConfig.appName}
           </p>
           <h1 className="mt-2 font-heading text-3xl font-bold text-brand-dark sm:text-4xl">
-            Doctors
+            Daryeel doctors
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Verified clinicians on Daryeel — open a profile to see specialty
-            (takhassus), bio, and book a visit.
+            Independent clinicians on the Daryeel directory — view specialty,
+            bio, and book a local visit. For hospital doctors, use Hospitals.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <input
@@ -57,11 +57,11 @@ export default function DoctorsPage() {
               placeholder="Search doctors, specialty, city…"
               className="h-10 min-w-[220px] flex-1 rounded-xl border border-blue-100 bg-[#F8FAFC] px-3 text-sm outline-none ring-primary focus:ring-2"
             />
+            <Button asChild variant="outline" className="border-primary/20 shrink-0">
+              <Link to="/hospitals">Hospitals</Link>
+            </Button>
             <Button asChild className="shrink-0">
               <Link to="/doctors/apply">Apply as doctor</Link>
-            </Button>
-            <Button asChild variant="outline" className="border-primary/20">
-              <Link to="/SignUp">Create account</Link>
             </Button>
           </div>
           {!isLoading ? (

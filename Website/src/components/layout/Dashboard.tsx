@@ -26,6 +26,9 @@ import {
 } from "./HealthSections"
 import { PageLoader } from "@/components/common/PageLoader"
 import { PatientIdCard } from "@/components/common/PatientIdCard"
+import { MyHealthcareSection } from "@/components/healthcare/MyHealthcareSection"
+import { HospitalsSection } from "@/components/healthcare/HospitalsSection"
+import HealthcareBookingPage from "@/features/Main/public/HealthcareBookingPage"
 import { Link } from "react-router-dom"
 import { ShieldCheck } from "lucide-react"
 import { useGetMyDoctorProfileQuery } from "@/Redex/service/doctors/DoctorsApi"
@@ -84,10 +87,16 @@ export function Dashboard() {
         </>
       ) : section === "clinic" || section === "doctor" ? (
         <DoctorWorkspace />
+      ) : section === "hospitals" ? (
+        <HospitalsSection />
+      ) : section === "book" ? (
+        <HealthcareBookingPage embedded />
       ) : section === "doctors" ? (
         isDoctor ? <DoctorWorkspace /> : <DoctorsSection />
       ) : section === "appointments" ? (
         <AppointmentsSection />
+      ) : section === "healthcare" ? (
+        <MyHealthcareSection />
       ) : section === "payments" ? (
         <PaymentsSection />
       ) : section === "health" ? (

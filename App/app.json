@@ -51,7 +51,7 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiUrl": "https://daryeel-healthtech-api.vercel.app/api/v1",
+      "apiUrl": "https://daryeelhelthtech-api.vercel.app/api/v1",
       "router": {},
       "eas": {
         "projectId": "96ebcede-0846-49c7-87bb-33e4d5f34393"

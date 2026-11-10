@@ -29,7 +29,7 @@ const ACTIONS: {
     icon: 'calendar',
     color: Brand.primary,
     bg: Brand.light,
-    href: '/(tabs)/doctors',
+    href: '/healthcare/book',
   },
   {
     id: 'payments',
@@ -96,6 +96,14 @@ const ACTIONS: {
     href: '/health/family',
   },
   {
+    id: 'hospitals',
+    title: 'Hospitals',
+    icon: 'business',
+    color: Brand.primary,
+    bg: Brand.light,
+    href: '/healthcare',
+  },
+  {
     id: 'emergency',
     title: 'Emergency',
     icon: 'shield-checkmark',
@@ -105,7 +113,7 @@ const ACTIONS: {
   },
   {
     id: 'visits',
-    title: 'Visits',
+    title: 'My Visits',
     icon: 'time',
     color: '#B45309',
     bg: '#FEF3C7',

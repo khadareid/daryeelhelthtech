@@ -40,11 +40,11 @@ export default function AppTabs() {
             <TabButton label="Home" icon="home-outline" iconActive="home" />
           </TabTrigger>
 
-          <TabTrigger name="doctors" href="/(tabs)/doctors" asChild>
+          <TabTrigger name="doctors" href="/healthcare" asChild>
             <TabButton
-              label="Doctors"
-              icon="medkit-outline"
-              iconActive="medkit"
+              label="Hospitals"
+              icon="business-outline"
+              iconActive="business"
             />
           </TabTrigger>
 
@@ -68,7 +68,7 @@ export default function AppTabs() {
 
           <TabTrigger name="appointments" href="/(tabs)/appointments" asChild>
             <TabButton
-              label="Visits"
+              label="My Visits"
               icon="calendar-outline"
               iconActive="calendar"
             />

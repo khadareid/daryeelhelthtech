@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import session from "express-session";
 import dotenv from "dotenv";
 import googleAuth from "./helpers/PassportRouter";
@@ -39,6 +41,7 @@ import notificationRouter from "./Routes/NotificationRouter";
 import consentRouter from "./Routes/ConsentRouter";
 import accessRequestRouter from "./Routes/AccessRequestRouter";
 import adminRouter from "./Routes/AdminRouter";
+import healthcareRouter from "./Routes/HealthcareRouter";
 
 dotenv.config();
 
@@ -70,14 +73,16 @@ function normalizeOrigin(value: string): string {
 }
 
 const allowedOrigins = [
-  // "http://localhost:5173",
-  // "http://localhost:5174",
-  // "http://localhost:5175",
+  "http://localhost:5173",
+  "http://localhost:5174",
   "http://localhost:8081",
   "http://localhost:8082",
-  // "http://localhost:3000",
-  // "http://localhost:3001",
+  // Production frontends
   "https://daryeelhelthtech.vercel.app",
+  "https://daryeel-saas-healthtech-six.vercel.app",
+  // Legacy / alternate spellings
+  "https://daryeel-healthtech.vercel.app",
+  "https://daryeel-healthtech-gamma.vercel.app",
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ORIGINS || "")
     .split(",")
@@ -96,11 +101,17 @@ const isPrivateHost = (hostname: string) => {
 };
 
 const isAllowedVercelPreview = (hostname: string) =>
+  hostname === "daryeelhelthtech.vercel.app" ||
   hostname === "daryeel-healthtech.vercel.app" ||
   hostname === "daryeel-healthtech-gamma.vercel.app" ||
+  hostname === "daryeel-saas-healthtech-six.vercel.app" ||
+  hostname.endsWith(".daryeelhelthtech.vercel.app") ||
   hostname.endsWith(".daryeel-healthtech.vercel.app") ||
   hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
-  /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
+  hostname.endsWith(".daryeel-saas-healthtech-six.vercel.app") ||
+  /^daryeelhelthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname) ||
+  /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname) ||
+  /^daryeel-saas-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
 
 const isAllowedOrigin = (origin?: string | null) => {
   if (!origin) return true;
@@ -115,6 +126,13 @@ const isAllowedOrigin = (origin?: string | null) => {
     return false;
   }
 };
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 app.use(
   cors({
@@ -133,10 +151,24 @@ app.use(
       "X-CSRF-Token",
       "X-Requested-With",
       "Idempotency-Key",
+      "X-Correlation-Id",
     ],
     optionsSuccessStatus: 204,
   })
 );
+
+const healthcareLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    isSuccess: false,
+    message: "Too many healthcare requests. Please try again shortly.",
+    code: "RATE_LIMITED",
+  },
+});
 
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
@@ -212,6 +244,9 @@ app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/consents", consentRouter);
 app.use("/api/v1/access-requests", accessRequestRouter);
+
+// Healthcare ↔ SaaS integration proxy (server-side key only)
+app.use("/api/v1/healthcare", healthcareLimiter, healthcareRouter);
 
 // Admin
 app.use("/api/v1/admin", adminRouter);

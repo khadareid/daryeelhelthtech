@@ -82,6 +82,18 @@ export type AppointmentItem = {
   currency?: string | null;
   paymentRequired?: boolean;
   paymentStatus?: string | null;
+  source?: string | null;
+  doctorName?: string | null;
+  facilityName?: string | null;
+  specialty?: string | null;
+  department?: string | null;
+  externalHospitalId?: string | null;
+  externalDoctorId?: string | null;
+  externalAppointmentId?: string | null;
+  externalTicketId?: string | null;
+  externalTicketNumber?: string | null;
+  proposedScheduledAt?: string | null;
+  proposedMessage?: string | null;
   doctor?: {
     id?: string;
     fullName?: string | null;
@@ -260,6 +272,7 @@ type RequestOptions = {
   body?: unknown;
   token?: string | null;
   skipCsrf?: boolean;
+  headers?: Record<string, string>;
 };
 
 async function parseJson(res: Response) {
@@ -297,11 +310,18 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, token, skipCsrf = false } = options;
+  const {
+    method = 'GET',
+    body,
+    token,
+    skipCsrf = false,
+    headers: extraHeaders,
+  } = options;
 
   const run = async (forceCsrf = false) => {
     const headers: Record<string, string> = {
       Accept: 'application/json',
+      ...(extraHeaders || {}),
     };
 
     if (body !== undefined) {
@@ -1104,4 +1124,389 @@ export async function markAllNotificationsReadRequest(token: string) {
     body: {},
     token,
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Healthcare booking (Healthtech /api/v1/healthcare — never call SaaS) */
+/* ------------------------------------------------------------------ */
+
+const HEALTHCARE = '/healthcare';
+
+export type HealthcareHospital = {
+  tenantId?: string;
+  id?: string;
+  companyName?: string | null;
+  name?: string | null;
+  city?: string | null;
+  country?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  logoUrl?: string | null;
+  publicLogoUrl?: string | null;
+  description?: string | null;
+  publicDescription?: string | null;
+  averageRating?: number | string | null;
+  rating?: number | string | null;
+  totalReviews?: number | null;
+  facilities?: Array<{
+    facilityId?: string;
+    name?: string;
+    city?: string | null;
+    isMain?: boolean;
+  }>;
+  doctors?: HealthcareDoctor[];
+  _count?: {
+    professionalProfiles?: number;
+    facilities?: number;
+  };
+};
+
+export type HealthcareDepartment = {
+  departmentId?: string;
+  id?: string;
+  name?: string;
+  type?: string | null;
+  hospitalId?: string;
+  city?: string | null;
+  isMain?: boolean;
+};
+
+export type HealthcareDoctor = {
+  doctorId?: string;
+  userId?: string;
+  id?: string;
+  professionalProfileId?: string;
+  name?: string | null;
+  specialization?: string | null;
+  specialty?: string | null;
+  yearsOfExperience?: number | null;
+  languages?: string[] | null;
+  publicBio?: string | null;
+  bio?: string | null;
+  publicPhotoUrl?: string | null;
+  picture?: string | null;
+  consultationFee?: number | string | null;
+  currency?: string | null;
+  averageRating?: number | string | null;
+  totalReviews?: number | null;
+  facilityId?: string | null;
+  facilityName?: string | null;
+  hospitalId?: string | null;
+  hospitalName?: string | null;
+  tenantId?: string | null;
+  department?: { name?: string | null } | null;
+  user?: {
+    userId?: string;
+    name?: string | null;
+    picture?: string | null;
+  } | null;
+};
+
+export type HealthcareAvailability = {
+  windows?: Array<{
+    dayOfWeek?: number;
+    startTime?: string;
+    endTime?: string;
+    slotMinutes?: number;
+    isAvailable?: boolean;
+  }>;
+  slots?: Array<string | { start?: string; time?: string; label?: string }>;
+  usingDefault?: boolean;
+  available?: boolean;
+};
+
+export type HealthcareOpdTicket = {
+  ticketId?: string | null;
+  ticketNumber?: string | null;
+  appointmentId?: string;
+  externalAppointmentId?: string | null;
+  hospital?: string | null;
+  doctor?: string | null;
+  department?: string | null;
+  scheduledAt?: string;
+  status?: string;
+};
+
+export type CreateHealthcareAppointmentInput = {
+  hospitalId: string;
+  doctorId: string;
+  scheduledAt: string;
+  tenantId?: string;
+  facilityId?: string | null;
+  departmentId?: string | null;
+  department?: string | null;
+  duration?: number;
+  reason?: string;
+  notes?: string;
+  type?: string;
+  consentGranted?: boolean;
+  consentId?: string;
+  consultationFee?: number | string | null;
+  currency?: string;
+  doctorName?: string;
+  facilityName?: string;
+  specialty?: string;
+  idempotencyKey?: string;
+};
+
+function makeIdempotencyKey() {
+  return `ht-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+function healthcareQs(
+  params?: Record<string, string | number | undefined | null>,
+) {
+  const query = new URLSearchParams();
+  if (!params) return '';
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      query.set(key, String(value));
+    }
+  }
+  const qs = query.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function healthcareHospitalId(h: HealthcareHospital) {
+  return String(h.tenantId || h.id || '');
+}
+
+export function healthcareHospitalName(h: HealthcareHospital) {
+  return h.companyName || h.name || 'Hospital';
+}
+
+export function healthcareDoctorId(d: HealthcareDoctor) {
+  return String(
+    d.doctorId || d.userId || d.user?.userId || d.id || d.professionalProfileId || '',
+  );
+}
+
+export function healthcareDoctorName(d: HealthcareDoctor) {
+  return d.user?.name || d.name || 'Doctor';
+}
+
+export function isHealthcareAppointment(item: AppointmentItem) {
+  return (
+    String(item.source || '').toUpperCase() === 'HEALTHTECH' ||
+    Boolean(item.externalHospitalId || item.facilityName)
+  );
+}
+
+export async function listHealthcareHospitals(
+  token?: string | null,
+  params?: {
+    search?: string;
+    city?: string;
+    department?: string;
+    page?: number;
+    limit?: number;
+  },
+) {
+  try {
+    const data = await apiRequest<
+      ApiSuccess<HealthcareHospital[] | Paginated<HealthcareHospital>>
+    >(`${HEALTHCARE}/hospitals${healthcareQs(params)}`, {
+      method: 'GET',
+      token,
+      skipCsrf: true,
+    });
+    return unwrapItems(data);
+  } catch {
+    return [] as HealthcareHospital[];
+  }
+}
+
+export async function getHealthcareHospital(
+  hospitalId: string,
+  token?: string | null,
+) {
+  const data = await apiRequest<ApiSuccess<HealthcareHospital>>(
+    `${HEALTHCARE}/hospitals/${encodeURIComponent(hospitalId)}`,
+    { method: 'GET', token, skipCsrf: true },
+  );
+  const hospital = unwrap(data);
+  if (!hospital) throw new Error(data.message || 'Hospital not found');
+  return hospital;
+}
+
+export async function listHealthcareDepartments(
+  hospitalId: string,
+  token?: string | null,
+) {
+  try {
+    const data = await apiRequest<
+      ApiSuccess<HealthcareDepartment[] | Paginated<HealthcareDepartment>>
+    >(
+      `${HEALTHCARE}/hospitals/${encodeURIComponent(hospitalId)}/departments`,
+      { method: 'GET', token, skipCsrf: true },
+    );
+    return unwrapItems(data);
+  } catch {
+    return [] as HealthcareDepartment[];
+  }
+}
+
+export async function listHealthcareDoctors(
+  token?: string | null,
+  params?: {
+    hospitalId?: string;
+    search?: string;
+    specialty?: string;
+    specialization?: string;
+    department?: string;
+    city?: string;
+    page?: number;
+    limit?: number;
+  },
+) {
+  try {
+    const hospitalId = params?.hospitalId;
+    const path = hospitalId
+      ? `${HEALTHCARE}/hospitals/${encodeURIComponent(hospitalId)}/doctors`
+      : `${HEALTHCARE}/doctors`;
+    const { hospitalId: _omit, ...rest } = params || {};
+    const data = await apiRequest<
+      ApiSuccess<HealthcareDoctor[] | Paginated<HealthcareDoctor>>
+    >(`${path}${healthcareQs(rest)}`, {
+      method: 'GET',
+      token,
+      skipCsrf: true,
+    });
+    return unwrapItems(data);
+  } catch {
+    return [] as HealthcareDoctor[];
+  }
+}
+
+export async function getHealthcareDoctor(
+  doctorId: string,
+  token?: string | null,
+) {
+  const data = await apiRequest<ApiSuccess<HealthcareDoctor>>(
+    `${HEALTHCARE}/doctors/${encodeURIComponent(doctorId)}`,
+    { method: 'GET', token, skipCsrf: true },
+  );
+  const doctor = unwrap(data);
+  if (!doctor) throw new Error(data.message || 'Doctor not found');
+  return doctor;
+}
+
+export async function getHealthcareAvailability(
+  doctorId: string,
+  date: string,
+  token?: string | null,
+) {
+  const data = await apiRequest<ApiSuccess<HealthcareAvailability>>(
+    `${HEALTHCARE}/doctors/${encodeURIComponent(doctorId)}/availability${healthcareQs({ date })}`,
+    { method: 'GET', token, skipCsrf: true },
+  );
+  return (
+    unwrap(data) ??
+    ({ slots: [], windows: [] } satisfies HealthcareAvailability)
+  );
+}
+
+export async function createHealthcareAppointment(
+  input: CreateHealthcareAppointmentInput,
+  token: string,
+) {
+  const idempotencyKey = input.idempotencyKey || makeIdempotencyKey();
+  const data = await apiRequest<ApiSuccess<AppointmentItem>>(
+    `${HEALTHCARE}/appointments`,
+    {
+      method: 'POST',
+      token,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: {
+        ...input,
+        tenantId: input.tenantId || input.hospitalId,
+        consentGranted: input.consentGranted ?? true,
+        idempotencyKey,
+      },
+    },
+  );
+  const result = unwrap(data);
+  if (!result) throw new Error(data.message || 'Booking failed');
+  return result;
+}
+
+export async function listHealthcareAppointments(
+  token: string,
+  params?: { status?: string },
+) {
+  try {
+    const data = await apiRequest<
+      ApiSuccess<AppointmentItem[] | Paginated<AppointmentItem>>
+    >(`${HEALTHCARE}/appointments${healthcareQs(params)}`, {
+      method: 'GET',
+      token,
+      skipCsrf: true,
+    });
+    return unwrapItems(data);
+  } catch {
+    return [] as AppointmentItem[];
+  }
+}
+
+export async function getHealthcareAppointment(id: string, token: string) {
+  const data = await apiRequest<ApiSuccess<AppointmentItem>>(
+    `${HEALTHCARE}/appointments/${encodeURIComponent(id)}`,
+    { method: 'GET', token, skipCsrf: true },
+  );
+  const row = unwrap(data);
+  if (!row) throw new Error(data.message || 'Appointment not found');
+  return row;
+}
+
+export async function cancelHealthcareAppointment(
+  id: string,
+  token: string,
+  reason?: string,
+) {
+  const data = await apiRequest<ApiSuccess<AppointmentItem>>(
+    `${HEALTHCARE}/appointments/${encodeURIComponent(id)}/cancel`,
+    {
+      method: 'POST',
+      token,
+      body: reason ? { reason } : {},
+    },
+  );
+  return unwrap(data);
+}
+
+export async function requestHealthcareReschedule(
+  id: string,
+  token: string,
+  input: { proposedScheduledAt: string; message?: string },
+) {
+  const data = await apiRequest<ApiSuccess<AppointmentItem>>(
+    `${HEALTHCARE}/appointments/${encodeURIComponent(id)}/reschedule`,
+    {
+      method: 'POST',
+      token,
+      body: {
+        proposedScheduledAt: input.proposedScheduledAt,
+        scheduledAt: input.proposedScheduledAt,
+        message: input.message,
+      },
+    },
+  );
+  const row = unwrap(data);
+  if (!row) throw new Error(data.message || 'Reschedule failed');
+  return row;
+}
+
+export async function listHealthcareOpdTickets(token: string) {
+  try {
+    const data = await apiRequest<
+      ApiSuccess<HealthcareOpdTicket[] | Paginated<HealthcareOpdTicket>>
+    >(`${HEALTHCARE}/opd-tickets`, {
+      method: 'GET',
+      token,
+      skipCsrf: true,
+    });
+    return unwrapItems(data);
+  } catch {
+    return [] as HealthcareOpdTicket[];
+  }
 }

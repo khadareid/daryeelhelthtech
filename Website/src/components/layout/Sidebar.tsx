@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Stethoscope,
+  Hospital,
   UserRound,
   Users,
 } from "lucide-react"
@@ -68,18 +69,18 @@ export const PRIMARY_TABS: DashLink[] = [
     bar: true,
   },
   {
-    id: "doctors",
-    label: "Doctors",
-    description: "Find and book clinicians",
-    to: "/dashboard?section=doctors",
-    icon: Stethoscope,
+    id: "hospitals",
+    label: "Hospitals",
+    description: "Find hospitals and book visits",
+    to: "/dashboard?section=hospitals",
+    icon: Hospital,
     bar: true,
   },
   {
-    id: "appointments",
-    label: "Visits",
-    description: "Upcoming and past appointments",
-    to: "/dashboard?section=appointments",
+    id: "healthcare",
+    label: "My Visits",
+    description: "Hospital visits & OPD tickets",
+    to: "/dashboard?section=healthcare",
     icon: Calendar,
     bar: true,
   },
@@ -96,10 +97,24 @@ const CLINIC_ACTION: DashLink = {
 const QUICK_ACTIONS: DashLink[] = [
   {
     id: "book",
-    label: "Book visit",
-    description: "Schedule a consultation",
-    to: "/dashboard?section=appointments",
+    label: "Book hospital",
+    description: "Book a SaaS hospital appointment",
+    to: "/dashboard?section=book",
     icon: CalendarPlus,
+  },
+  {
+    id: "doctors",
+    label: "Daryeel doctors",
+    description: "Independent Daryeel clinicians",
+    to: "/dashboard?section=doctors",
+    icon: Stethoscope,
+  },
+  {
+    id: "appointments",
+    label: "Daryeel visits",
+    description: "Bookings with Daryeel doctors",
+    to: "/dashboard?section=appointments",
+    icon: Calendar,
   },
   {
     id: "payments",
@@ -182,9 +197,9 @@ const QUICK_ACTIONS: DashLink[] = [
 
 const LEGACY_ALIASES: Record<string, string> = {
   home: "dashboard",
-  care: "appointments",
+  care: "healthcare",
+  visits: "healthcare",
   labs: "prescriptions",
-  healthcare: "appointments",
 }
 
 export const linksForRole = (role: AppRole): DashLink[] => [
@@ -230,22 +245,13 @@ export function DashboardSidebar({
   const current = sectionFromLocation(location.pathname, location.search)
   const primaryTabs = useMemo(() => {
     if (!isDoctor) return PRIMARY_TABS
-    return PRIMARY_TABS.map((t) =>
-      t.id === "doctors"
-        ? {
-            ...t,
-            id: "clinic",
-            label: "Clinic",
-            description: "Patients, payments & your doctor profile",
-            to: "/dashboard?section=clinic",
-          }
-        : t
-    )
+    // Doctors keep Hospitals on the left; Clinic stays available in Actions
+    return PRIMARY_TABS
   }, [isDoctor])
   const left = primaryTabs.filter((t) =>
-    ["dashboard", "doctors", "clinic"].includes(t.id)
+    ["dashboard", "hospitals", "clinic"].includes(t.id)
   )
-  const right = primaryTabs.filter((t) => t.id === "appointments")
+  const right = primaryTabs.filter((t) => t.id === "healthcare")
   const quickActions = useMemo(
     () => (isDoctor ? [CLINIC_ACTION, ...QUICK_ACTIONS] : QUICK_ACTIONS),
     [isDoctor]
