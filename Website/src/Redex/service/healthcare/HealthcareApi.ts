@@ -237,11 +237,35 @@ export function doctorPhotoOf(d: HealthcareDoctor | null | undefined): string | 
 }
 
 export function doctorSpecialtyOf(d: HealthcareDoctor | null | undefined): string {
+  const profile = (d as any)?.professionalProfile
   if (typeof d?.department === "string" && d.department) return d.department
   if (d?.department && typeof d.department === "object" && d.department.name) {
     return String(d.specialization || d.specialty || d.department.name)
   }
-  return String(d?.specialization || d?.specialty || "General")
+  return String(
+    d?.specialization ||
+      d?.specialty ||
+      profile?.specialization ||
+      "General"
+  )
+}
+
+/** Reads ProfessionalProfile.consultationFee (Decimal may arrive as string). */
+export function doctorFeeOf(d: HealthcareDoctor | null | undefined): number {
+  const profile = (d as any)?.professionalProfile
+  const raw =
+    d?.consultationFee ??
+    profile?.consultationFee ??
+    null
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+export function doctorCurrencyOf(
+  d: HealthcareDoctor | null | undefined
+): string {
+  const profile = (d as any)?.professionalProfile
+  return String(d?.currency || profile?.currency || "USD")
 }
 
 export function doctorHospitalNameOf(d: HealthcareDoctor | null | undefined): string {

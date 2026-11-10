@@ -10,6 +10,8 @@ import {
 } from "lucide-react"
 import {
   departmentIdOf,
+  doctorCurrencyOf,
+  doctorFeeOf,
   doctorIdOf,
   doctorNameOf,
   doctorSpecialtyOf,
@@ -75,19 +77,32 @@ function formatSlotLabel(raw: string): string {
 }
 
 function slotToIso(dateStr: string, slotRaw: string): string {
+  // SaaS availability already returns absolute ISO (EAT-based)
   if (slotRaw.includes("T") || /^\d{4}-\d{2}-\d{2}/.test(slotRaw)) {
     const d = new Date(slotRaw)
     if (!Number.isNaN(d.getTime())) return d.toISOString()
   }
+  // Fallback clinic labels → East Africa (UTC+3), matching SaaS windows
   if (/AM|PM/i.test(slotRaw)) {
-    const day = new Date(`${dateStr}T00:00:00`)
-    return combineDayAndSlot(day, slotRaw).toISOString()
+    const { h, m } = (() => {
+      const match = slotRaw.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+      if (!match) return { h: 8, m: 0 }
+      let hour = Number(match[1])
+      const minute = Number(match[2])
+      const ampm = (match[3] || "").toUpperCase()
+      if (ampm === "PM" && hour < 12) hour += 12
+      if (ampm === "AM" && hour === 12) hour = 0
+      return { h: hour, m: minute }
+    })()
+    const hh = String(h).padStart(2, "0")
+    const mm = String(m).padStart(2, "0")
+    return new Date(`${dateStr}T${hh}:${mm}:00+03:00`).toISOString()
   }
   const time = slotRaw.match(/(\d{1,2}:\d{2})/)?.[1]
   if (time) {
-    return new Date(`${dateStr}T${time}:00`).toISOString()
+    return new Date(`${dateStr}T${time}:00+03:00`).toISOString()
   }
-  return new Date(`${dateStr}T08:00:00`).toISOString()
+  return new Date(`${dateStr}T08:00:00+03:00`).toISOString()
 }
 
 function newIdempotencyKey() {
@@ -161,9 +176,9 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
     (h) => hospitalIdOf(h) === hospitalId
   )
   const selectedDoctor = doctors.find((d) => doctorIdOf(d) === doctorId)
-  const fee = Number(selectedDoctor?.consultationFee || 0)
+  const fee = doctorFeeOf(selectedDoctor)
   const hasFee = fee > 0
-  const currency = selectedDoctor?.currency || "USD"
+  const currency = doctorCurrencyOf(selectedDoctor)
 
   const apiSlots = useMemo(
     () => normalizeAvailabilitySlots(availability),
@@ -171,11 +186,24 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
   )
 
   const timeOptions = useMemo(() => {
+    // Prefer real SaaS availability slots (ISO). Do not invent times when
+    // the doctor has a schedule but no open slots on this day.
     if (apiSlots.length > 0) return apiSlots
+    if (doctorId && selectedDate && !availLoading && availability) {
+      return []
+    }
     return BOOKING_TIME_SLOTS.filter(
       (s) => !isSlotInPast(days[dayIndex], s)
     )
-  }, [apiSlots, days, dayIndex])
+  }, [
+    apiSlots,
+    availability,
+    availLoading,
+    days,
+    dayIndex,
+    doctorId,
+    selectedDate,
+  ])
 
   useEffect(() => {
     if (!slot && timeOptions.length > 0) {
@@ -242,7 +270,7 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
     }
     try {
       const scheduledAt = slotToIso(selectedDate, slot)
-      const feeNow = Number(selectedDoctor?.consultationFee || 0)
+      const feeNow = doctorFeeOf(selectedDoctor)
       const payNote =
         feeNow > 0
           ? payMethod === "later"
@@ -268,8 +296,8 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
         specialty: selectedDoctor
           ? doctorSpecialtyOf(selectedDoctor)
           : department || undefined,
-        consultationFee: feeNow > 0 ? feeNow : 0,
-        currency: selectedDoctor?.currency || "USD",
+        consultationFee: feeNow,
+        currency: doctorCurrencyOf(selectedDoctor),
         idempotencyKey: newIdempotencyKey(),
       }).unwrap()
       setCreated(result)
@@ -492,8 +520,8 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                             </span>
                             <span className="text-xs text-primary">
                               {doctorSpecialtyOf(d)}
-                              {Number(d.consultationFee || 0) > 0
-                                ? ` · ${d.currency || "USD"} ${Number(d.consultationFee).toFixed(0)}`
+                              {doctorFeeOf(d) > 0
+                                ? ` · ${doctorCurrencyOf(d)} ${doctorFeeOf(d).toFixed(0)}`
                                 : " · Free"}
                             </span>
                           </button>
@@ -543,7 +571,9 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                     </p>
                   ) : timeOptions.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No slots for this date. Try another day.
+                      No open slots for this doctor on this date. This doctor’s
+                      schedule may only cover certain weekdays — try another
+                      day.
                     </p>
                   ) : (
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
