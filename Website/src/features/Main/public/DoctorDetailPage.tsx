@@ -101,7 +101,7 @@ export default function DoctorDetailPage() {
           ? "Booking confirmed — opening Visits"
           : `Booking confirmed — pay ${doctor?.currency || "USD"} ${fee.toFixed(2)} in Visits`
       )
-      navigate("/dashboard?section=appointments")
+      navigate("/dashboard?section=healthcare&tab=daryeel")
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "data" in err

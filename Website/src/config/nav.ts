@@ -19,7 +19,10 @@ export const dashboardNav: NavItem[] = [
   { title: "Book hospital", href: "/dashboard?section=book" },
   { title: "My Visits", href: "/dashboard?section=healthcare" },
   { title: "Daryeel doctors", href: "/dashboard?section=doctors" },
-  { title: "Daryeel visits", href: "/dashboard?section=appointments" },
+  {
+    title: "Daryeel bookings",
+    href: "/dashboard?section=healthcare&tab=daryeel",
+  },
   { title: "Daily health", href: "/dashboard?section=health" },
   { title: "Vitals", href: "/dashboard?section=vitals" },
   { title: "Medications", href: "/dashboard?section=medications" },

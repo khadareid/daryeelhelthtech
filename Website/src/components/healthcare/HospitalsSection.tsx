@@ -64,7 +64,9 @@ export function HospitalsSection() {
             <Link to="/dashboard?section=book">Book hospital visit</Link>
           </Button>
           <Button asChild variant="outline" className="border-primary/20">
-            <Link to="/dashboard?section=healthcare">My Visits</Link>
+            <Link to="/dashboard?section=healthcare&tab=hospitals">
+              My hospital bookings
+            </Link>
           </Button>
           <Button asChild variant="outline" className="border-primary/20">
             <Link to="/dashboard?section=doctors">Daryeel doctors</Link>

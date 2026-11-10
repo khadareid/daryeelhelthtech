@@ -1,7 +1,8 @@
 "use strict";
 /**
- * Server-to-server client: Healthtech API → Daryeel SaaS integration API.
- * Never expose SAAS_INTEGRATION_KEY to browsers or mobile apps.
+ * Server-to-server client: Healthtech API → Daryeel SaaS.
+ * Discovery (hospitals) uses public SaaS routes.
+ * Booking / mutations require SAAS_INTEGRATION_KEY.
  */
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -48,8 +49,9 @@ exports.SaasHttpError = SaasHttpError;
 function saasRequest(path_1) {
     return __awaiter(this, arguments, void 0, function* (path, options = {}) {
         var _a;
+        const requireAuth = options.requireAuth !== false;
         const key = integrationKey();
-        if (!key) {
+        if (requireAuth && !key) {
             throw new SaasHttpError("Hospital integration is not configured", 503, "SAAS_UNAVAILABLE");
         }
         const url = new URL(`${saasBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`);
@@ -63,13 +65,23 @@ function saasRequest(path_1) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), (_a = options.timeoutMs) !== null && _a !== void 0 ? _a : 20000);
         try {
+            const headers = {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+            };
+            if (key) {
+                headers.Authorization = `Bearer ${key}`;
+                headers["X-Integration-Key"] = key;
+            }
+            if (options.idempotencyKey) {
+                headers["Idempotency-Key"] = options.idempotencyKey;
+            }
+            if (options.correlationId) {
+                headers["X-Correlation-Id"] = options.correlationId;
+            }
             const res = yield fetch(url.toString(), {
                 method: options.method || "GET",
-                headers: Object.assign(Object.assign({ "Content-Type": "application/json", Authorization: `Bearer ${key}`, "X-Integration-Key": key }, (options.idempotencyKey
-                    ? { "Idempotency-Key": options.idempotencyKey }
-                    : {})), (options.correlationId
-                    ? { "X-Correlation-Id": options.correlationId }
-                    : {})),
+                headers,
                 body: options.body ? JSON.stringify(options.body) : undefined,
                 signal: controller.signal,
             });
@@ -99,14 +111,74 @@ function saasRequest(path_1) {
         }
     });
 }
+/** Public discovery — no integration key (matches SaaS /company/public-* routes). */
+function saasPublicRequest(path_1) {
+    return __awaiter(this, arguments, void 0, function* (path, options = {}) {
+        return saasRequest(path, Object.assign(Object.assign({}, options), { requireAuth: false }));
+    });
+}
 exports.saasApi = {
-    listHospitals: (query) => saasRequest("/integrations/hospitals", { query }),
-    getHospital: (hospitalId) => saasRequest(`/integrations/hospitals/${hospitalId}`),
-    listDepartments: (hospitalId) => saasRequest(`/integrations/hospitals/${hospitalId}/departments`),
-    listDoctors: (hospitalId, query) => saasRequest(`/integrations/hospitals/${hospitalId}/doctors`, { query }),
+    /** Uses SaaS public hospital directory (no integration key). */
+    listHospitals: (query) => saasPublicRequest("/company/public-hospitals", { query }),
+    /** Uses SaaS public hospital detail (no integration key). */
+    getHospital: (hospitalId) => saasPublicRequest(`/company/public-hospitals/${hospitalId}`),
+    listDepartments: (hospitalId) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a, _b;
+        try {
+            return yield saasRequest(`/integrations/hospitals/${hospitalId}/departments`);
+        }
+        catch (error) {
+            // Fall back to public hospital detail (facilities act as departments)
+            if ([401, 403, 404, 503].includes(error === null || error === void 0 ? void 0 : error.status) || !integrationKey()) {
+                const hospital = yield saasPublicRequest(`/company/public-hospitals/${hospitalId}`);
+                const data = ((_b = (_a = hospital.data) !== null && _a !== void 0 ? _a : hospital.result) !== null && _b !== void 0 ? _b : {});
+                const facilities = Array.isArray(data === null || data === void 0 ? void 0 : data.facilities) ? data.facilities : [];
+                const departments = facilities.map((f) => ({
+                    departmentId: f.facilityId,
+                    name: f.name,
+                    type: "FACILITY",
+                    hospitalId,
+                    city: f.city || null,
+                    isMain: Boolean(f.isMain),
+                }));
+                return {
+                    isSuccess: true,
+                    data: departments,
+                    result: departments,
+                };
+            }
+            throw error;
+        }
+    }),
+    listDoctors: (hospitalId, query) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a, _b;
+        try {
+            return yield saasRequest(`/integrations/hospitals/${hospitalId}/doctors`, { query });
+        }
+        catch (error) {
+            // Public hospital detail includes doctors — normalize shape
+            if ([401, 403, 404, 503].includes(error === null || error === void 0 ? void 0 : error.status) || !integrationKey()) {
+                const hospital = yield saasPublicRequest(`/company/public-hospitals/${hospitalId}`);
+                const data = ((_b = (_a = hospital.data) !== null && _a !== void 0 ? _a : hospital.result) !== null && _b !== void 0 ? _b : {});
+                const doctors = Array.isArray(data === null || data === void 0 ? void 0 : data.doctors) ? data.doctors : [];
+                return {
+                    isSuccess: true,
+                    data: doctors,
+                    result: doctors,
+                    pagination: {
+                        total: doctors.length,
+                        page: 1,
+                        limit: doctors.length || 20,
+                        totalPages: 1,
+                    },
+                };
+            }
+            throw error;
+        }
+    }),
     listAllDoctors: (query) => saasRequest("/integrations/doctors", { query }),
     getDoctor: (doctorId) => saasRequest(`/integrations/doctors/${doctorId}`),
-    getAvailability: (doctorId, date) => saasRequest(`/integrations/doctors/${doctorId}/availability`, {
+    getAvailability: (doctorId, date) => saasPublicRequest(`/company/public-doctors/${doctorId}/availability`, {
         query: { date },
     }),
     createAppointment: (body, idempotencyKey) => saasRequest("/integrations/appointments", {

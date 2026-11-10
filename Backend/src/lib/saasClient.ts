@@ -1,6 +1,7 @@
 /**
- * Server-to-server client: Healthtech API → Daryeel SaaS integration API.
- * Never expose SAAS_INTEGRATION_KEY to browsers or mobile apps.
+ * Server-to-server client: Healthtech API → Daryeel SaaS.
+ * Discovery (hospitals) uses public SaaS routes.
+ * Booking / mutations require SAAS_INTEGRATION_KEY.
  */
 
 export type SaaSJson = {
@@ -60,14 +61,17 @@ type RequestOptions = {
   idempotencyKey?: string;
   correlationId?: string;
   timeoutMs?: number;
+  /** When true (default), require SAAS_INTEGRATION_KEY. Public discovery sets false. */
+  requireAuth?: boolean;
 };
 
 export async function saasRequest(
   path: string,
   options: RequestOptions = {}
 ): Promise<SaaSJson> {
+  const requireAuth = options.requireAuth !== false;
   const key = integrationKey();
-  if (!key) {
+  if (requireAuth && !key) {
     throw new SaasHttpError(
       "Hospital integration is not configured",
       503,
@@ -93,19 +97,24 @@ export async function saasRequest(
   );
 
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (key) {
+      headers.Authorization = `Bearer ${key}`;
+      headers["X-Integration-Key"] = key;
+    }
+    if (options.idempotencyKey) {
+      headers["Idempotency-Key"] = options.idempotencyKey;
+    }
+    if (options.correlationId) {
+      headers["X-Correlation-Id"] = options.correlationId;
+    }
+
     const res = await fetch(url.toString(), {
       method: options.method || "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-        "X-Integration-Key": key,
-        ...(options.idempotencyKey
-          ? { "Idempotency-Key": options.idempotencyKey }
-          : {}),
-        ...(options.correlationId
-          ? { "X-Correlation-Id": options.correlationId }
-          : {}),
-      },
+      headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
     });
@@ -143,56 +152,136 @@ export async function saasRequest(
   }
 }
 
+/** Public discovery — no integration key (matches SaaS /company/public-* routes). */
+async function saasPublicRequest(
+  path: string,
+  options: Omit<RequestOptions, "requireAuth"> = {}
+) {
+  return saasRequest(path, { ...options, requireAuth: false });
+}
+
 export const saasApi = {
+  /** Uses SaaS public hospital directory (no integration key). */
   listHospitals: (query?: Record<string, any>) =>
-    saasRequest("/integrations/hospitals", { query }),
+    saasPublicRequest("/company/public-hospitals", { query }),
+
+  /** Uses SaaS public hospital detail (no integration key). */
   getHospital: (hospitalId: string) =>
-    saasRequest(`/integrations/hospitals/${hospitalId}`),
-  listDepartments: (hospitalId: string) =>
-    saasRequest(`/integrations/hospitals/${hospitalId}/departments`),
-  listDoctors: (hospitalId: string, query?: Record<string, any>) =>
-    saasRequest(`/integrations/hospitals/${hospitalId}/doctors`, { query }),
+    saasPublicRequest(`/company/public-hospitals/${hospitalId}`),
+
+  listDepartments: async (hospitalId: string) => {
+    try {
+      return await saasRequest(
+        `/integrations/hospitals/${hospitalId}/departments`
+      );
+    } catch (error: any) {
+      // Fall back to public hospital detail (facilities act as departments)
+      if ([401, 403, 404, 503].includes(error?.status) || !integrationKey()) {
+        const hospital = await saasPublicRequest(
+          `/company/public-hospitals/${hospitalId}`
+        );
+        const data = (hospital.data ?? hospital.result ?? {}) as any;
+        const facilities = Array.isArray(data?.facilities) ? data.facilities : [];
+        const departments = facilities.map((f: any) => ({
+          departmentId: f.facilityId,
+          name: f.name,
+          type: "FACILITY",
+          hospitalId,
+          city: f.city || null,
+          isMain: Boolean(f.isMain),
+        }));
+        return {
+          isSuccess: true,
+          data: departments,
+          result: departments,
+        };
+      }
+      throw error;
+    }
+  },
+
+  listDoctors: async (hospitalId: string, query?: Record<string, any>) => {
+    try {
+      return await saasRequest(
+        `/integrations/hospitals/${hospitalId}/doctors`,
+        { query }
+      );
+    } catch (error: any) {
+      // Public hospital detail includes doctors — normalize shape
+      if ([401, 403, 404, 503].includes(error?.status) || !integrationKey()) {
+        const hospital = await saasPublicRequest(
+          `/company/public-hospitals/${hospitalId}`
+        );
+        const data = (hospital.data ?? hospital.result ?? {}) as any;
+        const doctors = Array.isArray(data?.doctors) ? data.doctors : [];
+        return {
+          isSuccess: true,
+          data: doctors,
+          result: doctors,
+          pagination: {
+            total: doctors.length,
+            page: 1,
+            limit: doctors.length || 20,
+            totalPages: 1,
+          },
+        };
+      }
+      throw error;
+    }
+  },
+
   listAllDoctors: (query?: Record<string, any>) =>
     saasRequest("/integrations/doctors", { query }),
+
   getDoctor: (doctorId: string) =>
     saasRequest(`/integrations/doctors/${doctorId}`),
+
   getAvailability: (doctorId: string, date?: string) =>
-    saasRequest(`/integrations/doctors/${doctorId}/availability`, {
+    saasPublicRequest(`/company/public-doctors/${doctorId}/availability`, {
       query: { date },
     }),
+
   createAppointment: (body: unknown, idempotencyKey?: string) =>
     saasRequest("/integrations/appointments", {
       method: "POST",
       body,
       idempotencyKey,
     }),
+
   listAppointments: (healthtechUserId: string) =>
     saasRequest("/integrations/appointments", {
       query: { healthtechUserId },
     }),
+
   getAppointment: (id: string) =>
     saasRequest(`/integrations/appointments/${id}`),
+
   cancelAppointment: (id: string, body: unknown) =>
     saasRequest(`/integrations/appointments/${id}/cancel`, {
       method: "POST",
       body,
     }),
+
   requestReschedule: (id: string, body: unknown) =>
     saasRequest(`/integrations/appointments/${id}/reschedule`, {
       method: "POST",
       body,
     }),
+
   respondReschedule: (id: string, body: unknown) =>
     saasRequest(`/integrations/appointments/${id}/reschedule/respond`, {
       method: "POST",
       body,
     }),
+
   submitReview: (id: string, body: unknown) =>
     saasRequest(`/integrations/appointments/${id}/reviews`, {
       method: "POST",
       body,
     }),
+
   getOpdTicket: (id: string) =>
     saasRequest(`/integrations/opd-tickets/${id}`),
+
   getVisit: (id: string) => saasRequest(`/integrations/visits/${id}`),
 };

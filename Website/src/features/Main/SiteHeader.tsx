@@ -38,7 +38,11 @@ const MOBILE_ACCOUNT = [
   { to: "/dashboard?section=book", label: "Book hospital", icon: Calendar },
   { to: "/dashboard?section=healthcare", label: "My Visits", icon: Calendar },
   { to: "/dashboard?section=doctors", label: "Daryeel doctors", icon: Stethoscope },
-  { to: "/dashboard?section=appointments", label: "Daryeel visits", icon: Calendar },
+  {
+    to: "/dashboard?section=healthcare&tab=daryeel",
+    label: "Daryeel bookings",
+    icon: Calendar,
+  },
   { to: "/dashboard/UserProfile", label: "Settings", icon: Settings },
 ]
 
