@@ -14,7 +14,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saasApi = exports.SaasHttpError = exports.SaaSUnavailableError = void 0;
+exports.saasApi = exports.SaasHttpError = exports.SaaSUnavailableError = exports.DEFAULT_SAAS_INTEGRATION_KEY = void 0;
 exports.saasRequest = saasRequest;
 function saasBaseUrl() {
     const raw = process.env.SAAS_API_URL ||
@@ -22,10 +22,22 @@ function saasBaseUrl() {
         "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
     return raw.replace(/\/$/, "");
 }
+/**
+ * Shared Healthtech ↔ SaaS bootstrap key.
+ * Override in production with SAAS_INTEGRATION_KEY / HEALTHTECH_INTEGRATION_KEY
+ * (same value on both Vercel projects).
+ */
+exports.DEFAULT_SAAS_INTEGRATION_KEY = "daryeel-healthtech-saas-shared-2026";
 function integrationKey() {
-    return (process.env.SAAS_INTEGRATION_KEY ||
+    const raw = (process.env.SAAS_INTEGRATION_KEY ||
         process.env.HEALTHTECH_INTEGRATION_KEY ||
         "").trim();
+    if (!raw ||
+        raw === "replace-with-shared-integration-key" ||
+        raw === "replace-me") {
+        return exports.DEFAULT_SAAS_INTEGRATION_KEY;
+    }
+    return raw;
 }
 class SaaSUnavailableError extends Error {
     constructor(message = "Hospital system is temporarily unavailable") {

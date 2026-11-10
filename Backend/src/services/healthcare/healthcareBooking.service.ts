@@ -233,17 +233,30 @@ export async function createHealthcareBooking(
     const doctorRes = await SaasIntegrationService.getDoctor(saasDoctorId);
     doctor = doctorRes.data ?? doctorRes.result;
   } catch (error: any) {
-    if (error?.status === 404) {
+    // Fallback: resolve doctor from public hospital detail (no integration key)
+    const fromHospital = Array.isArray(hospital?.doctors)
+      ? hospital.doctors.find(
+          (d: any) =>
+            String(d?.doctorId || d?.userId || d?.id || "") === saasDoctorId
+        )
+      : null;
+    if (fromHospital) {
+      doctor = fromHospital;
+    } else if (error?.status === 404) {
       throw new HealthcareError(
         "Doctor not found",
         404,
         HealthcareErrorCodes.DOCTOR_NOT_FOUND
       );
+    } else {
+      throw error;
     }
-    throw error;
   }
 
-  if (doctor?.tenantId && doctor.tenantId !== saasTenantId) {
+  const doctorTenantId = String(
+    doctor?.tenantId || doctor?.hospitalId || doctor?.tenant?.tenantId || ""
+  );
+  if (doctorTenantId && doctorTenantId !== saasTenantId) {
     throw new HealthcareError(
       "Doctor does not belong to the selected hospital",
       400,
@@ -387,6 +400,18 @@ export async function createHealthcareBooking(
   }
 
   const duration = Number(input.duration) > 0 ? Number(input.duration) : 30;
+  const consultationFee =
+    input.consultationFee !== undefined && input.consultationFee !== null
+      ? Number(input.consultationFee)
+      : doctor?.consultationFee != null
+        ? Number(doctor.consultationFee)
+        : null;
+  const feeAmount =
+    consultationFee != null && !Number.isNaN(consultationFee)
+      ? consultationFee
+      : 0;
+  const paymentRequired = feeAmount > 0;
+
   const local = await prisma.appointment.create({
     data: {
       userId: input.userId,
@@ -416,14 +441,9 @@ export async function createHealthcareBooking(
       notes: input.notes ? String(input.notes) : null,
       status: AppointmentStatus.PENDING,
       hospitalPaymentStatus: HospitalPaymentStatus.UNPAID,
-      paymentRequired: false,
-      paymentStatus: "PENDING",
-      consultationFee:
-        input.consultationFee !== undefined && input.consultationFee !== null
-          ? Number(input.consultationFee)
-          : doctor?.consultationFee != null
-            ? Number(doctor.consultationFee)
-            : null,
+      paymentRequired,
+      paymentStatus: paymentRequired ? "PENDING" : "PENDING",
+      consultationFee,
       currency: input.currency ? String(input.currency) : "USD",
       consentId: consentRecordId,
     },

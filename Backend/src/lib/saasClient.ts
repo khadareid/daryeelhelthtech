@@ -24,12 +24,28 @@ function saasBaseUrl() {
   return raw.replace(/\/$/, "");
 }
 
+/**
+ * Shared Healthtech ↔ SaaS bootstrap key.
+ * Override in production with SAAS_INTEGRATION_KEY / HEALTHTECH_INTEGRATION_KEY
+ * (same value on both Vercel projects).
+ */
+export const DEFAULT_SAAS_INTEGRATION_KEY =
+  "daryeel-healthtech-saas-shared-2026";
+
 function integrationKey() {
-  return (
+  const raw = (
     process.env.SAAS_INTEGRATION_KEY ||
     process.env.HEALTHTECH_INTEGRATION_KEY ||
     ""
   ).trim();
+  if (
+    !raw ||
+    raw === "replace-with-shared-integration-key" ||
+    raw === "replace-me"
+  ) {
+    return DEFAULT_SAAS_INTEGRATION_KEY;
+  }
+  return raw;
 }
 
 export class SaaSUnavailableError extends Error {
