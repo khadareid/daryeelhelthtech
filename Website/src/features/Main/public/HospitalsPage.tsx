@@ -79,10 +79,10 @@ export default function HospitalsPage() {
 
           <div className="mt-4 flex flex-wrap gap-3">
             <Button asChild variant="outline" className="border-primary/20">
-              <Link to="/healthcare/doctors">Browse doctors</Link>
+              <Link to="/doctors">Daryeel doctors</Link>
             </Button>
             <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Link to="/healthcare/book">Book appointment</Link>
+              <Link to="/healthcare/book">Book hospital visit</Link>
             </Button>
           </div>
 
@@ -179,13 +179,8 @@ export default function HospitalsPage() {
                     </p>
                   ) : null}
                   <div className="mt-auto flex gap-2 pt-2">
-                    <Button asChild variant="outline" className="flex-1 border-primary/20">
-                      <Link to={`/hospitals/${id}`}>View</Link>
-                    </Button>
                     <Button asChild className="flex-1">
-                      <Link to={`/healthcare/book?hospitalId=${encodeURIComponent(id)}`}>
-                        Book
-                      </Link>
+                      <Link to={`/hospitals/${id}`}>View doctors &amp; book</Link>
                     </Button>
                   </div>
                 </div>

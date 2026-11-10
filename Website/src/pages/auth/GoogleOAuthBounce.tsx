@@ -4,7 +4,7 @@ import { env } from '@/config/env'
 
 /**
  * Google Cloud sometimes still has the Website host as redirect URI:
- *   https://daryeel-healthtech.vercel.app/api/v1/auth/google/callback
+ *   https://daryeelhelthtech.vercel.app/api/v1/auth/google/callback
  * The SPA cannot exchange the OAuth code — bounce to the real API callback
  * with the same query string so Passport can finish login.
  */

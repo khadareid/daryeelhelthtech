@@ -19,7 +19,7 @@ function saasBaseUrl() {
   const raw =
     process.env.SAAS_API_URL ||
     process.env.DARYEEL_SAAS_API_URL ||
-    "http://localhost:5000/api/v1";
+    "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
   return raw.replace(/\/$/, "");
 }
 

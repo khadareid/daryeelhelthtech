@@ -26,17 +26,19 @@ const NAV_LINKS = [
   { to: "/", label: "Home", end: true },
   { to: "/hospitals", label: "Hospitals" },
   { to: "/doctors", label: "Doctors" },
-  { to: "/healthcare/book", label: "Book" },
   { to: "/#services", label: "Services" },
+  { to: "/#how-it-works", label: "How it works" },
   { to: "/#contact", label: "Contact" },
 ]
 
 const MOBILE_ACCOUNT = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/dashboard/UserProfile", label: "My Profile", icon: UserIcon },
-  { to: "/dashboard?section=doctors", label: "Doctors", icon: Stethoscope },
-  { to: "/dashboard?section=appointments", label: "Appointments", icon: Calendar },
-  { to: "/dashboard?section=healthcare", label: "My Healthcare", icon: Calendar },
+  { to: "/dashboard?section=hospitals", label: "Hospitals", icon: Stethoscope },
+  { to: "/dashboard?section=book", label: "Book hospital", icon: Calendar },
+  { to: "/dashboard?section=healthcare", label: "My Visits", icon: Calendar },
+  { to: "/dashboard?section=doctors", label: "Daryeel doctors", icon: Stethoscope },
+  { to: "/dashboard?section=appointments", label: "Daryeel visits", icon: Calendar },
   { to: "/dashboard/UserProfile", label: "Settings", icon: Settings },
 ]
 
@@ -91,23 +93,37 @@ export default function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
-          {NAV_LINKS.map((link) => (
-            <NavLink
-              key={link.label}
-              to={link.to}
-              end={link.end}
-              className={({ isActive }) =>
-                cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive && link.end
-                    ? "bg-brand-light text-primary"
-                    : "text-brand-muted hover:bg-brand-light hover:text-primary",
-                )
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isHash = link.to.includes("#")
+            if (isHash) {
+              return (
+                <a
+                  key={link.label}
+                  href={link.to}
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-brand-muted transition-colors hover:bg-brand-light hover:text-primary"
+                >
+                  {link.label}
+                </a>
+              )
+            }
+            return (
+              <NavLink
+                key={link.label}
+                to={link.to}
+                end={link.end}
+                className={({ isActive }) =>
+                  cn(
+                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive && link.end
+                      ? "bg-brand-light text-primary"
+                      : "text-brand-muted hover:bg-brand-light hover:text-primary",
+                  )
+                }
+              >
+                {link.label}
+              </NavLink>
+            )
+          })}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -157,23 +173,37 @@ export default function SiteHeader() {
       {mobileOpen ? (
         <div className="border-t border-blue-50 bg-white lg:hidden">
           <nav className="container-page flex flex-col gap-1 py-3">
-            {NAV_LINKS.map((link) => (
-              <NavLink
-                key={link.label}
-                to={link.to}
-                end={link.end}
-                className={({ isActive }) =>
-                  cn(
-                    "rounded-lg px-3 py-2.5 text-sm font-medium",
-                    isActive && link.end
-                      ? "bg-brand-light text-primary"
-                      : "text-brand-muted",
-                  )
-                }
-              >
-                {link.label}
-              </NavLink>
-            ))}
+            {NAV_LINKS.map((link) => {
+              const isHash = link.to.includes("#")
+              if (isHash) {
+                return (
+                  <a
+                    key={link.label}
+                    href={link.to}
+                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-brand-muted"
+                  >
+                    {link.label}
+                  </a>
+                )
+              }
+              return (
+                <NavLink
+                  key={link.label}
+                  to={link.to}
+                  end={link.end}
+                  className={({ isActive }) =>
+                    cn(
+                      "rounded-lg px-3 py-2.5 text-sm font-medium",
+                      isActive && link.end
+                        ? "bg-brand-light text-primary"
+                        : "text-brand-muted",
+                    )
+                  }
+                >
+                  {link.label}
+                </NavLink>
+              )
+            })}
 
             <a
               href={`tel:${siteConfig.supportPhone}`}

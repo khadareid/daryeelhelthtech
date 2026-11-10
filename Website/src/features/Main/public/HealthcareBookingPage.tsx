@@ -88,11 +88,23 @@ function newIdempotencyKey() {
   return `ht-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-export default function HealthcareBookingPage() {
+type Props = {
+  /** When true, render inside the patient dashboard (no public home chrome). */
+  embedded?: boolean
+}
+
+export default function HealthcareBookingPage({ embedded = false }: Props) {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const session = useSelector((s: RootState) => s.userInfo)
   const signedIn = Boolean(session.isAuthenticated && session.userId)
+  const hospitalsPath = embedded
+    ? "/dashboard?section=hospitals"
+    : "/hospitals"
+  const visitsPath = embedded
+    ? "/dashboard?section=healthcare"
+    : "/dashboard?section=healthcare"
+  const bookBase = embedded ? "/dashboard?section=book" : "/healthcare/book"
 
   const [hospitalId, setHospitalId] = useState(params.get("hospitalId") || "")
   const [department, setDepartment] = useState(params.get("department") || "")
@@ -198,9 +210,10 @@ export default function HealthcareBookingPage() {
   const onConfirm = async (e: FormEvent) => {
     e.preventDefault()
     if (!signedIn) {
+      const qs = params.toString()
       navigate("/signin", {
         state: {
-          from: `/healthcare/book?${params.toString()}`,
+          from: qs ? `${bookBase}&${qs}` : bookBase,
         },
       })
       return
@@ -250,18 +263,26 @@ export default function HealthcareBookingPage() {
     }
   }
 
-  return (
-    <div className="min-h-[70vh] bg-brand-bg">
-      <div className="container-page py-10 sm:py-12">
-        <div className="mx-auto max-w-2xl">
-          <Button asChild variant="ghost" className="-ml-2 mb-4 w-fit text-brand-muted">
-            <Link to={hospitalId ? `/hospitals/${hospitalId}` : "/hospitals"}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Link>
-          </Button>
-
-          <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
+  const body = (
+          <div className={cn(
+            "rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8",
+            !embedded && "mx-auto max-w-2xl"
+          )}>
+            {!embedded ? (
+              <Button asChild variant="ghost" className="-ml-2 mb-4 w-fit text-brand-muted">
+                <Link to={hospitalId ? `/hospitals/${hospitalId}` : hospitalsPath}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild variant="ghost" className="-ml-2 mb-3 w-fit text-brand-muted">
+                <Link to={hospitalsPath}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Hospitals
+                </Link>
+              </Button>
+            )}
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
               {siteConfig.appName}
             </p>
@@ -269,8 +290,8 @@ export default function HealthcareBookingPage() {
               Book hospital visit
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Choose a hospital, doctor, and time. Requests go through Daryeel
-              Healthtech.
+              Partner hospitals from SaaS — pick hospital, doctor, and time. Stays
+              in your dashboard.
             </p>
 
             {step !== "success" ? (
@@ -629,13 +650,13 @@ export default function HealthcareBookingPage() {
                   </dl>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button asChild className="flex-1">
-                      <Link to="/dashboard?section=healthcare">
+                      <Link to={visitsPath}>
                         <CalendarCheck className="mr-2 h-4 w-4" />
-                        My Healthcare
+                        My Visits
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="flex-1">
-                      <Link to="/hospitals">Browse hospitals</Link>
+                      <Link to={hospitalsPath}>Browse hospitals</Link>
                     </Button>
                   </div>
                 </div>
@@ -668,8 +689,13 @@ export default function HealthcareBookingPage() {
               </div>
             ) : null}
           </div>
-        </div>
-      </div>
+  )
+
+  if (embedded) return body
+
+  return (
+    <div className="min-h-[70vh] bg-brand-bg">
+      <div className="container-page py-10 sm:py-12">{body}</div>
     </div>
   )
 }

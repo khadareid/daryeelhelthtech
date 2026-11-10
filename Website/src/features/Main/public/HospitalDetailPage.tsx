@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom"
+import { useSelector } from "react-redux"
 import {
   ArrowLeft,
   Building2,
@@ -6,6 +7,7 @@ import {
   Star,
   Stethoscope,
 } from "lucide-react"
+import { RootState } from "@/Redex/store/store"
 import {
   doctorIdOf,
   doctorNameOf,
@@ -25,6 +27,8 @@ import { siteConfig } from "@/config/site"
 
 export default function HospitalDetailPage() {
   const { hospitalId = "" } = useParams()
+  const session = useSelector((s: RootState) => s.userInfo)
+  const signedIn = Boolean(session.isAuthenticated && session.userId)
   const {
     data: hospital,
     isLoading,
@@ -39,6 +43,14 @@ export default function HospitalDetailPage() {
       { hospitalId, limit: 40 },
       { skip: !hospitalId }
     )
+
+  const bookHref = (doctorId?: string) => {
+    const qs = new URLSearchParams({ hospitalId })
+    if (doctorId) qs.set("doctorId", doctorId)
+    return signedIn
+      ? `/dashboard?section=book&${qs.toString()}`
+      : `/healthcare/book?${qs.toString()}`
+  }
 
   if (isLoading) {
     return (
@@ -131,11 +143,7 @@ export default function HospitalDetailPage() {
               ) : null}
               <div className="mt-5">
                 <Button asChild>
-                  <Link
-                    to={`/healthcare/book?hospitalId=${encodeURIComponent(id)}`}
-                  >
-                    Book appointment
-                  </Link>
+                  <Link to={bookHref()}>Book appointment</Link>
                 </Button>
               </div>
             </div>
@@ -170,11 +178,7 @@ export default function HospitalDetailPage() {
               Doctors
             </h2>
             <Button asChild variant="outline" className="border-primary/20">
-              <Link
-                to={`/healthcare/doctors?hospitalId=${encodeURIComponent(id)}`}
-              >
-                View all
-              </Link>
+              <Link to={bookHref()}>Book a doctor</Link>
             </Button>
           </div>
 
@@ -227,11 +231,7 @@ export default function HospitalDetailPage() {
                         className="mt-2 h-8"
                         variant="outline"
                       >
-                        <Link
-                          to={`/healthcare/book?hospitalId=${encodeURIComponent(id)}&doctorId=${encodeURIComponent(docId)}`}
-                        >
-                          Book
-                        </Link>
+                        <Link to={bookHref(docId)}>Book</Link>
                       </Button>
                     </div>
                   </div>

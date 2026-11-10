@@ -329,7 +329,7 @@ export function MyHealthcareSection() {
             </p>
           </div>
           <Button asChild>
-            <Link to="/healthcare/book">
+            <Link to="/dashboard?section=book">
               <Hospital className="mr-2 h-4 w-4" />
               Book visit
             </Link>

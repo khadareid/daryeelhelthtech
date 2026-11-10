@@ -72,11 +72,17 @@ function normalizeOrigin(value: string): string {
   return value.trim().replace(/\/$/, "");
 }
 
-const allowedOrigins = [ 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
   "http://localhost:8081",
-  "http://localhost:8082", 
-  "https://daryeel-saas-healthtech-six.vercel.app",
+  "http://localhost:8082",
+  // Production frontends
   "https://daryeelhelthtech.vercel.app",
+  "https://daryeel-saas-healthtech-six.vercel.app",
+  // Legacy / alternate spellings
+  "https://daryeel-healthtech.vercel.app",
+  "https://daryeel-healthtech-gamma.vercel.app",
   process.env.FRONTEND_URL,
   ...(process.env.CORS_ORIGINS || "")
     .split(",")
@@ -95,11 +101,17 @@ const isPrivateHost = (hostname: string) => {
 };
 
 const isAllowedVercelPreview = (hostname: string) =>
+  hostname === "daryeelhelthtech.vercel.app" ||
   hostname === "daryeel-healthtech.vercel.app" ||
-  hostname === "https://daryeelhelthtech.vercel.app" ||
+  hostname === "daryeel-healthtech-gamma.vercel.app" ||
+  hostname === "daryeel-saas-healthtech-six.vercel.app" ||
+  hostname.endsWith(".daryeelhelthtech.vercel.app") ||
   hostname.endsWith(".daryeel-healthtech.vercel.app") ||
-  hostname.endsWith(".https://daryeelhelthtech.vercel.app") ||
-  /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
+  hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
+  hostname.endsWith(".daryeel-saas-healthtech-six.vercel.app") ||
+  /^daryeelhelthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname) ||
+  /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname) ||
+  /^daryeel-saas-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
 
 const isAllowedOrigin = (origin?: string | null) => {
   if (!origin) return true;

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Calendar,
   HeartPulse,
+  Hospital,
   Pill,
   Search,
   ShieldAlert,
@@ -41,6 +42,18 @@ function initials(name?: string) {
 
 const SERVICES = [
   {
+    title: "Hospitals",
+    desc: "Find & book",
+    icon: Hospital,
+    to: "/dashboard?section=hospitals",
+  },
+  {
+    title: "My Visits",
+    desc: "Hospital bookings",
+    icon: Calendar,
+    to: "/dashboard?section=healthcare",
+  },
+  {
     title: "Doctors",
     desc: "Book a clinician",
     icon: Stethoscope,
@@ -57,12 +70,6 @@ const SERVICES = [
     desc: "Daily log",
     icon: HeartPulse,
     to: "/dashboard?section=health",
-  },
-  {
-    title: "Visits",
-    desc: "Book & confirm",
-    icon: Calendar,
-    to: "/dashboard?section=appointments",
   },
   {
     title: "Payments",
@@ -107,7 +114,11 @@ export function CareHome({
   const onSearch = (e: FormEvent) => {
     e.preventDefault()
     const q = query.trim()
-    navigate(q ? `/doctors?q=${encodeURIComponent(q)}` : "/doctors")
+    navigate(
+      q
+        ? `/dashboard?section=hospitals&q=${encodeURIComponent(q)}`
+        : "/dashboard?section=hospitals"
+    )
   }
 
   return (
@@ -128,10 +139,41 @@ export function CareHome({
               {greetingForNow()}, {firstName}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Your health records, doctors, and daily log — in one place.
+              Book partner hospitals or Daryeel doctors — plus your health records
+              in one place.
               {healthId ? ` Health ID ${healthId}` : ""}
             </p>
           </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard?section=hospitals")}
+            className="rounded-2xl border border-primary/20 bg-white p-4 text-left shadow-sm transition hover:border-primary/40"
+          >
+            <p className="inline-flex items-center gap-2 text-sm font-bold text-brand-dark">
+              <Hospital className="h-4 w-4 text-primary" />
+              Book a hospital
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Partner hospitals from Daryeel SaaS — pick department, doctor, and
+              time.
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard?section=doctors")}
+            className="rounded-2xl border border-blue-100 bg-white p-4 text-left shadow-sm transition hover:border-primary/30"
+          >
+            <p className="inline-flex items-center gap-2 text-sm font-bold text-brand-dark">
+              <Stethoscope className="h-4 w-4 text-primary" />
+              Book a Daryeel doctor
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Independent clinicians on Daryeel directory — view profile and book.
+            </p>
+          </button>
         </div>
 
         <form onSubmit={onSearch} className="relative mt-5">
@@ -139,12 +181,12 @@ export function CareHome({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search doctors by name or specialty…"
+            placeholder="Search hospitals or doctors…"
             className="h-11 rounded-2xl border-blue-100 bg-white pl-10"
           />
         </form>
 
-        <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        <div className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           {SERVICES.map((s) => (
             <button
               key={s.title}
@@ -170,7 +212,7 @@ export function CareHome({
               Upcoming visits
             </h2>
             <Link
-              to="/dashboard?section=appointments"
+              to="/dashboard?section=healthcare"
               className="inline-flex items-center gap-1 text-xs font-semibold text-primary"
             >
               See all <ArrowRight className="h-3.5 w-3.5" />
@@ -220,7 +262,7 @@ export function CareHome({
             {doctors.slice(0, 4).map((d) => (
               <Link
                 key={d.id}
-                to={`/doctors/${d.id}`}
+                to={`/dashboard?section=appointments&doctorId=${encodeURIComponent(d.id)}`}
                 className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:border-primary/30"
               >
                 <div className="flex items-center gap-3">

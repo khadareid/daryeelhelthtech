@@ -47,6 +47,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const helmet_1 = __importDefault(require("helmet"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const express_session_1 = __importDefault(require("express-session"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const PassportRouter_1 = __importDefault(require("./helpers/PassportRouter"));
@@ -81,6 +83,7 @@ const NotificationRouter_1 = __importDefault(require("./Routes/NotificationRoute
 const ConsentRouter_1 = __importDefault(require("./Routes/ConsentRouter"));
 const AccessRequestRouter_1 = __importDefault(require("./Routes/AccessRequestRouter"));
 const AdminRouter_1 = __importDefault(require("./Routes/AdminRouter"));
+const HealthcareRouter_1 = __importDefault(require("./Routes/HealthcareRouter"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -102,14 +105,16 @@ function normalizeOrigin(value) {
     return value.trim().replace(/\/$/, "");
 }
 const allowedOrigins = [
-    // "http://localhost:5173",
-    // "http://localhost:5174",
-    // "http://localhost:5175",
+    "http://localhost:5173",
+    "http://localhost:5174",
     "http://localhost:8081",
     "http://localhost:8082",
-    // "http://localhost:3000",
-    // "http://localhost:3001",
+    // Production frontends
     "https://daryeelhelthtech.vercel.app",
+    "https://daryeel-saas-healthtech-six.vercel.app",
+    // Legacy / alternate spellings
+    "https://daryeel-healthtech.vercel.app",
+    "https://daryeel-healthtech-gamma.vercel.app",
     process.env.FRONTEND_URL,
     ...(process.env.CORS_ORIGINS || "")
         .split(",")
@@ -129,11 +134,17 @@ const isPrivateHost = (hostname) => {
         return true;
     return false;
 };
-const isAllowedVercelPreview = (hostname) => hostname === "daryeel-healthtech.vercel.app" ||
+const isAllowedVercelPreview = (hostname) => hostname === "daryeelhelthtech.vercel.app" ||
+    hostname === "daryeel-healthtech.vercel.app" ||
     hostname === "daryeel-healthtech-gamma.vercel.app" ||
+    hostname === "daryeel-saas-healthtech-six.vercel.app" ||
+    hostname.endsWith(".daryeelhelthtech.vercel.app") ||
     hostname.endsWith(".daryeel-healthtech.vercel.app") ||
     hostname.endsWith(".daryeel-healthtech-gamma.vercel.app") ||
-    /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
+    hostname.endsWith(".daryeel-saas-healthtech-six.vercel.app") ||
+    /^daryeelhelthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname) ||
+    /^daryeel-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname) ||
+    /^daryeel-saas-healthtech(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(hostname);
 const isAllowedOrigin = (origin) => {
     if (!origin)
         return true;
@@ -152,6 +163,10 @@ const isAllowedOrigin = (origin) => {
         return false;
     }
 };
+app.use((0, helmet_1.default)({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+}));
 app.use((0, cors_1.default)({
     origin: (origin, callback) => {
         if (isAllowedOrigin(origin))
@@ -169,9 +184,22 @@ app.use((0, cors_1.default)({
         "X-CSRF-Token",
         "X-Requested-With",
         "Idempotency-Key",
+        "X-Correlation-Id",
     ],
     optionsSuccessStatus: 204,
 }));
+const healthcareLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        isSuccess: false,
+        message: "Too many healthcare requests. Please try again shortly.",
+        code: "RATE_LIMITED",
+    },
+});
 app.use(express_1.default.json({ limit: "100mb" }));
 app.use(express_1.default.urlencoded({ limit: "100mb", extended: true }));
 app.use((0, express_session_1.default)({
@@ -240,6 +268,8 @@ app.use("/api/v1/payments", PaymentRouter_1.default);
 app.use("/api/v1/notifications", NotificationRouter_1.default);
 app.use("/api/v1/consents", ConsentRouter_1.default);
 app.use("/api/v1/access-requests", AccessRequestRouter_1.default);
+// Healthcare ↔ SaaS integration proxy (server-side key only)
+app.use("/api/v1/healthcare", healthcareLimiter, HealthcareRouter_1.default);
 // Admin
 app.use("/api/v1/admin", AdminRouter_1.default);
 app.get("/", (_req, res) => {

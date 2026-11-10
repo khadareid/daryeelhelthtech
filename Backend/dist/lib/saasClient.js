@@ -1,7 +1,7 @@
 "use strict";
 /**
  * Server-to-server client: Healthtech API → Daryeel SaaS integration API.
- * Never expose HEALTHTECH_INTEGRATION_KEY / SAAS_INTEGRATION_KEY to browsers.
+ * Never expose SAAS_INTEGRATION_KEY to browsers or mobile apps.
  */
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -13,12 +13,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saasApi = exports.SaaSUnavailableError = void 0;
+exports.saasApi = exports.SaasHttpError = exports.SaaSUnavailableError = void 0;
 exports.saasRequest = saasRequest;
 function saasBaseUrl() {
     const raw = process.env.SAAS_API_URL ||
         process.env.DARYEEL_SAAS_API_URL ||
-        "http://localhost:5000/api/v1";
+        "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
     return raw.replace(/\/$/, "");
 }
 function integrationKey() {
@@ -30,16 +30,27 @@ class SaaSUnavailableError extends Error {
     constructor(message = "Hospital system is temporarily unavailable") {
         super(message);
         this.status = 503;
+        this.code = "SAAS_UNAVAILABLE";
         this.name = "SaaSUnavailableError";
     }
 }
 exports.SaaSUnavailableError = SaaSUnavailableError;
+class SaasHttpError extends Error {
+    constructor(message, status, code, saas) {
+        super(message);
+        this.name = "SaasHttpError";
+        this.status = status;
+        this.code = code;
+        this.saas = saas;
+    }
+}
+exports.SaasHttpError = SaasHttpError;
 function saasRequest(path_1) {
     return __awaiter(this, arguments, void 0, function* (path, options = {}) {
         var _a;
         const key = integrationKey();
         if (!key) {
-            throw Object.assign(new Error("SAAS_INTEGRATION_KEY is not configured on the Healthtech API"), { status: 503 });
+            throw new SaasHttpError("Hospital integration is not configured", 503, "SAAS_UNAVAILABLE");
         }
         const url = new URL(`${saasBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`);
         if (options.query) {
@@ -70,10 +81,8 @@ function saasRequest(path_1) {
                 json = { isSuccess: false, message: `SaaS returned HTTP ${res.status}` };
             }
             if (!res.ok) {
-                const err = new Error(json.message || `Hospital system error (${res.status})`);
-                err.status = res.status >= 500 ? 503 : res.status;
-                err.saas = json;
-                throw err;
+                const status = res.status >= 500 ? 503 : res.status;
+                throw new SaasHttpError(json.message || `Hospital system error (${res.status})`, status, json.code || (status === 503 ? "SAAS_UNAVAILABLE" : "BOOKING_FAILED"), json);
             }
             return json;
         }
@@ -83,7 +92,7 @@ function saasRequest(path_1) {
             }
             if (error === null || error === void 0 ? void 0 : error.status)
                 throw error;
-            throw new SaaSUnavailableError("We couldn't complete your appointment request right now. Your request was not confirmed. Please try again.");
+            throw new SaaSUnavailableError("We couldn't complete your request right now. Please try again.");
         }
         finally {
             clearTimeout(timeout);
@@ -93,7 +102,9 @@ function saasRequest(path_1) {
 exports.saasApi = {
     listHospitals: (query) => saasRequest("/integrations/hospitals", { query }),
     getHospital: (hospitalId) => saasRequest(`/integrations/hospitals/${hospitalId}`),
+    listDepartments: (hospitalId) => saasRequest(`/integrations/hospitals/${hospitalId}/departments`),
     listDoctors: (hospitalId, query) => saasRequest(`/integrations/hospitals/${hospitalId}/doctors`, { query }),
+    listAllDoctors: (query) => saasRequest("/integrations/doctors", { query }),
     getDoctor: (doctorId) => saasRequest(`/integrations/doctors/${doctorId}`),
     getAvailability: (doctorId, date) => saasRequest(`/integrations/doctors/${doctorId}/availability`, {
         query: { date },
@@ -108,6 +119,10 @@ exports.saasApi = {
     }),
     getAppointment: (id) => saasRequest(`/integrations/appointments/${id}`),
     cancelAppointment: (id, body) => saasRequest(`/integrations/appointments/${id}/cancel`, {
+        method: "POST",
+        body,
+    }),
+    requestReschedule: (id, body) => saasRequest(`/integrations/appointments/${id}/reschedule`, {
         method: "POST",
         body,
     }),
