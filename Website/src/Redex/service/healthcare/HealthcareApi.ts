@@ -140,6 +140,8 @@ export type HealthcareAppointment = {
   confirmedAt?: string | null
   consultationFee?: number | string | null
   currency?: string | null
+  paymentRequired?: boolean | null
+  paymentStatus?: string | null
   hospitalPaymentStatus?: string | null
   createdAt?: string
   updatedAt?: string

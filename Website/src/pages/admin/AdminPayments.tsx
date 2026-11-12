@@ -23,8 +23,8 @@ import { enumLabel, PAYMENT_STATUS_OPTIONS } from "@/lib/enums"
 import { localPayLabel } from "@/lib/payments"
 
 const FILTERS = [
+  { id: "PENDING", label: "Awaiting payment" },
   { id: "", label: "All" },
-  { id: "PENDING", label: "Pending" },
   { id: "PAID", label: "Paid / Free" },
   { id: "FAILED", label: "Failed" },
   { id: "REFUNDED", label: "Refunded" },
@@ -37,7 +37,7 @@ function money(p: Payment) {
 }
 
 export default function AdminPayments() {
-  const [status, setStatus] = useState("")
+  const [status, setStatus] = useState("PENDING")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Payment | null>(null)
@@ -116,7 +116,7 @@ export default function AdminPayments() {
       <AdminToolbar>
         <Input
           className="h-9 flex-1 rounded-lg border-blue-100 sm:min-w-[220px]"
-          placeholder="Search patient, reference, method…"
+          placeholder="Search patient, doctor, reference, method…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -128,6 +128,51 @@ export default function AdminPayments() {
           }}
           items={FILTERS}
         />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9"
+          onClick={() => {
+            if (!items.length) {
+              toast.error("Nothing to export")
+              return
+            }
+            const header = [
+              "Patient",
+              "Doctor",
+              "Visit",
+              "Amount",
+              "Method",
+              "Status",
+              "Reference",
+            ]
+            const lines = items.map((p) =>
+              [
+                p.user?.fullName || "",
+                p.appointment?.doctor?.fullName || "",
+                p.appointment?.appointmentCode || "",
+                money(p),
+                localPayLabel(p.provider, String(p.method || "")),
+                String(p.status || ""),
+                p.paymentReference || p.id,
+              ]
+                .map((c) => `"${String(c).replace(/"/g, '""')}"`)
+                .join(",")
+            )
+            const blob = new Blob([[header.join(","), ...lines].join("\n")], {
+              type: "text/csv;charset=utf-8",
+            })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = "daryeel-payments.csv"
+            a.click()
+            URL.revokeObjectURL(url)
+            toast.success("Exported CSV")
+          }}
+        >
+          Export
+        </Button>
       </AdminToolbar>
 
       {isLoading ? <Skeleton className="h-40 rounded-xl" /> : null}

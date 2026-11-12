@@ -7,6 +7,9 @@ import {
   Building2,
   CalendarCheck,
   CheckCircle2,
+  Eye,
+  Printer,
+  Wallet,
 } from "lucide-react"
 import {
   departmentIdOf,
@@ -25,18 +28,24 @@ import {
   useGetHospitalsQuery,
   type HealthcareAppointment,
 } from "@/Redex/service/healthcare/HealthcareApi"
+import { useCreatePaymentMutation } from "@/Redex/service/care/CareApi"
 import { RootState } from "@/Redex/store/store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
+import { PayInvoiceDialog } from "@/components/payments/PayInvoiceDialog"
 import { siteConfig } from "@/config/site"
 import {
   BOOKING_TIME_SLOTS,
-  combineDayAndSlot,
   isSlotInPast,
   nextBookingDays,
   toDateInputValue,
 } from "@/lib/bookingSlots"
+import {
+  LOCAL_PAY_METHODS,
+  localPayLabel,
+  type InvoiceDraft,
+} from "@/lib/payments"
 import { cn } from "@/lib/utils"
 
 type Step =
@@ -141,6 +150,8 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
     "later"
   )
   const [payPhone, setPayPhone] = useState("")
+  const [invoice, setInvoice] = useState<InvoiceDraft | null>(null)
+  const [paid, setPaid] = useState(false)
   const [step, setStep] = useState<Step>(() => {
     if (params.get("doctorId") && params.get("hospitalId")) return "date"
     if (params.get("hospitalId")) return "department"
@@ -171,6 +182,7 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
     )
 
   const [createAppt, { isLoading: booking }] = useCreateAppointmentMutation()
+  const [createPayment, { isLoading: paying }] = useCreatePaymentMutation()
 
   const selectedHospital = hospitals.find(
     (h) => hospitalIdOf(h) === hospitalId
@@ -179,6 +191,76 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
   const fee = doctorFeeOf(selectedDoctor)
   const hasFee = fee > 0
   const currency = doctorCurrencyOf(selectedDoctor)
+  const feeLabel = hasFee ? `${currency} ${fee.toFixed(2)}` : "Free"
+  const payMethodLabel =
+    payMethod === "later"
+      ? "Pay later"
+      : LOCAL_PAY_METHODS.find((m) => m.id === payMethod)?.label ||
+        payMethod.toUpperCase()
+
+  function bookingInvoice(
+    appt: HealthcareAppointment,
+    amount: number,
+    curr: string
+  ): InvoiceDraft {
+    return {
+      appointmentId: appt.id,
+      appointmentCode: appt.appointmentCode,
+      doctorName: appt.doctorName || doctorNameOf(selectedDoctor) || "Doctor",
+      patientName: session.name || session.email || undefined,
+      scheduledAt: appt.scheduledAt,
+      amount,
+      currency: curr,
+      reason: appt.reason || reason || undefined,
+    }
+  }
+
+  function printBookingReceipt(appt: HealthcareAppointment) {
+    const amount =
+      Number(appt.consultationFee ?? fee) > 0
+        ? `${appt.currency || currency} ${Number(appt.consultationFee ?? fee).toFixed(2)}`
+        : "Free"
+    const win = window.open("", "_blank", "noopener,noreferrer,width=480,height=720")
+    if (!win) {
+      toast.error("Pop-up blocked — allow pop-ups to print")
+      return
+    }
+    const hospital =
+      appt.facilityName ||
+      (selectedHospital ? hospitalNameOf(selectedHospital) : "Hospital")
+    const doctor =
+      appt.doctorName ||
+      (selectedDoctor ? doctorNameOf(selectedDoctor) : "Doctor")
+    win.document.write(`<!doctype html><html><head><title>Booking ${appt.appointmentCode || appt.id}</title>
+      <style>
+        body{font-family:system-ui,sans-serif;padding:28px;color:#0f172a;max-width:440px;margin:0 auto}
+        .brand{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#146AFB;font-weight:700}
+        h1{font-size:22px;margin:6px 0 4px}
+        .sub{color:#64748b;font-size:13px;margin-bottom:16px}
+        .amount{font-size:28px;font-weight:700;margin:8px 0 4px}
+        .status{display:inline-block;padding:4px 10px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:700}
+        .box{border:1px solid #dbeafe;border-radius:16px;padding:12px 16px;margin-top:16px;background:#f8fafc}
+        .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #e2e8f0;font-size:13px}
+        .row:last-child{border-bottom:0}
+        .label{color:#64748b}
+        .value{font-weight:600;text-align:right}
+      </style></head><body>
+      <div class="brand">Daryeel Health</div>
+      <h1>Hospital booking</h1>
+      <p class="sub">View &amp; print · appointment request</p>
+      <div class="amount">${amount}</div>
+      <span class="status">${paid ? "PAID" : appt.status || "PENDING"}</span>
+      <div class="box">
+        <div class="row"><span class="label">Booking code</span><span class="value">${appt.appointmentCode || appt.id}</span></div>
+        <div class="row"><span class="label">Hospital</span><span class="value">${hospital}</span></div>
+        <div class="row"><span class="label">Doctor</span><span class="value">${doctor}</span></div>
+        <div class="row"><span class="label">When</span><span class="value">${new Date(appt.scheduledAt).toLocaleString()}</span></div>
+        <div class="row"><span class="label">Payment</span><span class="value">${paid ? payMethodLabel : hasFee ? "Awaiting payment" : "Free"}</span></div>
+      </div>
+      <script>window.onload=function(){window.print()}</script>
+      </body></html>`)
+    win.document.close()
+  }
 
   const apiSlots = useMemo(
     () => normalizeAvailabilitySlots(availability),
@@ -271,6 +353,7 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
     try {
       const scheduledAt = slotToIso(selectedDate, slot)
       const feeNow = doctorFeeOf(selectedDoctor)
+      const curr = doctorCurrencyOf(selectedDoctor)
       const payNote =
         feeNow > 0
           ? payMethod === "later"
@@ -297,16 +380,46 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
           ? doctorSpecialtyOf(selectedDoctor)
           : department || undefined,
         consultationFee: feeNow,
-        currency: doctorCurrencyOf(selectedDoctor),
+        currency: curr,
         idempotencyKey: newIdempotencyKey(),
       }).unwrap()
+
+      setPaid(false)
       setCreated(result)
       setStep("success")
-      toast.success(
-        feeNow > 0
-          ? "Appointment requested · fee noted for hospital"
-          : "Appointment requested"
-      )
+
+      if (feeNow > 0) {
+        const draft = bookingInvoice(result, feeNow, curr)
+        // Seed awaiting-payment invoice so Payments / Pay now work immediately
+        try {
+          await createPayment({
+            appointmentId: result.id,
+            amount: feeNow,
+            currency: curr,
+            method: "MOBILE_MONEY",
+            status: "PENDING",
+            provider:
+              payMethod === "zaad"
+                ? "ZAAD"
+                : payMethod === "edahab"
+                  ? "EDAHAB"
+                  : "ZAAD",
+            transactionId: payPhone.trim() || undefined,
+          }).unwrap()
+        } catch {
+          // Booking already succeeded — Pay now can still create the invoice
+        }
+        if (payMethod !== "later") {
+          setInvoice(draft)
+          toast.success(`Appointment requested · pay ${curr} ${feeNow.toFixed(2)} with ${payMethodLabel}`)
+        } else {
+          toast.success(
+            `Appointment requested · ${curr} ${feeNow.toFixed(2)} awaiting payment`
+          )
+        }
+      } else {
+        toast.success("Appointment requested")
+      }
     } catch (err: unknown) {
       const message =
         (err as { data?: { message?: string }; message?: string })?.data
@@ -634,7 +747,7 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Fee</dt>
                       <dd className="font-semibold text-brand-dark">
-                        {hasFee ? `${currency} ${fee.toFixed(2)}` : "Free"}
+                        {feeLabel}
                       </dd>
                     </div>
                   </dl>
@@ -662,7 +775,7 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                             className={cn(
                               "rounded-xl border px-3 py-2 text-sm font-semibold",
                               payMethod === opt.id
-                                ? "border-primary bg-white text-primary"
+                                ? "border-primary bg-white text-primary ring-2 ring-primary/20"
                                 : "border-amber-100 bg-white/70 text-brand-dark"
                             )}
                           >
@@ -678,8 +791,8 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                         />
                       ) : (
                         <p className="text-xs text-amber-900/70">
-                          Hospital can collect payment when they confirm your
-                          visit.
+                          After requesting, you can View · Print · Pay now, or
+                          the hospital can collect payment when they confirm.
                         </p>
                       )}
                     </div>
@@ -723,8 +836,8 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                       ? "Submitting…"
                       : hasFee
                         ? payMethod === "later"
-                          ? `Request · pay ${currency} ${fee.toFixed(0)} later`
-                          : `Request · ${payMethod.toUpperCase()} ${currency} ${fee.toFixed(0)}`
+                          ? `Request · pay later ${feeLabel}`
+                          : `Request · ${payMethod.toUpperCase()} ${feeLabel}`
                         : "Request appointment"}
                   </Button>
                 </form>
@@ -770,12 +883,73 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                       </dd>
                     </div>
                     <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Fee</dt>
+                      <dd className="font-semibold text-brand-dark">
+                        {Number(created.consultationFee ?? fee) > 0
+                          ? `${created.currency || currency} ${Number(
+                              created.consultationFee ?? fee
+                            ).toFixed(2)}`
+                          : "Free"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Payment</dt>
+                      <dd className="font-semibold text-primary">
+                        {paid
+                          ? `Paid · ${payMethodLabel}`
+                          : Number(created.consultationFee ?? fee) > 0
+                            ? "Awaiting payment"
+                            : "Not required"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Status</dt>
                       <dd className="font-semibold text-primary">
                         {created.status}
                       </dd>
                     </div>
                   </dl>
+
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => printBookingReceipt(created)}
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      View
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => printBookingReceipt(created)}
+                    >
+                      <Printer className="mr-1.5 h-3.5 w-3.5" />
+                      Print
+                    </Button>
+                    {!paid && Number(created.consultationFee ?? fee) > 0 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={paying}
+                        onClick={() =>
+                          setInvoice(
+                            bookingInvoice(
+                              created,
+                              Number(created.consultationFee ?? fee),
+                              created.currency || currency
+                            )
+                          )
+                        }
+                      >
+                        <Wallet className="mr-1.5 h-3.5 w-3.5" />
+                        Pay now
+                      </Button>
+                    ) : null}
+                  </div>
+
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <Button asChild className="flex-1">
                       <Link to={visitsPath}>
@@ -784,12 +958,40 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="flex-1">
-                      <Link to={hospitalsPath}>Browse hospitals</Link>
+                      <Link to="/dashboard?section=payments">Payments</Link>
                     </Button>
                   </div>
                 </div>
               ) : null}
             </div>
+
+            <PayInvoiceDialog
+              open={Boolean(invoice)}
+              invoice={invoice}
+              busy={paying}
+              onClose={() => setInvoice(null)}
+              onPay={async ({ method, provider, phone }) => {
+                if (!invoice) return
+                try {
+                  await createPayment({
+                    appointmentId: invoice.appointmentId,
+                    amount: invoice.amount,
+                    currency: invoice.currency,
+                    method,
+                    status: "PAID",
+                    provider,
+                    transactionId: phone,
+                  }).unwrap()
+                  setPaid(true)
+                  setInvoice(null)
+                  toast.success(
+                    `Paid with ${localPayLabel(provider, method)} · ${invoice.currency} ${invoice.amount.toFixed(2)}`
+                  )
+                } catch {
+                  toast.error("Payment failed — try again from Payments")
+                }
+              }}
+            />
 
             {step !== "confirm" && step !== "success" ? (
               <div className="mt-6 flex gap-2">

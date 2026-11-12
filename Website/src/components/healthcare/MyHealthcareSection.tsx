@@ -5,7 +5,9 @@ import {
   CalendarClock,
   Eye,
   Hospital,
+  Printer,
   Ticket,
+  Wallet,
   XCircle,
 } from "lucide-react"
 import {
@@ -16,6 +18,7 @@ import {
   useRespondRescheduleMutation,
   type HealthcareAppointment,
 } from "@/Redex/service/healthcare/HealthcareApi"
+import { useCreatePaymentMutation } from "@/Redex/service/care/CareApi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +30,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PayInvoiceDialog } from "@/components/payments/PayInvoiceDialog"
+import { localPayLabel, type InvoiceDraft } from "@/lib/payments"
 import { cn } from "@/lib/utils"
 
 type TabKey = "upcoming" | "pending" | "completed" | "cancelled"
@@ -76,6 +81,7 @@ function formatWhen(iso?: string | null) {
 function AppointmentCard({
   appt,
   onView,
+  onPay,
   onCancel,
   onReschedule,
   onRespond,
@@ -84,6 +90,7 @@ function AppointmentCard({
 }: {
   appt: HealthcareAppointment
   onView: () => void
+  onPay: () => void
   onCancel: () => void
   onReschedule: () => void
   onRespond: (accept: boolean) => void
@@ -96,6 +103,14 @@ function AppointmentCard({
   const canReschedule = canCancel
   const hasProposal =
     status === "RESCHEDULE_REQUESTED" && Boolean(appt.proposedScheduledAt)
+  const fee = Number(appt.consultationFee || 0)
+  const payStatus = String(
+    appt.hospitalPaymentStatus || appt.paymentStatus || ""
+  ).toUpperCase()
+  const needsPay =
+    fee > 0 &&
+    !["PAID", "WAIVED", "REFUNDED"].includes(payStatus) &&
+    !CANCELLED.has(status)
 
   return (
     <article className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -158,6 +173,16 @@ function AppointmentCard({
           <Eye className="mr-1.5 h-3.5 w-3.5" />
           View
         </Button>
+        <Button size="sm" variant="outline" className="h-8" onClick={onView}>
+          <Printer className="mr-1.5 h-3.5 w-3.5" />
+          Print
+        </Button>
+        {needsPay ? (
+          <Button size="sm" className="h-8" onClick={onPay}>
+            <Wallet className="mr-1.5 h-3.5 w-3.5" />
+            Pay now
+          </Button>
+        ) : null}
         {canCancel ? (
           <Button
             size="sm"
@@ -242,6 +267,25 @@ export function MyHealthcareSection({
     useRequestRescheduleMutation()
   const [respondReschedule, { isLoading: responding }] =
     useRespondRescheduleMutation()
+  const [createPayment, { isLoading: paying }] = useCreatePaymentMutation()
+  const [invoice, setInvoice] = useState<InvoiceDraft | null>(null)
+
+  const openPay = (appt: HealthcareAppointment) => {
+    const amount = Number(appt.consultationFee || 0)
+    if (amount <= 0) {
+      toast.message("No consultation fee for this visit")
+      return
+    }
+    setInvoice({
+      appointmentId: appt.id,
+      appointmentCode: appt.appointmentCode,
+      doctorName: appt.doctorName || "Doctor",
+      scheduledAt: appt.scheduledAt,
+      amount,
+      currency: appt.currency || "USD",
+      reason: appt.reason,
+    })
+  }
 
   const grouped = useMemo(() => {
     const buckets: Record<TabKey, HealthcareAppointment[]> = {
@@ -403,6 +447,7 @@ export function MyHealthcareSection({
                   cancelling={cancelling}
                   rescheduling={rescheduling || responding}
                   onView={() => setViewId(appt.id)}
+                  onPay={() => openPay(appt)}
                   onCancel={() => setCancelId(appt.id)}
                   onReschedule={() => setRescheduleId(appt.id)}
                   onRespond={(accept) => onRespond(appt.id, accept)}
@@ -541,6 +586,32 @@ export function MyHealthcareSection({
           </form>
         </DialogContent>
       </Dialog>
+
+      <PayInvoiceDialog
+        open={Boolean(invoice)}
+        invoice={invoice}
+        busy={paying}
+        onClose={() => setInvoice(null)}
+        onPay={async ({ method, provider, phone }) => {
+          if (!invoice) return
+          try {
+            await createPayment({
+              appointmentId: invoice.appointmentId,
+              amount: invoice.amount,
+              currency: invoice.currency,
+              method,
+              status: "PAID",
+              provider,
+              transactionId: phone,
+            }).unwrap()
+            toast.success(`Paid with ${localPayLabel(provider, method)}`)
+            setInvoice(null)
+            refetch()
+          } catch {
+            toast.error("Payment failed")
+          }
+        }}
+      />
     </div>
   )
 }
