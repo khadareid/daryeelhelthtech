@@ -59,6 +59,7 @@ const auditMiddleware_1 = require("./helpers/middleware/auditMiddleware");
 const csrf_1 = require("./helpers/middleware/csrf");
 const AuthRouter_1 = __importDefault(require("./Routes/AuthRouter"));
 const UserRouter_1 = __importDefault(require("./Routes/UserRouter"));
+const SecurityRouter_1 = __importDefault(require("./Routes/SecurityRouter"));
 const MedicalProfileRouter_1 = __importDefault(require("./Routes/MedicalProfileRouter"));
 const EmergencyContactRouter_1 = __importDefault(require("./Routes/EmergencyContactRouter"));
 const EmergencyCardRouter_1 = __importDefault(require("./Routes/EmergencyCardRouter"));
@@ -182,6 +183,7 @@ app.use((0, cors_1.default)({
         "Content-Type",
         "Authorization",
         "X-CSRF-Token",
+        "X-Refresh-Token",
         "X-Requested-With",
         "Idempotency-Key",
         "X-Correlation-Id",
@@ -243,6 +245,7 @@ app.use("/api/v1/refresh", RefreshTokenRouter_1.default);
 // Core
 app.use("/api/v1/users", UserRouter_1.default);
 app.use("/api/v1/user", UserRouter_1.default); // backward-compatible alias
+app.use("/api/v1/security", SecurityRouter_1.default);
 app.use("/api/v1/medical-profile", MedicalProfileRouter_1.default);
 app.use("/api/v1/emergency-contacts", EmergencyContactRouter_1.default);
 app.use("/api/v1/emergency-card", EmergencyCardRouter_1.default);

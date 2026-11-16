@@ -15,7 +15,8 @@ const audit_service_1 = require("../services/audit.service");
 const errors_1 = require("../utils/errors");
 const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const result = yield (0, auth_service_1.registerUser)(req.body || {});
+        const meta = (0, audit_service_1.getClientMeta)(req);
+        const result = yield (0, auth_service_1.registerUser)(req.body || {}, meta);
         res.status(201).json(Object.assign({ isSuccess: true, message: "Registered successfully", result }, result));
     }
     catch (error) {

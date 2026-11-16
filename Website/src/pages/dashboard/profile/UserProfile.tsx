@@ -2,12 +2,13 @@ import { useEffect, useState, type FormEvent } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import { toast } from "sonner"
 import {
-  KeyRound,
   Mail,
   Phone,
   Save,
   UserRound,
 } from "lucide-react"
+import { SecuritySignInPanel } from "@/pages/dashboard/profile/SecuritySignInPanel"
+import { PhoneNumberInput } from "@/components/forms/PhoneNumberInput"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,7 +19,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RootState } from "@/Redex/store/store"
 import {
-  useChangeMyPasswordMutation,
   useGetMyProfileQuery,
   useUpdateMyProfileMutation,
 } from "@/Redex/service/users/UsersApi"
@@ -27,6 +27,19 @@ import { PatientIdCard } from "@/components/common/PatientIdCard"
 import { BloodTypeEnum } from "@/Redex/types/Types"
 import { useGetMedicalProfileQuery, useUpsertMedicalProfileMutation } from "@/Redex/service/health/HealthApi"
 import { BLOOD_TYPE_OPTIONS, enumLabel, GENDER_OPTIONS } from "@/lib/enums"
+import { SearchableSelect } from "@/components/forms/SearchableSelect"
+import {
+  citiesForRegion,
+  countryNames,
+  hasRegionData,
+  regionsForCountry,
+  withCurrentOption,
+} from "@/lib/locations"
+import {
+  formatPhoneDisplay,
+  isValidPhone,
+  normalizePhone,
+} from "@/lib/phone"
 
 function initials(name?: string) {
   if (!name) return "U"
@@ -60,7 +73,6 @@ export default function UserProfile() {
   const { data: profile, isLoading, isError, refetch } = useGetMyProfileQuery()
   const { data: medical } = useGetMedicalProfileQuery()
   const [updateProfile, { isLoading: saving }] = useUpdateMyProfileMutation()
-  const [changePassword, { isLoading: changingPw }] = useChangeMyPasswordMutation()
   const [upsertMedical] = useUpsertMedicalProfileMutation()
 
   const [form, setForm] = useState({
@@ -74,10 +86,9 @@ export default function UserProfile() {
     region: "",
     city: "",
     bloodType: "UNKNOWN",
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
   })
+  const [phoneEditing, setPhoneEditing] = useState(false)
+  const [phoneDraft, setPhoneDraft] = useState("+252")
 
   useEffect(() => {
     if (!profile) return
@@ -89,11 +100,13 @@ export default function UserProfile() {
       image: profile.avatarUrl ?? profile.picture ?? "",
       gender: profile.gender ?? "",
       dateOfBirth: toDateInput(profile.dateOfBirth),
-      country: profile.country ?? "",
+      country: profile.country || "Somaliland",
       region: profile.region ?? "",
       city: profile.city ?? "",
       bloodType: medical?.bloodType || profile.medicalProfile?.bloodType || "UNKNOWN",
     }))
+    setPhoneDraft(profile.phone || "+252")
+    setPhoneEditing(!profile.phone)
   }, [profile, medical])
 
   const onChange = (key: string, value: string) =>
@@ -101,10 +114,17 @@ export default function UserProfile() {
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault()
+    const phoneValue = phoneEditing ? phoneDraft : form.phone
+    if (phoneEditing || !form.phone) {
+      if (!phoneValue.trim() || !isValidPhone(phoneValue)) {
+        toast.error("Enter a valid phone number, e.g. +252 63 XXX XXXX")
+        return
+      }
+    }
     try {
       const user = await updateProfile({
         fullName: form.fullName.trim(),
-        phone: form.phone.trim() || null,
+        phone: normalizePhone(phoneValue),
         gender: (form.gender as "MALE" | "FEMALE") || null,
         dateOfBirth: form.dateOfBirth || null,
         avatarUrl: form.image || null,
@@ -129,6 +149,7 @@ export default function UserProfile() {
           phoneVerified: user.phoneVerified,
         })
       )
+      setPhoneEditing(false)
       toast.success("Profile updated")
       refetch()
     } catch (err: unknown) {
@@ -137,37 +158,6 @@ export default function UserProfile() {
           ? String((err as { data?: { message?: string } }).data?.message || "")
           : ""
       toast.error(msg || "Could not update profile")
-    }
-  }
-
-  const handlePassword = async (e: FormEvent) => {
-    e.preventDefault()
-    if (form.newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters")
-      return
-    }
-    if (form.newPassword !== form.confirmPassword) {
-      toast.error("Passwords do not match")
-      return
-    }
-    try {
-      await changePassword({
-        currentPassword: form.currentPassword,
-        newPassword: form.newPassword,
-      }).unwrap()
-      toast.success("Password changed")
-      setForm((p) => ({
-        ...p,
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      }))
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "data" in err
-          ? String((err as { data?: { message?: string } }).data?.message || "")
-          : ""
-      toast.error(msg || "Could not change password")
     }
   }
 
@@ -206,8 +196,8 @@ export default function UserProfile() {
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="secondary">{labelize(String(profile.role))}</Badge>
               {profile.healthId ? (
-                <Badge variant="outline" className="font-mono">
-                  {profile.healthId}
+                <Badge variant="secondary" className="font-mono">
+                  Health ID
                 </Badge>
               ) : null}
             </div>
@@ -236,7 +226,58 @@ export default function UserProfile() {
               <form onSubmit={handleSave} className="grid gap-3 sm:grid-cols-2">
                 <Field label="Full name" value={form.fullName} onChange={(v) => onChange("fullName", v)} />
                 <Field label="Email" value={form.email} disabled icon={<Mail className="h-3.5 w-3.5" />} />
-                <Field label="Phone" value={form.phone} onChange={(v) => onChange("phone", v)} icon={<Phone className="h-3.5 w-3.5" />} />
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="inline-flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5" />
+                    Phone Number *
+                  </Label>
+                  {form.phone && !phoneEditing ? (
+                    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-brand-bg px-3 py-2.5">
+                      <p className="font-medium text-brand-dark">
+                        {formatPhoneDisplay(form.phone)}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-primary/20"
+                        onClick={() => {
+                          setPhoneDraft(form.phone || "+252")
+                          setPhoneEditing(true)
+                        }}
+                      >
+                        Change number
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {!form.phone ? (
+                        <p className="text-xs font-semibold text-primary">
+                          Add phone number
+                        </p>
+                      ) : null}
+                      <PhoneNumberInput
+                        label=""
+                        value={phoneDraft}
+                        onChange={setPhoneDraft}
+                        required
+                      />
+                      {form.phone ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setPhoneDraft(form.phone)
+                            setPhoneEditing(false)
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-1.5">
                   <Label>Gender</Label>
                   <select
@@ -272,9 +313,84 @@ export default function UserProfile() {
                     ))}
                   </select>
                 </div>
-                <Field label="Country" value={form.country} onChange={(v) => onChange("country", v)} />
-                <Field label="Region" value={form.region} onChange={(v) => onChange("region", v)} />
-                <Field label="City" value={form.city} onChange={(v) => onChange("city", v)} />
+                <SearchableSelect
+                  label="Country"
+                  value={form.country}
+                  options={withCurrentOption(countryNames(), form.country)}
+                  placeholder="Search country…"
+                  searchPlaceholder="Type to filter countries…"
+                  onChange={(next) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      country: next,
+                      region: "",
+                      city: "",
+                    }))
+                  }
+                />
+                {hasRegionData(form.country) ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label>Region</Label>
+                      <select
+                        className="h-10 w-full rounded-md border px-3 text-sm"
+                        value={form.region}
+                        onChange={(e) => {
+                          const next = e.target.value
+                          setForm((prev) => ({
+                            ...prev,
+                            region: next,
+                            city: "",
+                          }))
+                        }}
+                      >
+                        <option value="">Select region</option>
+                        {withCurrentOption(
+                          regionsForCountry(form.country),
+                          form.region,
+                        ).map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>City</Label>
+                      <select
+                        className="h-10 w-full rounded-md border px-3 text-sm"
+                        value={form.city}
+                        disabled={!form.region}
+                        onChange={(e) => onChange("city", e.target.value)}
+                      >
+                        <option value="">
+                          {form.region ? "Select city" : "Select region first"}
+                        </option>
+                        {withCurrentOption(
+                          citiesForRegion(form.country, form.region),
+                          form.city,
+                        ).map((city) => (
+                          <option key={city} value={city}>
+                            {city}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Field
+                      label="Region"
+                      value={form.region}
+                      onChange={(v) => onChange("region", v)}
+                    />
+                    <Field
+                      label="City"
+                      value={form.city}
+                      onChange={(v) => onChange("city", v)}
+                    />
+                  </>
+                )}
                 <Field label="Avatar URL" value={form.image} onChange={(v) => onChange("image", v)} />
                 <div className="sm:col-span-2">
                   <Button type="submit" disabled={saving}>
@@ -293,39 +409,11 @@ export default function UserProfile() {
         </TabsContent>
 
         <TabsContent value="security" className="mt-4">
-          <Card className="border-blue-100">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <KeyRound className="h-4 w-4 text-primary" />
-                Change password
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handlePassword} className="grid max-w-md gap-3">
-                <Field
-                  label="Current password"
-                  type="password"
-                  value={form.currentPassword}
-                  onChange={(v) => onChange("currentPassword", v)}
-                />
-                <Field
-                  label="New password"
-                  type="password"
-                  value={form.newPassword}
-                  onChange={(v) => onChange("newPassword", v)}
-                />
-                <Field
-                  label="Confirm password"
-                  type="password"
-                  value={form.confirmPassword}
-                  onChange={(v) => onChange("confirmPassword", v)}
-                />
-                <Button type="submit" disabled={changingPw}>
-                  {changingPw ? "Updating…" : "Update password"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          <SecuritySignInPanel
+            email={form.email || profile.email}
+            phone={form.phone || profile.phone}
+            onProfileRefresh={() => refetch()}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -151,6 +151,11 @@ function greetingForNow() {
   return 'Good Evening';
 }
 
+function maskHealthId(id: string) {
+  if (id.length <= 4) return '••••';
+  return `${'•'.repeat(Math.min(10, id.length - 4))}${id.slice(-4)}`;
+}
+
 function progress(value: number, goal: number) {
   return Math.max(0.08, Math.min(1, value / goal));
 }
@@ -163,8 +168,10 @@ export default function HomeScreen() {
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [loadingHome, setLoadingHome] = useState(true);
+  const [healthIdVisible, setHealthIdVisible] = useState(false);
 
-  const fullName = user?.fullName || 'there';
+  const isGuest = !accessToken;
+  const fullName = user?.fullName || (isGuest ? 'Guest' : 'there');
   const firstName = fullName.split(' ')[0];
   const photo = user?.avatarUrl || user?.picture;
   const gender = user?.gender || profile?.gender;
@@ -240,22 +247,49 @@ export default function HomeScreen() {
               {greetingForNow()}, {firstName}
             </Text>
             <Text style={[styles.ready, { color: theme.textSecondary }]}>
-              {fullName}
-              {apiOnline ? ' · Connected' : ' · Offline'}
+              {isGuest
+                ? 'Browse doctors freely · Sign in to book'
+                : `${fullName}${apiOnline ? ' · Connected' : ' · Offline'}`}
             </Text>
             {healthId ? (
-              <Text style={styles.patientId}>Health ID · {healthId}</Text>
+              <Pressable
+                onPress={() => setHealthIdVisible((v) => !v)}
+                style={styles.patientIdRow}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  healthIdVisible ? 'Hide Health ID' : 'Show Health ID'
+                }>
+                <Text style={styles.patientId}>
+                  Health ID ·{' '}
+                  {healthIdVisible
+                    ? healthId
+                    : maskHealthId(healthId)}
+                </Text>
+                <Ionicons
+                  name={healthIdVisible ? 'eye-off-outline' : 'eye-outline'}
+                  size={15}
+                  color={Brand.primary}
+                />
+              </Pressable>
             ) : null}
           </View>
-          <Pressable
-            onPress={() => router.push('/(tabs)/notifications')}
-            style={[styles.bell, { backgroundColor: Brand.light }]}>
-            <Ionicons
-              name="notifications-outline"
-              size={20}
-              color={theme.primary}
-            />
-          </Pressable>
+          {isGuest ? (
+            <Pressable
+              onPress={() => router.push('/sign-in')}
+              style={[styles.bell, { backgroundColor: Brand.light }]}>
+              <Ionicons name="log-in-outline" size={20} color={theme.primary} />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => router.push('/(tabs)/notifications')}
+              style={[styles.bell, { backgroundColor: Brand.light }]}>
+              <Ionicons
+                name="notifications-outline"
+                size={20}
+                color={theme.primary}
+              />
+            </Pressable>
+          )}
         </View>
 
         <Pressable
@@ -592,8 +626,13 @@ const styles = StyleSheet.create({
   },
   hello: { fontFamily: Fonts.bold, fontSize: 20 },
   ready: { fontFamily: Fonts.regular, fontSize: 13 },
-  patientId: {
+  patientIdRow: {
     marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  patientId: {
     fontFamily: Fonts.semibold,
     fontSize: 12,
     color: Brand.primary,
@@ -749,4 +788,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+
 

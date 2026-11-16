@@ -231,11 +231,25 @@ export function doctorIdOf(d: HealthcareDoctor | null | undefined): string {
 }
 
 export function doctorNameOf(d: HealthcareDoctor | null | undefined): string {
-  return String(d?.user?.name || d?.name || "Doctor")
+  const raw = String(d?.user?.name || d?.name || "Doctor").trim()
+  if (!raw) return "Doctor"
+  if (/^dr\.?\s/i.test(raw)) return raw.replace(/^dr\.?\s+/i, "Dr. ")
+  return `Dr. ${raw}`
 }
 
 export function doctorPhotoOf(d: HealthcareDoctor | null | undefined): string | null {
-  return (d?.publicPhotoUrl || d?.user?.picture || null) as string | null
+  const url = String(d?.publicPhotoUrl || d?.user?.picture || "").trim()
+  return url || null
+}
+
+/** First letters of hospital-doctor name (e.g. Dr. Amina Hassan → AH). */
+export function doctorInitialsOf(d: HealthcareDoctor | null | undefined): string {
+  const raw = doctorNameOf(d).replace(/^dr\.?\s+/i, "").trim()
+  const parts = raw.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
+  }
+  return (parts[0]?.slice(0, 2) || "DR").toUpperCase()
 }
 
 export function doctorSpecialtyOf(d: HealthcareDoctor | null | undefined): string {

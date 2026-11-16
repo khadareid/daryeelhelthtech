@@ -2,10 +2,8 @@ import { useEffect } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useSelector } from "react-redux"
 import {
-  ArrowRight,
   Building2,
   CalendarCheck2,
-  CheckCircle2,
   ClipboardList,
   Mail,
   MapPin,
@@ -14,6 +12,7 @@ import {
   Stethoscope,
   Star,
 } from "lucide-react"
+import { HeroCarousel } from "@/components/home/HeroCarousel"
 import { Button } from "@/components/ui/button"
 import { siteConfig } from "@/config/site"
 import { RootState } from "@/Redex/store/store"
@@ -93,102 +92,16 @@ export default function HomePage() {
     }
   }, [location.hash])
 
-  const hospitalsHref = signedIn
-    ? "/dashboard?section=hospitals"
-    : "/hospitals"
-  const doctorsHref = signedIn ? "/dashboard?section=doctors" : "/doctors"
+  /** Browse is always public — login only when booking. */
+  const hospitalsHref = "/hospitals"
+  const doctorsHref = "/doctors"
   const bookHospitalHref = signedIn
     ? "/dashboard?section=book"
     : "/healthcare/book"
 
   return (
     <div className="bg-brand-bg">
-      {/* Hero — Hospitals & Doctors only */}
-      <section className="relative min-h-[72vh] overflow-hidden text-white">
-        <img
-          src="/images/hero-care.jpg"
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-          loading="eager"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-dark/92 via-brand-dark/75 to-primary/45" />
-
-        <div className="container-page relative flex min-h-[72vh] flex-col justify-center py-16 sm:py-20">
-          <p className="font-heading text-sm font-semibold tracking-[0.22em] text-blue-100 uppercase">
-            {siteConfig.appName}
-          </p>
-          <h1 className="mt-4 max-w-3xl font-heading text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
-            Hospitals &amp; doctors, one place to book.
-          </h1>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-blue-50/90 sm:text-lg">
-            Choose a partner hospital and its doctors, or book an independent
-            Daryeel doctor — then manage your visits in the dashboard.
-          </p>
-
-          <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-2">
-            <Link
-              to={hospitalsHref}
-              className="rounded-2xl border border-white/25 bg-white/10 p-5 backdrop-blur-sm transition hover:bg-white/15"
-            >
-              <p className="inline-flex items-center gap-2 text-lg font-bold">
-                <Building2 className="h-5 w-5" />
-                Hospitals
-              </p>
-              <p className="mt-2 text-sm text-blue-50/90">
-                View hospitals → see doctors → book a visit
-              </p>
-            </Link>
-            <Link
-              to={doctorsHref}
-              className="rounded-2xl border border-white/25 bg-white/10 p-5 backdrop-blur-sm transition hover:bg-white/15"
-            >
-              <p className="inline-flex items-center gap-2 text-lg font-bold">
-                <Stethoscope className="h-5 w-5" />
-                Doctors
-              </p>
-              <p className="mt-2 text-sm text-blue-50/90">
-                Browse Daryeel doctors → view and book
-              </p>
-            </Link>
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button
-              asChild
-              size="lg"
-              className="h-12 bg-white px-6 text-primary hover:bg-blue-50"
-            >
-              <Link to={hospitalsHref}>
-                Find hospitals
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="h-12 border-white/40 bg-white/10 px-6 text-white hover:bg-white/15 hover:text-white"
-            >
-              <Link to={doctorsHref}>Find doctors</Link>
-            </Button>
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-blue-50/90">
-            <span className="inline-flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-blue-200" />
-              Partner hospitals (SaaS)
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-blue-200" />
-              Daryeel doctor directory
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-blue-200" />
-              Book after you choose
-            </span>
-          </div>
-        </div>
-      </section>
+      <HeroCarousel hospitalsHref={hospitalsHref} doctorsHref={doctorsHref} />
 
       {/* Hospitals preview */}
       <section id="hospitals" className="scroll-mt-20 py-16 sm:py-20">
@@ -229,9 +142,9 @@ export default function HomePage() {
                 const logo = hospitalLogoOf(h)
                 const rating = hospitalRatingOf(h)
                 const place = [h.city, h.country].filter(Boolean).join(", ")
-                const viewHref = signedIn
+                const bookHref = signedIn
                   ? `/dashboard?section=book&hospitalId=${encodeURIComponent(id)}`
-                  : `/hospitals/${id}`
+                  : `/healthcare/book?hospitalId=${encodeURIComponent(id)}`
                 return (
                   <article
                     key={id || name}
@@ -273,7 +186,7 @@ export default function HomePage() {
                           <Link to={`/hospitals/${id}`}>View</Link>
                         </Button>
                         <Button asChild className="flex-1">
-                          <Link to={viewHref}>Book</Link>
+                          <Link to={bookHref}>Book</Link>
                         </Button>
                       </div>
                     </div>
@@ -353,10 +266,13 @@ export default function HomePage() {
                         <p className="text-sm text-muted-foreground">
                           {d.specialty}
                         </p>
-                        {typeof d.averageRating === "number" ? (
+                        {typeof (d as unknown as { averageRating?: number })
+                          .averageRating === "number" ? (
                           <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
                             <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                            {d.averageRating.toFixed(1)}
+                            {(
+                              d as unknown as { averageRating: number }
+                            ).averageRating.toFixed(1)}
                           </p>
                         ) : null}
                       </div>

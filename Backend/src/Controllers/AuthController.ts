@@ -5,7 +5,8 @@ import { handleRouteError } from "../utils/errors";
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const result = await registerUser(req.body || {});
+    const meta = getClientMeta(req);
+    const result = await registerUser(req.body || {}, meta);
     res.status(201).json({
       isSuccess: true,
       message: "Registered successfully",

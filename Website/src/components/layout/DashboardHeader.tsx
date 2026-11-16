@@ -1,9 +1,15 @@
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Bell, Home, Settings } from "lucide-react"
+import { Bell, Eye, EyeOff, Home, Settings } from "lucide-react"
 import { UserProfileMenu } from "./UserProfileMenu"
 import { InstallAppButton } from "@/components/pwa/InstallAppButton"
 import { siteConfig } from "@/config/site"
 import { useGetMyProfileQuery } from "@/Redex/service/users/UsersApi"
+
+function maskHealthId(id: string) {
+  if (id.length <= 4) return "••••"
+  return `${"•".repeat(Math.min(10, id.length - 4))}${id.slice(-4)}`
+}
 
 interface DashboardHeaderProps {
   title?: string
@@ -26,6 +32,7 @@ export function DashboardHeader({
   const navigate = useNavigate()
   const { data: profile } = useGetMyProfileQuery()
   const healthId = profile?.healthId || null
+  const [healthIdVisible, setHealthIdVisible] = useState(false)
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-blue-100/60 bg-white/80 backdrop-blur-xl">
@@ -61,10 +68,25 @@ export function DashboardHeader({
           </span>
           {healthId ? (
             <span
-              className="hidden max-w-[11rem] truncate rounded-full bg-primary/10 px-2.5 py-1 font-mono text-[10px] font-semibold tracking-wide text-primary sm:inline-flex md:max-w-none md:text-[11px]"
+              className="hidden items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 font-mono text-[10px] font-semibold tracking-wide text-primary sm:inline-flex md:text-[11px]"
               title="Permanent Daryeel Patient / Health ID"
             >
-              Patient ID · {healthId}
+              Patient ID ·{" "}
+              {healthIdVisible ? healthId : maskHealthId(healthId)}
+              <button
+                type="button"
+                className="rounded p-0.5 text-primary/70 hover:text-primary"
+                aria-label={
+                  healthIdVisible ? "Hide Health ID" : "Show Health ID"
+                }
+                onClick={() => setHealthIdVisible((v) => !v)}
+              >
+                {healthIdVisible ? (
+                  <EyeOff className="h-3 w-3" />
+                ) : (
+                  <Eye className="h-3 w-3" />
+                )}
+              </button>
             </span>
           ) : null}
         </div>

@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const SecurityController_1 = require("../Controllers/SecurityController");
+const VerifyToken_1 = require("../helpers/middleware/VerifyToken");
+const router = (0, express_1.Router)();
+router.use(VerifyToken_1.decodeToken);
+router.get("/status", SecurityController_1.securityStatus);
+router.get("/activity", SecurityController_1.securityActivity);
+router.get("/sessions", SecurityController_1.securitySessions);
+router.delete("/sessions/:id", SecurityController_1.revokeSecuritySession);
+router.post("/sessions/revoke-others", SecurityController_1.revokeOtherSecuritySessions);
+router.patch("/phone", SecurityController_1.patchSecurityPhone);
+router.patch("/email", SecurityController_1.patchSecurityEmail);
+router.patch("/recovery-email", SecurityController_1.patchRecoveryEmail);
+exports.default = router;

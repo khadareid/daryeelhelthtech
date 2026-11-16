@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom"
-import { useSelector } from "react-redux"
+import { useDispatch, useSelector } from "react-redux"
 import {
   Activity,
   Calendar,
@@ -19,7 +19,6 @@ import { InstallAppButton } from "@/components/pwa/InstallAppButton"
 import { siteConfig } from "@/config/site"
 import { RootState } from "@/Redex/store/store"
 import { cn } from "@/lib/utils"
-import { useDispatch } from "react-redux"
 import { logout } from "@/Redex/service/auth/Userinfo"
 
 const NAV_LINKS = [
@@ -27,8 +26,7 @@ const NAV_LINKS = [
   { to: "/hospitals", label: "Hospitals" },
   { to: "/doctors", label: "Doctors" },
   { to: "/#services", label: "Services" },
-  { to: "/#how-it-works", label: "How it works" },
-  { to: "/#contact", label: "Contact" },
+  { to: "/#providers", label: "For Providers" },
 ]
 
 const MOBILE_ACCOUNT = [
@@ -38,11 +36,6 @@ const MOBILE_ACCOUNT = [
   { to: "/dashboard?section=book", label: "Book hospital", icon: Calendar },
   { to: "/dashboard?section=healthcare", label: "My Visits", icon: Calendar },
   { to: "/dashboard?section=doctors", label: "Daryeel doctors", icon: Stethoscope },
-  {
-    to: "/dashboard?section=healthcare&tab=daryeel",
-    label: "Daryeel bookings",
-    icon: Calendar,
-  },
   { to: "/dashboard/UserProfile", label: "Settings", icon: Settings },
 ]
 
@@ -151,13 +144,13 @@ export default function SiteHeader() {
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
               <Button variant="ghost" onClick={() => navigate("/signin")}>
-                Sign in
+                Login
               </Button>
               <Button
                 onClick={() => navigate("/SignUp")}
                 className="bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:bg-primary/90"
               >
-                Get started
+                Get Started
               </Button>
             </div>
           )}
@@ -248,13 +241,13 @@ export default function SiteHeader() {
                   className="flex-1"
                   onClick={() => navigate("/signin")}
                 >
-                  Sign in
+                  Login
                 </Button>
                 <Button
                   className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={() => navigate("/SignUp")}
                 >
-                  Get started
+                  Get Started
                 </Button>
               </div>
             )}

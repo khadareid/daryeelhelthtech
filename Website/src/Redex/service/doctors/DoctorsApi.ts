@@ -10,8 +10,21 @@ export const doctorDisplayName = (d?: Partial<Doctor> | null) => {
   return `Dr. ${name}`;
 };
 
-export const doctorPhoto = (d?: Partial<Doctor> | null) =>
-  d?.profileImage || "/images/doctor-placeholder.jpg";
+/** Real photo URL only — undefined when missing so UI can show initials. */
+export const doctorPhoto = (d?: Partial<Doctor> | null): string | undefined => {
+  const url = (d?.profileImage || "").trim();
+  return url || undefined;
+};
+
+/** First letters of the doctor's name (e.g. "Dr. Ayaan Ali" → "AA"). */
+export const doctorInitials = (d?: Partial<Doctor> | null) => {
+  const raw = doctorDisplayName(d).replace(/^dr\.?\s+/i, "").trim();
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  }
+  return (parts[0]?.slice(0, 2) || "DR").toUpperCase();
+};
 
 export const doctorsApi = createApi({
   reducerPath: "doctorsApi",

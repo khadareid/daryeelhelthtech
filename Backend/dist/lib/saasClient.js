@@ -16,10 +16,34 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.saasApi = exports.SaasHttpError = exports.SaaSUnavailableError = exports.DEFAULT_SAAS_INTEGRATION_KEY = void 0;
 exports.saasRequest = saasRequest;
+const DEFAULT_SAAS_HOST = "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
+function isLocalSaasUrl(url) {
+    return /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(url);
+}
+/**
+ * Normalize SaaS API base so `/api/v1` is always present exactly once.
+ * Fixes common Vercel env mistakes:
+ * - host only / duplicated /api/v1
+ * - production SAAS_API_URL accidentally set to localhost
+ */
 function saasBaseUrl() {
-    const raw = process.env.SAAS_API_URL ||
+    let raw = (process.env.SAAS_API_URL ||
         process.env.DARYEEL_SAAS_API_URL ||
-        "https://daryeelsaashealthtech-api-seven.vercel.app/api/v1";
+        DEFAULT_SAAS_HOST)
+        .trim()
+        .replace(/\/$/, "");
+    // Production must never call localhost SaaS
+    if (!raw ||
+        (process.env.NODE_ENV === "production" && isLocalSaasUrl(raw)) ||
+        (process.env.VERCEL === "1" && isLocalSaasUrl(raw))) {
+        raw = DEFAULT_SAAS_HOST;
+    }
+    // Host-only → append /api/v1
+    if (!/\/api\/v1$/i.test(raw)) {
+        raw = `${raw.replace(/\/api\/v1$/i, "")}/api/v1`.replace(/([^:]\/)\/+/g, "$1");
+    }
+    // Collapse accidental /api/v1/api/v1
+    raw = raw.replace(/\/api\/v1(\/api\/v1)+/gi, "/api/v1");
     return raw.replace(/\/$/, "");
 }
 /**
@@ -38,6 +62,14 @@ function integrationKey() {
         return exports.DEFAULT_SAAS_INTEGRATION_KEY;
     }
     return raw;
+}
+function integrationKeyCandidates() {
+    const primary = integrationKey();
+    const keys = [primary];
+    if (primary !== exports.DEFAULT_SAAS_INTEGRATION_KEY) {
+        keys.push(exports.DEFAULT_SAAS_INTEGRATION_KEY);
+    }
+    return keys;
 }
 class SaaSUnavailableError extends Error {
     constructor(message = "Hospital system is temporarily unavailable") {
@@ -58,14 +90,9 @@ class SaasHttpError extends Error {
     }
 }
 exports.SaasHttpError = SaasHttpError;
-function saasRequest(path_1) {
-    return __awaiter(this, arguments, void 0, function* (path, options = {}) {
+function saasRequestOnce(path, options, key) {
+    return __awaiter(this, void 0, void 0, function* () {
         var _a;
-        const requireAuth = options.requireAuth !== false;
-        const key = integrationKey();
-        if (requireAuth && !key) {
-            throw new SaasHttpError("Hospital integration is not configured", 503, "SAAS_UNAVAILABLE");
-        }
         const url = new URL(`${saasBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`);
         if (options.query) {
             for (const [k, v] of Object.entries(options.query)) {
@@ -106,7 +133,12 @@ function saasRequest(path_1) {
             }
             if (!res.ok) {
                 const status = res.status >= 500 ? 503 : res.status;
-                throw new SaasHttpError(json.message || `Hospital system error (${res.status})`, status, json.code || (status === 503 ? "SAAS_UNAVAILABLE" : "BOOKING_FAILED"), json);
+                throw new SaasHttpError(json.message || `Hospital system error (${res.status})`, status, json.code ||
+                    (status === 401
+                        ? "INVALID_INTEGRATION_KEY"
+                        : status === 503
+                            ? "SAAS_UNAVAILABLE"
+                            : "BOOKING_FAILED"), json);
             }
             return json;
         }
@@ -116,11 +148,35 @@ function saasRequest(path_1) {
             }
             if (error === null || error === void 0 ? void 0 : error.status)
                 throw error;
-            throw new SaaSUnavailableError("We couldn't complete your request right now. Please try again.");
+            throw new SaaSUnavailableError(`We couldn't reach the hospital system (${saasBaseUrl()}). Please try again.`);
         }
         finally {
             clearTimeout(timeout);
         }
+    });
+}
+function saasRequest(path_1) {
+    return __awaiter(this, arguments, void 0, function* (path, options = {}) {
+        const requireAuth = options.requireAuth !== false;
+        if (!requireAuth) {
+            return saasRequestOnce(path, options, "");
+        }
+        const keys = integrationKeyCandidates();
+        let lastError;
+        for (let i = 0; i < keys.length; i++) {
+            try {
+                return yield saasRequestOnce(path, options, keys[i]);
+            }
+            catch (error) {
+                lastError = error;
+                // Retry with bootstrap key when env key is rejected
+                if ((error === null || error === void 0 ? void 0 : error.status) === 401 && i < keys.length - 1)
+                    continue;
+                throw error;
+            }
+        }
+        throw (lastError ||
+            new SaasHttpError("Hospital integration is not configured", 503, "SAAS_UNAVAILABLE"));
     });
 }
 /** Public discovery — no integration key (matches SaaS /company/public-* routes). */

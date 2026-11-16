@@ -17,6 +17,7 @@ import {
 
 import authRouter from "./Routes/AuthRouter";
 import userRouter from "./Routes/UserRouter";
+import securityRouter from "./Routes/SecurityRouter";
 import medicalProfileRouter from "./Routes/MedicalProfileRouter";
 import emergencyContactRouter from "./Routes/EmergencyContactRouter";
 import emergencyCardRouter from "./Routes/EmergencyCardRouter";
@@ -149,6 +150,7 @@ app.use(
       "Content-Type",
       "Authorization",
       "X-CSRF-Token",
+      "X-Refresh-Token",
       "X-Requested-With",
       "Idempotency-Key",
       "X-Correlation-Id",
@@ -218,6 +220,7 @@ app.use("/api/v1/refresh", refreshTokenRouter);
 // Core
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/user", userRouter); // backward-compatible alias
+app.use("/api/v1/security", securityRouter);
 app.use("/api/v1/medical-profile", medicalProfileRouter);
 app.use("/api/v1/emergency-contacts", emergencyContactRouter);
 app.use("/api/v1/emergency-card", emergencyCardRouter);

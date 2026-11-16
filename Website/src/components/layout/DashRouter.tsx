@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom"
 import { useEffect } from "react"
 import { useSelector } from "react-redux"
+import { PhoneRequiredGate } from "@/components/auth/PhoneRequiredGate"
 import { DashboardSidebar, normalizeRole, sectionFromLocation } from "./Sidebar"
 import { DashboardHeader } from "./DashboardHeader"
 import { Dashboard } from "./Dashboard"
@@ -72,6 +73,8 @@ export default function DashRouter() {
         userName={session.name}
         userImage={session.image}
       />
+
+      <PhoneRequiredGate />
     </div>
   )
 }
