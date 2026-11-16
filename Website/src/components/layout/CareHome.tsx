@@ -141,7 +141,6 @@ export function CareHome({
             <p className="mt-1 text-sm text-muted-foreground">
               Book partner hospitals or Daryeel doctors — plus your health records
               in one place.
-              {healthId ? ` Health ID ${healthId}` : ""}
             </p>
           </div>
         </div>

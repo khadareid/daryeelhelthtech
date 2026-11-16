@@ -21,6 +21,8 @@ const codes_1 = require("../utils/codes");
 const ownership_1 = require("../utils/ownership");
 const validation_1 = require("../utils/validation");
 const audit_service_1 = require("./audit.service");
+const security_service_1 = require("./security.service");
+const session_service_1 = require("./session.service");
 const PUBLIC_USER_SELECT = {
     userid: true,
     email: true,
@@ -43,18 +45,23 @@ const PUBLIC_USER_SELECT = {
     isActive: true,
     isSuspended: true,
     lastLoginAt: true,
+    passwordChangedAt: true,
+    twoFactorEnabled: true,
+    twoFactorMethod: true,
+    recoveryEmail: true,
     createdAt: true,
     updatedAt: true,
 };
 exports.PUBLIC_USER_SELECT = PUBLIC_USER_SELECT;
-const registerUser = (body) => __awaiter(void 0, void 0, void 0, function* () {
+const registerUser = (body, meta) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const email = (0, validation_1.requireEmail)(body.email);
     const password = (0, validation_1.requireString)(body.password, "password", { min: 6 });
     const fullName = (0, validation_1.requireString)((_a = body.fullName) !== null && _a !== void 0 ? _a : body.name, "fullName");
+    // Phone is collected after signup via PhoneRequiredGate (optional here).
     const phone = body.phone === undefined || body.phone === null || body.phone === ""
         ? null
-        : (0, validation_1.requireString)(body.phone, "phone");
+        : (0, validation_1.requirePhone)(body.phone, "phone");
     const existing = yield prisma_1.prisma.user.findUnique({ where: { email } });
     if (existing && !existing.deletedAt) {
         throw new ownership_1.HttpError(409, "Email already registered");
@@ -78,6 +85,7 @@ const registerUser = (body) => __awaiter(void 0, void 0, void 0, function* () {
             passwordHash,
             fullName,
             phone,
+            passwordChangedAt: new Date(),
             gender: gender && Object.values(client_1.Gender).includes(gender) ? gender : null,
             dateOfBirth: dateOfBirth !== null && dateOfBirth !== void 0 ? dateOfBirth : null,
             role: client_1.Role.USER,
@@ -90,6 +98,19 @@ const registerUser = (body) => __awaiter(void 0, void 0, void 0, function* () {
         userId: user.userid,
         email: user.email,
         role: user.role,
+    });
+    yield (0, session_service_1.createUserSession)({
+        userId: user.userid,
+        refreshToken: tokens.refreshToken,
+        ipAddress: meta === null || meta === void 0 ? void 0 : meta.ipAddress,
+        userAgent: meta === null || meta === void 0 ? void 0 : meta.userAgent,
+    }).catch(() => undefined);
+    yield (0, security_service_1.recordSecurityActivity)({
+        userId: user.userid,
+        type: "SESSION_CREATED",
+        title: "Account created",
+        ipAddress: meta === null || meta === void 0 ? void 0 : meta.ipAddress,
+        userAgent: meta === null || meta === void 0 ? void 0 : meta.userAgent,
     });
     return Object.assign({ user }, tokens);
 });
@@ -108,11 +129,23 @@ const loginUser = (body, meta) => __awaiter(void 0, void 0, void 0, function* ()
         throw new ownership_1.HttpError(400, "Please sign in with Google or reset your password");
     }
     const ok = yield bcryptjs_1.default.compare(password, user.passwordHash);
-    if (!ok)
+    if (!ok) {
+        yield (0, security_service_1.recordSecurityActivity)({
+            userId: user.userid,
+            type: "FAILED_LOGIN",
+            title: "Failed sign-in attempt",
+            ipAddress: meta === null || meta === void 0 ? void 0 : meta.ipAddress,
+            userAgent: meta === null || meta === void 0 ? void 0 : meta.userAgent,
+        });
         throw new ownership_1.HttpError(401, "Invalid email or password");
+    }
     const updated = yield prisma_1.prisma.user.update({
         where: { userid: user.userid },
-        data: { lastLoginAt: new Date() },
+        data: {
+            lastLoginAt: new Date(),
+            lastLoginIp: (meta === null || meta === void 0 ? void 0 : meta.ipAddress) || null,
+            lastActiveAt: new Date(),
+        },
         select: PUBLIC_USER_SELECT,
     });
     const tokens = yield (0, GenerateToken_1.generateTokens)({
@@ -120,12 +153,25 @@ const loginUser = (body, meta) => __awaiter(void 0, void 0, void 0, function* ()
         email: updated.email,
         role: updated.role,
     });
+    yield (0, session_service_1.createUserSession)({
+        userId: updated.userid,
+        refreshToken: tokens.refreshToken,
+        ipAddress: meta === null || meta === void 0 ? void 0 : meta.ipAddress,
+        userAgent: meta === null || meta === void 0 ? void 0 : meta.userAgent,
+    }).catch(() => undefined);
     yield (0, audit_service_1.createAuditLog)({
         action: client_1.AuditAction.LOGIN,
         entity: "User",
         entityId: updated.userid,
         description: "User logged in",
         userId: updated.userid,
+        ipAddress: meta === null || meta === void 0 ? void 0 : meta.ipAddress,
+        userAgent: meta === null || meta === void 0 ? void 0 : meta.userAgent,
+    });
+    yield (0, security_service_1.recordSecurityActivity)({
+        userId: updated.userid,
+        type: "LOGIN",
+        title: "New sign-in",
         ipAddress: meta === null || meta === void 0 ? void 0 : meta.ipAddress,
         userAgent: meta === null || meta === void 0 ? void 0 : meta.userAgent,
     });

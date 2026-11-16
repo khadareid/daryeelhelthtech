@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseEnum = exports.parseNumber = exports.parseBool = exports.parseDate = exports.requireEmail = exports.optionalString = exports.requireString = void 0;
+exports.parseEnum = exports.parseNumber = exports.parseBool = exports.parseDate = exports.requirePhone = exports.normalizePhone = exports.requireEmail = exports.optionalString = exports.requireString = void 0;
 const ownership_1 = require("./ownership");
 const requireString = (value, field, opts) => {
     if (typeof value !== "string" || !value.trim()) {
@@ -32,6 +32,36 @@ const requireEmail = (value) => {
     return email;
 };
 exports.requireEmail = requireEmail;
+/**
+ * Normalize to E.164-style: +[digits], e.g. +252634000100.
+ * No OTP / verification — collect & store only.
+ */
+const normalizePhone = (value) => {
+    if (value === undefined || value === null || value === "")
+        return null;
+    const raw = String(value).trim();
+    if (!raw)
+        return null;
+    let digits = raw.replace(/[^\d+]/g, "");
+    if (digits.startsWith("00"))
+        digits = `+${digits.slice(2)}`;
+    if (!digits.startsWith("+"))
+        digits = `+${digits.replace(/\D/g, "")}`;
+    const normalized = `+${digits.slice(1).replace(/\D/g, "")}`;
+    return normalized === "+" ? null : normalized;
+};
+exports.normalizePhone = normalizePhone;
+const requirePhone = (value, field = "phone") => {
+    const phone = (0, exports.normalizePhone)(value);
+    if (!phone)
+        throw new ownership_1.HttpError(400, `${field} is required`);
+    const digits = phone.slice(1);
+    if (!/^\d{8,15}$/.test(digits)) {
+        throw new ownership_1.HttpError(400, "Invalid phone number. Use international format, e.g. +252 63 XXX XXXX");
+    }
+    return phone;
+};
+exports.requirePhone = requirePhone;
 const parseDate = (value, field, required = false) => {
     if (value === undefined || value === null || value === "") {
         if (required)

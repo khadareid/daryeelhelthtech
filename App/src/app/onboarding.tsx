@@ -1,8 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -20,16 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { ONBOARDING_SLIDES, type OnboardingSlide } from '@/constants/demo-data';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
-
-const ONBOARDING_KEY = 'daryeel.onboardingComplete';
-
-export async function markOnboardingComplete() {
-  await AsyncStorage.setItem(ONBOARDING_KEY, '1');
-}
-
-export async function hasCompletedOnboarding() {
-  return (await AsyncStorage.getItem(ONBOARDING_KEY)) === '1';
-}
+import { markOnboardingComplete } from '@/lib/onboarding';
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
@@ -56,7 +46,7 @@ export default function OnboardingScreen() {
 
   function goNext() {
     if (isLast) {
-      finishToSignUp();
+      void browseAsGuest();
       return;
     }
     listRef.current?.scrollToIndex({ index: index + 1, animated: true });
@@ -65,6 +55,11 @@ export default function OnboardingScreen() {
   function goBack() {
     if (index === 0) return;
     listRef.current?.scrollToIndex({ index: index - 1, animated: true });
+  }
+
+  async function browseAsGuest() {
+    await markOnboardingComplete();
+    router.replace('/(tabs)' as Href);
   }
 
   async function finishToSignUp() {
@@ -96,8 +91,8 @@ export default function OnboardingScreen() {
             </Text>
           </View>
         </View>
-        <Pressable onPress={finishToSignIn} style={styles.skipBtn}>
-          <Text style={styles.skip}>Skip</Text>
+        <Pressable onPress={() => void browseAsGuest()} style={styles.skipBtn}>
+          <Text style={styles.skip}>Browse</Text>
         </Pressable>
       </View>
 
@@ -184,19 +179,26 @@ export default function OnboardingScreen() {
             <View style={styles.half} />
           )}
           <Button
-            title={isLast ? 'Get Started' : 'Continue'}
+            title={isLast ? 'Browse Home' : 'Continue'}
             onPress={goNext}
             style={styles.half}
           />
         </View>
 
         {isLast ? (
-          <Pressable onPress={finishToSignIn} style={styles.signInLink}>
-            <Text style={styles.signInText}>
-              Already have an account?{' '}
-              <Text style={styles.signInAccent}>Sign In</Text>
-            </Text>
-          </Pressable>
+          <View style={styles.authRow}>
+            <Pressable onPress={() => void finishToSignIn()}>
+              <Text style={styles.signInText}>
+                <Text style={styles.signInAccent}>Sign In</Text>
+              </Text>
+            </Pressable>
+            <Text style={styles.authDot}>·</Text>
+            <Pressable onPress={() => void finishToSignUp()}>
+              <Text style={styles.signInText}>
+                <Text style={styles.signInAccent}>Sign Up</Text>
+              </Text>
+            </Pressable>
+          </View>
         ) : (
           <Text style={styles.hint}>{slide.badge} · swipe or tap Continue</Text>
         )}
@@ -391,8 +393,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Brand.muted,
   },
-  signInLink: {
+  authRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  authDot: {
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+    color: Brand.muted,
   },
   signInText: {
     fontFamily: Fonts.regular,

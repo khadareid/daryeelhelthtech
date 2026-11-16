@@ -7,11 +7,13 @@ import {
   Star,
   Stethoscope,
 } from "lucide-react"
+import { HealthcareDoctorAvatar } from "@/components/home/HealthcareDoctorAvatar"
 import { RootState } from "@/Redex/store/store"
 import {
+  doctorFeeOf,
+  doctorCurrencyOf,
   doctorIdOf,
   doctorNameOf,
-  doctorPhotoOf,
   doctorSpecialtyOf,
   hospitalDoctorsCount,
   hospitalIdOf,
@@ -41,7 +43,7 @@ export default function HospitalDetailPage() {
   const { data: doctors = [], isLoading: doctorsLoading } =
     useGetHospitalDoctorsQuery(
       { hospitalId, limit: 40 },
-      { skip: !hospitalId }
+      { skip: !hospitalId },
     )
 
   const bookHref = (doctorId?: string) => {
@@ -51,6 +53,9 @@ export default function HospitalDetailPage() {
       ? `/dashboard?section=book&${qs.toString()}`
       : `/healthcare/book?${qs.toString()}`
   }
+
+  const profileHref = (doctorId: string) =>
+    `/hospitals/${hospitalId}/doctors/${doctorId}`
 
   if (isLoading) {
     return (
@@ -91,7 +96,7 @@ export default function HospitalDetailPage() {
 
   return (
     <div className="min-h-[70vh] bg-brand-bg">
-      <div className="container-page space-y-6 py-10 sm:py-12">
+      <div className="container-page space-y-6 py-8 sm:py-10 lg:py-12">
         <Button asChild variant="ghost" className="-ml-2 w-fit text-brand-muted">
           <Link to="/hospitals">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -99,7 +104,7 @@ export default function HospitalDetailPage() {
           </Link>
         </Button>
 
-        <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
+        <div className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-light">
               {logo ? (
@@ -112,7 +117,7 @@ export default function HospitalDetailPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                 {siteConfig.appName}
               </p>
-              <h1 className="mt-1 font-heading text-3xl font-bold text-brand-dark">
+              <h1 className="mt-1 font-heading text-2xl font-bold text-brand-dark sm:text-3xl">
                 {name}
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -150,7 +155,7 @@ export default function HospitalDetailPage() {
           </div>
         </div>
 
-        <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm">
+        <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-6">
           <h2 className="font-heading text-xl font-bold text-brand-dark">
             Departments
           </h2>
@@ -172,7 +177,7 @@ export default function HospitalDetailPage() {
           )}
         </section>
 
-        <section className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm">
+        <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-heading text-xl font-bold text-brand-dark">
               Doctors
@@ -187,7 +192,7 @@ export default function HospitalDetailPage() {
               {Array.from({ length: 3 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-36 animate-pulse rounded-2xl bg-brand-light"
+                  className="h-40 animate-pulse rounded-2xl bg-brand-light"
                 />
               ))}
             </div>
@@ -199,42 +204,48 @@ export default function HospitalDetailPage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {doctors.map((d) => {
                 const docId = doctorIdOf(d)
-                const photo = doctorPhotoOf(d)
+                const fee = doctorFeeOf(d)
+                const currency = doctorCurrencyOf(d)
                 return (
-                  <div
-                    key={docId}
-                    className="flex gap-3 rounded-2xl border border-blue-50 bg-brand-light/40 p-4"
+                  <article
+                    key={docId || doctorNameOf(d)}
+                    className="flex flex-col gap-3 rounded-2xl border border-blue-50 bg-brand-light/40 p-4"
                   >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white">
-                      {photo ? (
-                        <img
-                          src={photo}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm font-bold text-primary/50">
-                          {doctorNameOf(d).slice(0, 1)}
-                        </span>
-                      )}
+                    <div className="flex gap-3">
+                      <HealthcareDoctorAvatar
+                        doctor={d}
+                        rounded="xl"
+                        className="h-14 w-14 shrink-0"
+                        initialsClassName="text-sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-brand-dark">
+                          {doctorNameOf(d)}
+                        </p>
+                        <p className="truncate text-xs font-medium text-primary">
+                          {doctorSpecialtyOf(d)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {fee > 0
+                            ? `${fee.toFixed(2)} ${currency}`
+                            : "Fee on request"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-brand-dark">
-                        {doctorNameOf(d)}
-                      </p>
-                      <p className="truncate text-xs text-primary">
-                        {doctorSpecialtyOf(d)}
-                      </p>
+                    <div className="mt-auto flex gap-2">
                       <Button
                         asChild
                         size="sm"
-                        className="mt-2 h-8"
                         variant="outline"
+                        className="h-9 flex-1 border-primary/20"
                       >
+                        <Link to={profileHref(docId)}>View profile</Link>
+                      </Button>
+                      <Button asChild size="sm" className="h-9 flex-1">
                         <Link to={bookHref(docId)}>Book</Link>
                       </Button>
                     </div>
-                  </div>
+                  </article>
                 )
               })}
             </div>

@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, Outlet } from "react-router-dom"
 
 /* ---------- Public site ---------- */
 import SiteHeader from "@/features/Main/SiteHeader"
+import SiteFooter from "@/features/Main/SiteFooter"
 import { PublicLayout } from "@/features/PublicLayout"
 import { NotFoundPage } from "@/features/Main/public/NotFoundPage"
 import DoctorsPage from "@/features/Main/public/DoctorsPage"
@@ -9,8 +10,11 @@ import DoctorDetailPage from "@/features/Main/public/DoctorDetailPage"
 import ApplyDoctorPage from "@/features/Main/public/ApplyDoctorPage"
 import HospitalsPage from "@/features/Main/public/HospitalsPage"
 import HospitalDetailPage from "@/features/Main/public/HospitalDetailPage"
+import HospitalDoctorDetailPage from "@/features/Main/public/HospitalDoctorDetailPage"
 import HealthcareBookingPage from "@/features/Main/public/HealthcareBookingPage"
 import HealthcareDoctorsPage from "@/features/Main/public/HealthcareDoctorsPage"
+import PrivacyPage from "@/features/Main/public/PrivacyPage"
+import TermsPage from "@/features/Main/public/TermsPage"
 import SignInPage from "@/pages/auth/SignIn"
 import RegisterPage from "@/pages/auth/Register"
 import GoogleCallbackHandler from "@/pages/auth/AuthCallback"
@@ -37,6 +41,7 @@ const PublicShell = () => (
     <main className="flex-grow">
       <Outlet />
     </main>
+    <SiteFooter />
   </div>
 )
 
@@ -49,6 +54,10 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <PublicLayout /> },
         { path: "hospitals", element: <HospitalsPage /> },
+        {
+          path: "hospitals/:hospitalId/doctors/:doctorId",
+          element: <HospitalDoctorDetailPage />,
+        },
         { path: "hospitals/:hospitalId", element: <HospitalDetailPage /> },
         { path: "healthcare/book", element: <HealthcareBookingPage /> },
         { path: "healthcare/doctors", element: <HealthcareDoctorsPage /> },
@@ -57,6 +66,8 @@ export const router = createBrowserRouter(
         { path: "doctors/:doctorId", element: <DoctorDetailPage /> },
         { path: "signin", element: <SignInPage /> },
         { path: "SignUp", element: <RegisterPage /> },
+        { path: "privacy", element: <PrivacyPage /> },
+        { path: "terms", element: <TermsPage /> },
         { path: "*", element: <NotFoundPage /> },
       ],
     },

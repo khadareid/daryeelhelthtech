@@ -17,7 +17,6 @@ export default function SignUpScreen() {
   const { register, signInGoogle, isAuthenticated } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,8 +41,8 @@ export default function SignUpScreen() {
         fullName,
         email,
         password,
-        phone: phone.trim() || undefined,
       });
+      Alert.alert('Registered successfully', 'Please add your phone number.');
       router.replace('/(tabs)');
     } catch (error) {
       Alert.alert(
@@ -71,7 +70,9 @@ export default function SignUpScreen() {
   }
 
   return (
-    <AuthShell title="Create your account" subtitle="Join Daryeel Health in under a minute">
+    <AuthShell
+      title="Create your account"
+      subtitle="Name, email, and password. Add your phone after you sign in.">
       <AuthField
         placeholder="Full name"
         autoComplete="name"
@@ -85,13 +86,6 @@ export default function SignUpScreen() {
         autoComplete="email"
         value={email}
         onChangeText={setEmail}
-      />
-      <AuthField
-        placeholder="Phone (optional)"
-        keyboardType="phone-pad"
-        autoComplete="tel"
-        value={phone}
-        onChangeText={setPhone}
       />
       <AuthField
         placeholder="Password"

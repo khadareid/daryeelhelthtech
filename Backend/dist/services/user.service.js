@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -37,11 +70,29 @@ const updateMe = (userId, body) => __awaiter(void 0, void 0, void 0, function* (
     if (body.fullName !== undefined) {
         data.fullName = (0, validation_1.requireString)(body.fullName, "fullName");
     }
+    let phoneChanged = null;
     if (body.phone !== undefined) {
-        data.phone =
-            body.phone === null || body.phone === ""
-                ? null
-                : (0, validation_1.requireString)(body.phone, "phone");
+        if (body.phone === null || body.phone === "") {
+            data.phone = null;
+        }
+        else {
+            const phone = (0, validation_1.requirePhone)(body.phone, "phone");
+            const phoneTaken = yield prisma_1.prisma.user.findFirst({
+                where: {
+                    phone,
+                    deletedAt: null,
+                    NOT: { userid: userId },
+                },
+            });
+            if (phoneTaken)
+                throw new ownership_1.HttpError(409, "Phone already registered");
+            const current = yield prisma_1.prisma.user.findFirst({
+                where: { userid: userId, deletedAt: null },
+                select: { phone: true },
+            });
+            phoneChanged = (current === null || current === void 0 ? void 0 : current.phone) ? "PHONE_CHANGED" : "PHONE_ADDED";
+            data.phone = phone;
+        }
     }
     if (body.gender !== undefined) {
         const g = String(body.gender).toUpperCase();
@@ -71,11 +122,27 @@ const updateMe = (userId, body) => __awaiter(void 0, void 0, void 0, function* (
     if (body.district !== undefined) {
         data.district = (_g = (0, validation_1.optionalString)(body.district)) !== null && _g !== void 0 ? _g : null;
     }
-    return prisma_1.prisma.user.update({
+    const updated = yield prisma_1.prisma.user.update({
         where: { userid: userId },
         data,
         select: auth_service_1.PUBLIC_USER_SELECT,
     });
+    if (phoneChanged) {
+        try {
+            const { recordSecurityActivity } = yield Promise.resolve().then(() => __importStar(require("./security.service")));
+            yield recordSecurityActivity({
+                userId,
+                type: phoneChanged,
+                title: phoneChanged === "PHONE_ADDED"
+                    ? "Phone number added"
+                    : "Phone number changed",
+            });
+        }
+        catch (_h) {
+            /* non-fatal */
+        }
+    }
+    return updated;
 });
 exports.updateMe = updateMe;
 const changePassword = (userId, body) => __awaiter(void 0, void 0, void 0, function* () {
@@ -95,8 +162,21 @@ const changePassword = (userId, body) => __awaiter(void 0, void 0, void 0, funct
     const passwordHash = yield bcryptjs_1.default.hash(newPassword, 10);
     yield prisma_1.prisma.user.update({
         where: { userid: userId },
-        data: { passwordHash },
+        data: { passwordHash, passwordChangedAt: new Date() },
     });
+    try {
+        const { revokeOtherSessions } = yield Promise.resolve().then(() => __importStar(require("./session.service")));
+        const { recordSecurityActivity } = yield Promise.resolve().then(() => __importStar(require("./security.service")));
+        yield revokeOtherSessions(userId);
+        yield recordSecurityActivity({
+            userId,
+            type: "PASSWORD_CHANGED",
+            title: "Password changed",
+        });
+    }
+    catch (_a) {
+        // Session/security tables may not be migrated yet
+    }
     return { changed: true };
 });
 exports.changePassword = changePassword;

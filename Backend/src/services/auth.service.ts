@@ -4,8 +4,15 @@ import { generateTokens } from "../helpers/GenerateToken";
 import { prisma } from "../lib/prisma";
 import { generateUniqueHealthId } from "../utils/codes";
 import { HttpError } from "../utils/ownership";
-import { parseDate, requireEmail, requireString } from "../utils/validation";
+import {
+  parseDate,
+  requireEmail,
+  requirePhone,
+  requireString,
+} from "../utils/validation";
 import { createAuditLog } from "./audit.service";
+import { recordSecurityActivity } from "./security.service";
+import { createUserSession } from "./session.service";
 
 const PUBLIC_USER_SELECT = {
   userid: true,
@@ -29,21 +36,26 @@ const PUBLIC_USER_SELECT = {
   isActive: true,
   isSuspended: true,
   lastLoginAt: true,
+  passwordChangedAt: true,
+  twoFactorEnabled: true,
+  twoFactorMethod: true,
+  recoveryEmail: true,
   createdAt: true,
   updatedAt: true,
 } as const;
 
-export const registerUser = async (body: Record<string, unknown>) => {
+export const registerUser = async (
+  body: Record<string, unknown>,
+  meta?: { ipAddress?: string; userAgent?: string }
+) => {
   const email = requireEmail(body.email);
   const password = requireString(body.password, "password", { min: 6 });
-  const fullName = requireString(
-    body.fullName ?? body.name,
-    "fullName"
-  );
+  const fullName = requireString(body.fullName ?? body.name, "fullName");
+  // Phone is collected after signup via PhoneRequiredGate (optional here).
   const phone =
     body.phone === undefined || body.phone === null || body.phone === ""
       ? null
-      : requireString(body.phone, "phone");
+      : requirePhone(body.phone, "phone");
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing && !existing.deletedAt) {
@@ -70,6 +82,7 @@ export const registerUser = async (body: Record<string, unknown>) => {
       passwordHash,
       fullName,
       phone,
+      passwordChangedAt: new Date(),
       gender: gender && Object.values(Gender).includes(gender) ? gender : null,
       dateOfBirth: dateOfBirth ?? null,
       role: Role.USER,
@@ -83,6 +96,21 @@ export const registerUser = async (body: Record<string, unknown>) => {
     userId: user.userid,
     email: user.email,
     role: user.role,
+  });
+
+  await createUserSession({
+    userId: user.userid,
+    refreshToken: tokens.refreshToken,
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  }).catch(() => undefined);
+
+  await recordSecurityActivity({
+    userId: user.userid,
+    type: "SESSION_CREATED",
+    title: "Account created",
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
   });
 
   return { user, ...tokens };
@@ -107,11 +135,24 @@ export const loginUser = async (
   }
 
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) throw new HttpError(401, "Invalid email or password");
+  if (!ok) {
+    await recordSecurityActivity({
+      userId: user.userid,
+      type: "FAILED_LOGIN",
+      title: "Failed sign-in attempt",
+      ipAddress: meta?.ipAddress,
+      userAgent: meta?.userAgent,
+    });
+    throw new HttpError(401, "Invalid email or password");
+  }
 
   const updated = await prisma.user.update({
     where: { userid: user.userid },
-    data: { lastLoginAt: new Date() },
+    data: {
+      lastLoginAt: new Date(),
+      lastLoginIp: meta?.ipAddress || null,
+      lastActiveAt: new Date(),
+    },
     select: PUBLIC_USER_SELECT,
   });
 
@@ -121,12 +162,27 @@ export const loginUser = async (
     role: updated.role,
   });
 
+  await createUserSession({
+    userId: updated.userid,
+    refreshToken: tokens.refreshToken,
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  }).catch(() => undefined);
+
   await createAuditLog({
     action: AuditAction.LOGIN,
     entity: "User",
     entityId: updated.userid,
     description: "User logged in",
     userId: updated.userid,
+    ipAddress: meta?.ipAddress,
+    userAgent: meta?.userAgent,
+  });
+
+  await recordSecurityActivity({
+    userId: updated.userid,
+    type: "LOGIN",
+    title: "New sign-in",
     ipAddress: meta?.ipAddress,
     userAgent: meta?.userAgent,
   });

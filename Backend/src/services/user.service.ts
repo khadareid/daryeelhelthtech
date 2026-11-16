@@ -8,6 +8,7 @@ import {
   optionalString,
   parseDate,
   requireEmail,
+  requirePhone,
   requireString,
 } from "../utils/validation";
 import { PUBLIC_USER_SELECT } from "./auth.service";
@@ -35,11 +36,27 @@ export const updateMe = async (
   if (body.fullName !== undefined) {
     data.fullName = requireString(body.fullName, "fullName");
   }
+  let phoneChanged: "PHONE_ADDED" | "PHONE_CHANGED" | null = null;
   if (body.phone !== undefined) {
-    data.phone =
-      body.phone === null || body.phone === ""
-        ? null
-        : requireString(body.phone, "phone");
+    if (body.phone === null || body.phone === "") {
+      data.phone = null;
+    } else {
+      const phone = requirePhone(body.phone, "phone");
+      const phoneTaken = await prisma.user.findFirst({
+        where: {
+          phone,
+          deletedAt: null,
+          NOT: { userid: userId },
+        },
+      });
+      if (phoneTaken) throw new HttpError(409, "Phone already registered");
+      const current = await prisma.user.findFirst({
+        where: { userid: userId, deletedAt: null },
+        select: { phone: true },
+      });
+      phoneChanged = current?.phone ? "PHONE_CHANGED" : "PHONE_ADDED";
+      data.phone = phone;
+    }
   }
   if (body.gender !== undefined) {
     const g = String(body.gender).toUpperCase() as Gender;
@@ -67,11 +84,29 @@ export const updateMe = async (
     data.district = optionalString(body.district) ?? null;
   }
 
-  return prisma.user.update({
+  const updated = await prisma.user.update({
     where: { userid: userId },
     data,
     select: PUBLIC_USER_SELECT,
   });
+
+  if (phoneChanged) {
+    try {
+      const { recordSecurityActivity } = await import("./security.service");
+      await recordSecurityActivity({
+        userId,
+        type: phoneChanged,
+        title:
+          phoneChanged === "PHONE_ADDED"
+            ? "Phone number added"
+            : "Phone number changed",
+      });
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  return updated;
 };
 
 export const changePassword = async (
@@ -95,8 +130,21 @@ export const changePassword = async (
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({
     where: { userid: userId },
-    data: { passwordHash },
+    data: { passwordHash, passwordChangedAt: new Date() },
   });
+
+  try {
+    const { revokeOtherSessions } = await import("./session.service");
+    const { recordSecurityActivity } = await import("./security.service");
+    await revokeOtherSessions(userId);
+    await recordSecurityActivity({
+      userId,
+      type: "PASSWORD_CHANGED",
+      title: "Password changed",
+    });
+  } catch {
+    // Session/security tables may not be migrated yet
+  }
 
   return { changed: true };
 };

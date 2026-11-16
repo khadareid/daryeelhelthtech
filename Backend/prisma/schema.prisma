@@ -364,8 +364,11 @@ model User {
   deletedReason          String?
   twoFactorEnabled Boolean @default(false)
   twoFactorSecret  String?
+  twoFactorMethod  String?
   recoveryCodes    String[] @default([])
+  recoveryEmail    String?
   sessions               UserSession[]
+  securityActivities     SecurityActivity[]
   adminActions           AdminAction[]            @relation("AdminActions")
   broadcasts             BroadcastMessage[]
   userRoles              UserRole[]
@@ -1478,24 +1481,47 @@ model UserRole {
 }
 
 model UserSession {
-  id           String    @id @default(cuid())
-  userId       String
-  refreshToken String    @unique
-  ipAddress    String?
-  userAgent    String?
-  deviceType   String?
-  isRevoked    Boolean   @default(false)
-  revokedAt    DateTime?
-  revokedBy    String?
-  lastUsedAt   DateTime  @default(now())
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
+  id              String    @id @default(cuid())
+  userId          String
+  refreshToken    String    @unique // sha256 hash of refresh token
+  ipAddress       String?
+  userAgent       String?
+  deviceType      String?
+  browser         String?
+  operatingSystem String?
+  location        String?
+  isRevoked       Boolean   @default(false)
+  revokedAt       DateTime?
+  revokedBy       String?
+  lastUsedAt      DateTime  @default(now())
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRevoked])
   @@index([expiresAt])
+}
+
+model SecurityActivity {
+  id              String   @id @default(cuid())
+  userId          String
+  type            String
+  title           String?
+  device          String?
+  browser         String?
+  operatingSystem String?
+  ipAddress       String?
+  location        String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([type])
 }
 
 model LoginAttempt {

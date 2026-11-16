@@ -68,7 +68,7 @@ export default function RegisterPage() {
           {
             withCredentials: true,
             headers: { "x-csrf-token": csrf },
-          }
+          },
         )
       }
 
@@ -82,7 +82,7 @@ export default function RegisterPage() {
         const message = axios.isAxiosError(first)
           ? String(
               (first.response?.data as { message?: string } | undefined)
-                ?.message || ""
+                ?.message || "",
             )
           : ""
         if (status === 403 && /csrf/i.test(message)) {
@@ -112,11 +112,11 @@ export default function RegisterPage() {
           phone: user.phone ?? "",
           emailVerified: user.emailVerified,
           phoneVerified: user.phoneVerified,
-        })
+        }),
       )
 
-      toast.success(data.message || "Account created")
-      navigate("/dashboard")
+      toast.success("Registered successfully")
+      navigate("/dashboard", { state: { requirePhone: true } })
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const msg =
@@ -124,7 +124,7 @@ export default function RegisterPage() {
           err.message
         if (err.code === "ERR_NETWORK") {
           toast.error(
-            "Could not reach the API. Check your connection and try again."
+            "Could not reach the API. Check your connection and try again.",
           )
         } else {
           toast.error(msg || "Registration failed")
@@ -140,7 +140,7 @@ export default function RegisterPage() {
   return (
     <AuthLayout
       title="Create your account"
-      subtitle="Name, email, and password. Everything else can wait."
+      subtitle="Name, email, and password. Add your phone after you sign in."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">

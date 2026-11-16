@@ -12,6 +12,8 @@ import {
 
 import { ConfirmSheet } from '@/components/confirm-sheet';
 import { EnumChips, FieldLabel, formStyles } from '@/components/form-ui';
+import { LocationSelect } from '@/components/location-select';
+import { PhoneField } from '@/components/phone-field';
 import { Screen } from '@/components/screen';
 import { CardListSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,18 @@ import {
   enumLabel,
   GENDER_OPTIONS,
 } from '@/lib/enums';
+import {
+  citiesForRegion,
+  countryNames,
+  hasRegionData,
+  regionsForCountry,
+  withCurrentOption,
+} from '@/lib/locations';
+import {
+  formatPhoneDisplay,
+  isValidPhone,
+  normalizePhone,
+} from '@/lib/phone';
 
 const MENU: { id: string; label: string; href: Href }[] = [
   { id: 'visits', label: 'Visits', href: '/(tabs)/appointments' },
@@ -55,6 +69,11 @@ function toDateInput(d?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
+function maskHealthId(id: string) {
+  if (id.length <= 4) return '••••';
+  return `${'•'.repeat(Math.min(10, id.length - 4))}${id.slice(-4)}`;
+}
+
 export default function ProfileScreen() {
   const { user, profile, logout, refreshProfile, apiOnline, accessToken } =
     useAuth();
@@ -65,6 +84,9 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [phoneEditing, setPhoneEditing] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState('+252');
+  const [healthIdVisible, setHealthIdVisible] = useState(false);
 
   const [form, setForm] = useState({
     fullName: '',
@@ -87,19 +109,22 @@ export default function ProfileScreen() {
   const healthId = profile?.healthId || user?.healthId;
 
   const syncForm = () => {
+    const phone = profile?.phone || user?.phone || '';
     setForm((prev) => ({
       ...prev,
       fullName: profile?.fullName || user?.fullName || '',
       email: profile?.email || user?.email || '',
-      phone: profile?.phone || user?.phone || '',
+      phone,
       image: profile?.avatarUrl || profile?.picture || user?.avatarUrl || '',
       gender: profile?.gender || user?.gender || '',
       dateOfBirth: toDateInput(profile?.dateOfBirth || user?.dateOfBirth),
-      country: profile?.country || user?.country || '',
+      country: profile?.country || user?.country || 'Somaliland',
       region: profile?.region || user?.region || '',
       city: profile?.city || user?.city || '',
       bloodType: profile?.medicalProfile?.bloodType || 'UNKNOWN',
     }));
+    setPhoneDraft(phone || '+252');
+    setPhoneEditing(!phone);
   };
 
   useEffect(() => {
@@ -124,12 +149,20 @@ export default function ProfileScreen() {
       Alert.alert('Full name required', 'Enter your full name.');
       return;
     }
+    const phoneValue = phoneEditing || !form.phone ? phoneDraft : form.phone;
+    if (!phoneValue.trim() || !isValidPhone(phoneValue)) {
+      Alert.alert(
+        'Phone required',
+        'Enter a valid phone number, e.g. +252 63 XXX XXXX',
+      );
+      return;
+    }
     setSaving(true);
     try {
       await updateMeRequest(
         {
           fullName: form.fullName.trim(),
-          phone: form.phone.trim() || null,
+          phone: normalizePhone(phoneValue),
           gender: form.gender || null,
           dateOfBirth: form.dateOfBirth || null,
           avatarUrl: form.image.trim() || null,
@@ -144,6 +177,7 @@ export default function ProfileScreen() {
         accessToken,
       );
       await refreshProfile();
+      setPhoneEditing(false);
       Alert.alert('Profile updated', 'Your My Profile details were saved.');
     } catch (error) {
       Alert.alert(
@@ -200,10 +234,50 @@ export default function ProfileScreen() {
     try {
       await logout();
       setLogoutOpen(false);
-      router.replace('/onboarding');
+      router.replace('/(tabs)' as Href);
     } finally {
       setLoggingOut(false);
     }
+  }
+
+  if (!accessToken) {
+    return (
+      <Screen headerTitle="Profile">
+        <View style={styles.hero}>
+          <Text style={styles.brand}>Daryeel</Text>
+          <Text style={styles.heroTitle}>Welcome</Text>
+          <Text style={styles.heroSub}>
+            Browse doctors and the home feed freely. Sign in when you are ready
+            to book or save your health record.
+          </Text>
+        </View>
+        <View style={styles.guestCard}>
+          <UserAvatar name="Guest" size={72} />
+          <Text style={styles.name}>Browsing as guest</Text>
+          <Text style={styles.email}>
+            Create an account to book visits and keep your medical profile.
+          </Text>
+          <View style={styles.guestActions}>
+            <Button
+              title="Sign In"
+              onPress={() => router.push('/sign-in')}
+              style={styles.guestBtn}
+            />
+            <Button
+              title="Sign Up"
+              variant="ghost"
+              onPress={() => router.push('/sign-up')}
+              style={styles.guestBtn}
+            />
+          </View>
+          <Button
+            title="Explore doctors"
+            variant="ghost"
+            onPress={() => router.push('/(tabs)/doctors')}
+          />
+        </View>
+      </Screen>
+    );
   }
 
   return (
@@ -237,14 +311,51 @@ export default function ProfileScreen() {
           <Text style={styles.name}>{form.fullName || 'Daryeel user'}</Text>
           <Text style={styles.email}>{form.email}</Text>
           {healthId ? (
-            <Text style={styles.patientId}>Health ID · {healthId}</Text>
+            <Pressable
+              onPress={() => setHealthIdVisible((v) => !v)}
+              style={styles.patientIdRow}
+              accessibilityRole="button"
+              accessibilityLabel={
+                healthIdVisible ? 'Hide Health ID' : 'Show Health ID'
+              }>
+              <Text style={styles.patientId}>
+                Health ID ·{' '}
+                {healthIdVisible ? healthId : maskHealthId(healthId)}
+              </Text>
+              <Ionicons
+                name={healthIdVisible ? 'eye-off-outline' : 'eye-outline'}
+                size={16}
+                color={Brand.primary}
+              />
+            </Pressable>
           ) : null}
         </View>
 
         <View style={styles.patientCard}>
-          <Text style={styles.patientCardLabel}>Daryeel Health ID</Text>
+          <View style={styles.patientCardTop}>
+            <Text style={styles.patientCardLabel}>Daryeel Health ID</Text>
+            {healthId ? (
+              <Pressable
+                onPress={() => setHealthIdVisible((v) => !v)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  healthIdVisible ? 'Hide Health ID' : 'Show Health ID'
+                }>
+                <Ionicons
+                  name={healthIdVisible ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={Brand.primary}
+                />
+              </Pressable>
+            ) : null}
+          </View>
           <Text style={styles.patientCardValue}>
-            {healthId || 'Generating…'}
+            {healthId
+              ? healthIdVisible
+                ? healthId
+                : maskHealthId(healthId)
+              : 'Generating…'}
           </Text>
           <Text style={styles.patientCardHint}>
             Permanent personal health identity linked to your medical record.
@@ -292,15 +403,37 @@ export default function ProfileScreen() {
               style={[formStyles.input, styles.inputDisabled]}
             />
 
-            <FieldLabel>Phone</FieldLabel>
-            <TextInput
-              value={form.phone}
-              onChangeText={(v) => onChange('phone', v)}
-              placeholder="+252…"
-              keyboardType="phone-pad"
-              placeholderTextColor={Brand.muted}
-              style={formStyles.input}
-            />
+            <FieldLabel>Phone Number *</FieldLabel>
+            {form.phone && !phoneEditing ? (
+              <View style={styles.phoneBox}>
+                <Text style={styles.phoneValue}>
+                  {formatPhoneDisplay(form.phone)}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setPhoneDraft(form.phone || '+252');
+                    setPhoneEditing(true);
+                  }}>
+                  <Text style={styles.phoneAction}>Change number</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={{ gap: 8 }}>
+                {!form.phone ? (
+                  <Text style={styles.phoneAction}>Add phone number</Text>
+                ) : null}
+                <PhoneField value={phoneDraft} onChange={setPhoneDraft} />
+                {form.phone ? (
+                  <Pressable
+                    onPress={() => {
+                      setPhoneDraft(form.phone);
+                      setPhoneEditing(false);
+                    }}>
+                    <Text style={styles.phoneCancel}>Cancel</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            )}
 
             <FieldLabel>Gender</FieldLabel>
             <EnumChips
@@ -326,32 +459,76 @@ export default function ProfileScreen() {
               onChange={(v) => onChange('bloodType', v)}
             />
 
-            <FieldLabel>Country</FieldLabel>
-            <TextInput
+            <LocationSelect
+              label="Country"
               value={form.country}
-              onChangeText={(v) => onChange('country', v)}
-              placeholder="Somalia"
-              placeholderTextColor={Brand.muted}
-              style={formStyles.input}
+              options={withCurrentOption(countryNames(), form.country)}
+              placeholder="Search country…"
+              searchPlaceholder="Type to filter countries…"
+              searchable
+              onChange={(v) =>
+                setForm((prev) => ({
+                  ...prev,
+                  country: v,
+                  region: '',
+                  city: '',
+                }))
+              }
             />
 
-            <FieldLabel>Region</FieldLabel>
-            <TextInput
-              value={form.region}
-              onChangeText={(v) => onChange('region', v)}
-              placeholder="Banaadir"
-              placeholderTextColor={Brand.muted}
-              style={formStyles.input}
-            />
+            {hasRegionData(form.country) ? (
+              <>
+                <LocationSelect
+                  label="Region"
+                  value={form.region}
+                  options={withCurrentOption(
+                    regionsForCountry(form.country),
+                    form.region,
+                  )}
+                  placeholder="Select region"
+                  onChange={(v) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      region: v,
+                      city: '',
+                    }))
+                  }
+                />
 
-            <FieldLabel>City</FieldLabel>
-            <TextInput
-              value={form.city}
-              onChangeText={(v) => onChange('city', v)}
-              placeholder="Mogadishu"
-              placeholderTextColor={Brand.muted}
-              style={formStyles.input}
-            />
+                <LocationSelect
+                  label="City"
+                  value={form.city}
+                  options={withCurrentOption(
+                    citiesForRegion(form.country, form.region),
+                    form.city,
+                  )}
+                  placeholder={
+                    form.region ? 'Select city' : 'Select region first'
+                  }
+                  disabled={!form.region}
+                  onChange={(v) => onChange('city', v)}
+                />
+              </>
+            ) : (
+              <>
+                <FieldLabel>Region</FieldLabel>
+                <TextInput
+                  value={form.region}
+                  onChangeText={(v) => onChange('region', v)}
+                  placeholder="Region / state"
+                  placeholderTextColor={Brand.muted}
+                  style={formStyles.input}
+                />
+                <FieldLabel>City</FieldLabel>
+                <TextInput
+                  value={form.city}
+                  onChangeText={(v) => onChange('city', v)}
+                  placeholder="City"
+                  placeholderTextColor={Brand.muted}
+                  style={formStyles.input}
+                />
+              </>
+            )}
 
             <FieldLabel>Avatar URL</FieldLabel>
             <TextInput
@@ -502,6 +679,24 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     gap: 4,
   },
+  guestCard: {
+    marginTop: Spacing.four,
+    backgroundColor: Brand.white,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    padding: Spacing.five,
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  guestActions: {
+    width: '100%',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  guestBtn: {
+    width: '100%',
+  },
   brand: {
     fontFamily: Fonts.semibold,
     fontSize: 12,
@@ -516,6 +711,30 @@ const styles = StyleSheet.create({
   },
   heroSub: {
     fontFamily: Fonts.regular,
+    fontSize: 13,
+    color: Brand.muted,
+  },
+  phoneBox: {
+    borderWidth: 1,
+    borderColor: Brand.border,
+    borderRadius: Radius.md,
+    backgroundColor: Brand.white,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    gap: 8,
+  },
+  phoneValue: {
+    fontFamily: Fonts.semibold,
+    fontSize: 15,
+    color: Brand.dark,
+  },
+  phoneAction: {
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+    color: Brand.primary,
+  },
+  phoneCancel: {
+    fontFamily: Fonts.medium,
     fontSize: 13,
     color: Brand.muted,
   },
@@ -534,8 +753,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Brand.muted,
   },
-  patientId: {
+  patientIdRow: {
     marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  patientId: {
     fontFamily: Fonts.semibold,
     fontSize: 13,
     color: Brand.primary,
@@ -548,6 +772,11 @@ const styles = StyleSheet.create({
     borderColor: Brand.border,
     padding: Spacing.four,
     gap: 4,
+  },
+  patientCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   patientCardLabel: {
     fontFamily: Fonts.semibold,
