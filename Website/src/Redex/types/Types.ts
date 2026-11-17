@@ -616,6 +616,7 @@ export interface Doctor {
   isAvailable?: boolean
   isOnline?: boolean
   isActive?: boolean
+  appointmentDurationMinutes?: number | null
   clinicName?: string | null
   city?: string | null
   country?: string | null
@@ -624,6 +625,30 @@ export interface Doctor {
   createdAt?: string
   updatedAt?: string
   user?: Pick<User, "userid" | "fullName" | "email" | "phone" | "avatarUrl">
+}
+
+export interface DoctorSchedule {
+  id: string
+  doctorId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  breakStart?: string | null
+  breakEnd?: string | null
+  slotMinutes?: number
+  label?: string | null
+  isAvailable?: boolean
+}
+
+export interface DoctorTimeOff {
+  id: string
+  doctorId: string
+  date: string
+  startTime?: string | null
+  endTime?: string | null
+  kind?: string
+  reason?: string | null
+  isActive?: boolean
 }
 
 export interface Appointment {

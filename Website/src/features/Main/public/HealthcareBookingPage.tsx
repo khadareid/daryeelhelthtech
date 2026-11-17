@@ -20,6 +20,8 @@ import {
   doctorSpecialtyOf,
   hospitalIdOf,
   hospitalNameOf,
+  availabilityStatusLabel,
+  formatNextAvailable,
   normalizeAvailabilitySlots,
   useCreateAppointmentMutation,
   useGetDepartmentsQuery,
@@ -678,15 +680,47 @@ export default function HealthcareBookingPage({ embedded = false }: Props) {
               {step === "time" ? (
                 <div className="space-y-3">
                   <h2 className="font-semibold text-brand-dark">5. Select time</h2>
+                  {availability?.status ? (
+                    <div className="rounded-xl border border-blue-100 bg-brand-light/60 px-3 py-2 text-sm">
+                      <p className="font-semibold text-brand-dark">
+                        {availabilityStatusLabel(availability.status)}
+                      </p>
+                      {availability.reason ? (
+                        <p className="text-xs text-muted-foreground">
+                          {String(availability.reason)}
+                        </p>
+                      ) : null}
+                      {(availability.workingHours || []).length > 0 ? (
+                        <p className="mt-1 text-xs text-primary">
+                          Hours:{" "}
+                          {(availability.workingHours || [])
+                            .map((w) => `${w.start}–${w.end}`)
+                            .join(" · ")}
+                        </p>
+                      ) : null}
+                      {availability.nextAvailable ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Next available:{" "}
+                          {formatNextAvailable(availability.nextAvailable)}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {availLoading ? (
                     <p className="text-sm text-muted-foreground">
                       Loading availability…
                     </p>
                   ) : timeOptions.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No open slots for this doctor on this date. This doctor’s
-                      schedule may only cover certain weekdays — try another
-                      day.
+                      No open slots for this doctor on this date
+                      {availability?.status
+                        ? ` (${availabilityStatusLabel(availability.status)})`
+                        : ""}
+                      . Try another day
+                      {availability?.nextAvailable
+                        ? ` — next ${formatNextAvailable(availability.nextAvailable)}`
+                        : ""}
+                      .
                     </p>
                   ) : (
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">

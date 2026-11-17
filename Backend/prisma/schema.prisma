@@ -987,6 +987,9 @@ model Doctor {
   isOnline    Boolean @default(false)
   isActive    Boolean @default(true)
 
+  /// Default slot length for generated booking times (minutes)
+  appointmentDurationMinutes Int @default(30)
+
   clinicName String?
   city       String?
   country    String?
@@ -1001,6 +1004,8 @@ model Doctor {
 
   appointments  Appointment[]
   consultations Consultation[]
+  schedules     DoctorSchedule[]
+  timeOffs      DoctorTimeOff[]
 
   diagnoses     Diagnosis[]
   labResults    LabResult[]
@@ -1024,6 +1029,52 @@ model Doctor {
   @@index([isAvailable])
   @@index([isActive])
   @@index([verifiedBy])
+}
+
+/// Weekly working windows for independent Daryeel clinicians (clinic desk).
+model DoctorSchedule {
+  id       String @id @default(cuid())
+  doctorId String
+
+  /// 0 = Sunday … 6 = Saturday (Africa/Mogadishu)
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  breakStart  String?
+  breakEnd    String?
+  slotMinutes Int     @default(30)
+  label       String?
+  isAvailable Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@index([dayOfWeek])
+}
+
+/// Full-day off or temporary block for a clinician.
+model DoctorTimeOff {
+  id       String @id @default(cuid())
+  doctorId String
+
+  date      DateTime @db.Date
+  startTime String?
+  endTime   String?
+  /// OFF_DUTY | TEMPORARY_BLOCK | HOLIDAY
+  kind      String  @default("OFF_DUTY")
+  reason    String?
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@index([date])
 }
 
 // ======================================================

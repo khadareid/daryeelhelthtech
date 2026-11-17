@@ -13,14 +13,19 @@ import { HealthcareDoctorAvatar } from "@/components/home/HealthcareDoctorAvatar
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { siteConfig } from "@/config/site"
+import { toDateInputValue } from "@/lib/bookingSlots"
 import { RootState } from "@/Redex/store/store"
 import {
+  availabilityStatusLabel,
+  availabilityStatusTone,
   doctorCurrencyOf,
   doctorFeeOf,
   doctorHospitalNameOf,
   doctorNameOf,
   doctorSpecialtyOf,
+  formatNextAvailable,
   hospitalNameOf,
+  useGetDoctorAvailabilityQuery,
   useGetDoctorQuery,
   useGetHospitalQuery,
   type HealthcareDoctor,
@@ -48,6 +53,19 @@ export default function HospitalDoctorDetailPage() {
   const { data: hospital } = useGetHospitalQuery(hospitalId, {
     skip: !hospitalId,
   })
+  const today = toDateInputValue(new Date())
+  const { data: availability } = useGetDoctorAvailabilityQuery(
+    { doctorId, date: today },
+    { skip: !doctorId }
+  )
+  const status = availability?.status
+  const hasOpenSlots = Boolean(
+    (availability?.slots || []).some((s) =>
+      typeof s === "string" ? true : s?.available !== false
+    )
+  )
+  const canBook =
+    hasOpenSlots || String(status || "").toUpperCase() === "AVAILABLE"
 
   const bookHref = () => {
     const qs = new URLSearchParams()
@@ -137,6 +155,21 @@ export default function HospitalDoctorDetailPage() {
                 initialsClassName="text-2xl sm:text-3xl"
               />
               <div className="flex flex-wrap gap-2">
+                {status ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ${
+                      availabilityStatusTone(status) === "success"
+                        ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+                        : availabilityStatusTone(status) === "warning"
+                          ? "bg-amber-50 text-amber-800 ring-amber-100"
+                          : availabilityStatusTone(status) === "danger"
+                            ? "bg-rose-50 text-rose-700 ring-rose-100"
+                            : "bg-slate-50 text-slate-600 ring-slate-100"
+                    }`}
+                  >
+                    {availabilityStatusLabel(status)}
+                  </span>
+                ) : null}
                 {doctor.isVerified ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
                     <BadgeCheck className="h-3.5 w-3.5" />
@@ -178,6 +211,25 @@ export default function HospitalDoctorDetailPage() {
                 label="Consultation fee"
                 value={fee > 0 ? `${fee.toFixed(2)} ${currency}` : "Free / TBA"}
               />
+              <InfoTile
+                label="Today"
+                value={availabilityStatusLabel(status)}
+              />
+              <InfoTile
+                label="Next available"
+                value={formatNextAvailable(availability?.nextAvailable)}
+              />
+              {(availability?.workingHours || []).length > 0 ? (
+                <InfoTile
+                  label="Today's hours"
+                  value={(availability?.workingHours || [])
+                    .map((w) => `${w.start} – ${w.end}`)
+                    .join(" · ")}
+                />
+              ) : null}
+              {availability?.reason ? (
+                <InfoTile label="Reason" value={String(availability.reason)} />
+              ) : null}
               {doctor.facilityName ? (
                 <InfoTile label="Facility" value={String(doctor.facilityName)} />
               ) : null}
@@ -244,9 +296,15 @@ export default function HospitalDoctorDetailPage() {
             </div>
 
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              <Button asChild className="h-11 flex-1 rounded-xl">
-                <Link to={bookHref()}>Book appointment</Link>
-              </Button>
+              {canBook ? (
+                <Button asChild className="h-11 flex-1 rounded-xl">
+                  <Link to={bookHref()}>Book appointment</Link>
+                </Button>
+              ) : (
+                <Button asChild className="h-11 flex-1 rounded-xl">
+                  <Link to={bookHref()}>View available times</Link>
+                </Button>
+              )}
               <Button
                 asChild
                 variant="outline"
@@ -255,6 +313,14 @@ export default function HospitalDoctorDetailPage() {
                 <Link to={`/hospitals/${hospitalId}`}>Back to hospital</Link>
               </Button>
             </div>
+            {!canBook && status ? (
+              <p className="mt-2 text-center text-xs text-rose-600">
+                {availabilityStatusLabel(status)}
+                {availability?.nextAvailable
+                  ? ` · next ${formatNextAvailable(availability.nextAvailable)}`
+                  : ""}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

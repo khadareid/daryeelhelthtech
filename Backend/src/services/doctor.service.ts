@@ -162,6 +162,10 @@ export const upsertMyDoctorProfile = async (
     currency: optionalString(body.currency) || existing?.currency || "USD",
     isAvailable: parseBool(body.isAvailable, existing?.isAvailable ?? true)!,
     isOnline: parseBool(body.isOnline, existing?.isOnline ?? false)!,
+    appointmentDurationMinutes:
+      parseNumber(body.appointmentDurationMinutes, "appointmentDurationMinutes") ??
+      existing?.appointmentDurationMinutes ??
+      30,
     clinicName: optionalString(body.clinicName) ?? existing?.clinicName ?? null,
     city: optionalString(body.city) ?? existing?.city ?? null,
     country: optionalString(body.country) ?? existing?.country ?? null,

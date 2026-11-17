@@ -1,7 +1,13 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { apiBaseQuery } from "@/lib/apiBaseQuery";
 import { unwrapList, unwrapResult } from "@/Redex/lib/ownedApi";
-import type { ApiResponse, Doctor, Paginated } from "@/Redex/types/Types";
+import type {
+  ApiResponse,
+  Doctor,
+  DoctorSchedule,
+  DoctorTimeOff,
+  Paginated,
+} from "@/Redex/types/Types";
 
 export const doctorDisplayName = (d?: Partial<Doctor> | null) => {
   const name = (d?.fullName || "").trim();
@@ -80,6 +86,87 @@ export const doctorsApi = createApi({
       transformResponse: (res: ApiResponse<Doctor>) => unwrapResult(res),
       invalidatesTags: ["DoctorMe", "Doctors"],
     }),
+    listMySchedules: builder.query<DoctorSchedule[], void>({
+      query: () => "/doctor/me/availability",
+      transformResponse: (res: ApiResponse<DoctorSchedule[] | { items?: DoctorSchedule[] }>) => {
+        const data = unwrapResult(res) as DoctorSchedule[] | { items?: DoctorSchedule[] }
+        return Array.isArray(data) ? data : data?.items || []
+      },
+      providesTags: ["DoctorMe"],
+    }),
+    createMySchedule: builder.mutation<
+      DoctorSchedule,
+      Partial<DoctorSchedule> & { dayOfWeek: number; startTime: string; endTime: string }
+    >({
+      query: (body) => ({ url: "/doctor/me/availability", method: "POST", body }),
+      transformResponse: (res: ApiResponse<DoctorSchedule>) => unwrapResult(res),
+      invalidatesTags: ["DoctorMe"],
+    }),
+    deleteMySchedule: builder.mutation<{ deleted?: boolean }, string>({
+      query: (id) => ({ url: `/doctor/me/availability/${id}`, method: "DELETE" }),
+      invalidatesTags: ["DoctorMe"],
+    }),
+    copyMySchedule: builder.mutation<
+      DoctorSchedule[],
+      { fromDay: number; toDays: number[] }
+    >({
+      query: (body) => ({
+        url: "/doctor/me/availability/copy",
+        method: "POST",
+        body,
+      }),
+      transformResponse: (res: ApiResponse<DoctorSchedule[]>) => unwrapResult(res),
+      invalidatesTags: ["DoctorMe"],
+    }),
+    listMyTimeOff: builder.query<DoctorTimeOff[], void>({
+      query: () => "/doctor/me/time-off",
+      transformResponse: (res: ApiResponse<DoctorTimeOff[] | { items?: DoctorTimeOff[] }>) => {
+        const data = unwrapResult(res) as DoctorTimeOff[] | { items?: DoctorTimeOff[] }
+        return Array.isArray(data) ? data : data?.items || []
+      },
+      providesTags: ["DoctorMe"],
+    }),
+    createMyTimeOff: builder.mutation<
+      DoctorTimeOff,
+      {
+        date: string
+        startTime?: string | null
+        endTime?: string | null
+        kind?: string
+        reason?: string
+      }
+    >({
+      query: (body) => ({ url: "/doctor/me/time-off", method: "POST", body }),
+      transformResponse: (res: ApiResponse<DoctorTimeOff>) => unwrapResult(res),
+      invalidatesTags: ["DoctorMe"],
+    }),
+    deleteMyTimeOff: builder.mutation<{ deleted?: boolean }, string>({
+      query: (id) => ({ url: `/doctor/me/time-off/${id}`, method: "DELETE" }),
+      invalidatesTags: ["DoctorMe"],
+    }),
+    getDoctorAvailability: builder.query<
+      {
+        status?: string
+        reason?: string | null
+        workingHours?: Array<{ start: string; end: string }>
+        slots?: Array<{ time: string; iso: string; available: boolean }>
+        nextAvailable?: string | null
+      },
+      { doctorId: string; date?: string }
+    >({
+      query: ({ doctorId, date }) => ({
+        url: `/doctors/${doctorId}/availability`,
+        params: date ? { date } : undefined,
+      }),
+      transformResponse: (res: ApiResponse<Record<string, unknown>>) =>
+        unwrapResult(res) as {
+          status?: string
+          reason?: string | null
+          workingHours?: Array<{ start: string; end: string }>
+          slots?: Array<{ time: string; iso: string; available: boolean }>
+          nextAvailable?: string | null
+        },
+    }),
   }),
 });
 
@@ -88,4 +175,12 @@ export const {
   useGetDoctorQuery,
   useGetMyDoctorProfileQuery,
   useUpsertMyDoctorProfileMutation,
+  useListMySchedulesQuery,
+  useCreateMyScheduleMutation,
+  useDeleteMyScheduleMutation,
+  useCopyMyScheduleMutation,
+  useListMyTimeOffQuery,
+  useCreateMyTimeOffMutation,
+  useDeleteMyTimeOffMutation,
+  useGetDoctorAvailabilityQuery,
 } = doctorsApi;

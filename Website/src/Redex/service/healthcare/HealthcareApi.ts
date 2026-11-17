@@ -106,10 +106,58 @@ export type HealthcareAvailability = {
   available?: boolean
   slotAvailable?: boolean
   date?: string
+  status?: string
+  reason?: string | null
+  nextAvailable?: string | null
+  workingHours?: Array<{ start: string; end: string; breakStart?: string | null; breakEnd?: string | null }>
   slots?: Array<string | HealthcareAvailabilitySlot>
   windows?: unknown[]
   usingDefault?: boolean
+  timezone?: string
   [key: string]: unknown
+}
+
+export function availabilityStatusLabel(status?: string | null): string {
+  const s = String(status || "").toUpperCase()
+  if (s === "AVAILABLE") return "Available Today"
+  if (s === "BUSY") return "Busy"
+  if (s === "ON_LEAVE") return "On Leave"
+  if (s === "OFF_DUTY") return "Not Available Today"
+  if (s === "HOLIDAY") return "Holiday"
+  if (s === "TEMPORARILY_UNAVAILABLE") return "Temporarily Unavailable"
+  if (s === "NOT_SCHEDULED") return "Not Scheduled Today"
+  if (s === "UNAVAILABLE") return "Unavailable"
+  return status ? String(status).replace(/_/g, " ") : "Availability unknown"
+}
+
+export function availabilityStatusTone(
+  status?: string | null
+): "success" | "warning" | "danger" | "secondary" {
+  const s = String(status || "").toUpperCase()
+  if (s === "AVAILABLE") return "success"
+  if (s === "BUSY" || s === "ON_LEAVE" || s === "TEMPORARILY_UNAVAILABLE")
+    return "warning"
+  if (
+    s === "OFF_DUTY" ||
+    s === "HOLIDAY" ||
+    s === "NOT_SCHEDULED" ||
+    s === "UNAVAILABLE"
+  )
+    return "danger"
+  return "secondary"
+}
+
+export function formatNextAvailable(iso?: string | null): string {
+  if (!iso) return "—"
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return "—"
+  return d.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
 }
 
 export type HealthcareAppointment = {
