@@ -551,6 +551,30 @@ function respondHealthcareReschedule(userId, id, accept) {
 function applySaasWebhook(payload) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
+        const eventType = String((payload === null || payload === void 0 ? void 0 : payload.type) || "").toUpperCase();
+        if (eventType === "HOSPITAL_PATIENT_REQUESTED" ||
+            eventType === "HOSPITAL_PATIENT_ACCEPTED" ||
+            eventType === "HOSPITAL_PATIENT_REJECTED") {
+            const { upsertHospitalPatientRequestFromSaas } = yield Promise.resolve().then(() => __importStar(require("./hospitalPatientRequest.service")));
+            if (eventType === "HOSPITAL_PATIENT_REQUESTED") {
+                return upsertHospitalPatientRequestFromSaas(payload);
+            }
+            // Status sync from SaaS for already-responded requests
+            const externalRequestId = String((payload === null || payload === void 0 ? void 0 : payload.requestId) || "").trim();
+            if (externalRequestId) {
+                const status = eventType === "HOSPITAL_PATIENT_ACCEPTED" ? "ACCEPTED" : "REJECTED";
+                yield prisma_1.prisma.hospitalPatientRequest
+                    .updateMany({
+                    where: { externalRequestId, status: "PENDING" },
+                    data: {
+                        status: status,
+                        respondedAt: new Date(),
+                    },
+                })
+                    .catch(() => undefined);
+            }
+            return { type: eventType, synced: true };
+        }
         const externalId = (payload === null || payload === void 0 ? void 0 : payload.externalAppointmentId) ||
             (payload === null || payload === void 0 ? void 0 : payload.appointmentId) ||
             ((_a = payload === null || payload === void 0 ? void 0 : payload.data) === null || _a === void 0 ? void 0 : _a.appointmentId);

@@ -276,4 +276,8 @@ exports.saasApi = {
     }),
     getOpdTicket: (id) => saasRequest(`/integrations/opd-tickets/${id}`),
     getVisit: (id) => saasRequest(`/integrations/visits/${id}`),
+    respondHospitalRequest: (requestId, body) => saasRequest(`/integrations/hospital-requests/${requestId}/respond`, {
+        method: "POST",
+        body,
+    }),
 };

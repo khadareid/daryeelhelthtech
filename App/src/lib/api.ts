@@ -1510,3 +1510,52 @@ export async function listHealthcareOpdTickets(token: string) {
     return [] as HealthcareOpdTicket[];
   }
 }
+
+/** Hospital → patient invitation from Daryeel SaaS (linked by healthId) */
+export type HospitalPatientRequest = {
+  id: string;
+  healthId?: string;
+  hospitalName?: string | null;
+  branchName?: string | null;
+  doctorName?: string | null;
+  department?: string | null;
+  message?: string | null;
+  status?: string;
+  createdAt?: string;
+  respondedAt?: string | null;
+  externalRequestId?: string | null;
+  requestType?: string | null;
+};
+
+export async function listHospitalPatientRequests(token: string) {
+  try {
+    const data = await apiRequest<
+      ApiSuccess<HospitalPatientRequest[] | Paginated<HospitalPatientRequest>>
+    >(`${HEALTHCARE}/hospital-requests`, {
+      method: 'GET',
+      token,
+      skipCsrf: true,
+    });
+    return unwrapItems(data);
+  } catch {
+    return [] as HospitalPatientRequest[];
+  }
+}
+
+export async function respondHospitalPatientRequest(
+  id: string,
+  token: string,
+  accept: boolean,
+) {
+  const data = await apiRequest<ApiSuccess<HospitalPatientRequest>>(
+    `${HEALTHCARE}/hospital-requests/${encodeURIComponent(id)}/respond`,
+    {
+      method: 'POST',
+      token,
+      body: { accept },
+    },
+  );
+  const row = unwrap(data);
+  if (!row) throw new Error(data.message || 'Could not respond to request');
+  return row;
+}

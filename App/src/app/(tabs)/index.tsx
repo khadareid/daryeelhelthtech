@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { DoctorListCard } from '@/components/doctor-list-card';
+import { HospitalRequestsCard } from '@/components/hospital-requests-card';
 import { Screen } from '@/components/screen';
 import { AppLoadingSkeleton, ListSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
@@ -314,8 +315,14 @@ export default function HomeScreen() {
             pointerEvents="none"
           />
         </Pressable>
+      </LinearGradient>
 
-        {/* Care tools — horizontal scroll row (name under icon) */}
+      {!isGuest ? (
+        <HospitalRequestsCard accessToken={accessToken} compact />
+      ) : null}
+
+      {/* Care tools — horizontal scroll row (name under icon) */}
+      <View>
         <View style={styles.careHead}>
           <Text style={[styles.careTitle, { color: theme.brandDark }]}>
             Care tools
@@ -354,7 +361,7 @@ export default function HomeScreen() {
             </Pressable>
           ))}
         </ScrollView>
-      </LinearGradient>
+      </View>
 
       <LinearGradient
         colors={[theme.primary, '#3B82F6']}

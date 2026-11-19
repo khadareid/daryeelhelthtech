@@ -85,6 +85,7 @@ const ConsentRouter_1 = __importDefault(require("./Routes/ConsentRouter"));
 const AccessRequestRouter_1 = __importDefault(require("./Routes/AccessRequestRouter"));
 const AdminRouter_1 = __importDefault(require("./Routes/AdminRouter"));
 const HealthcareRouter_1 = __importDefault(require("./Routes/HealthcareRouter"));
+const IntegrationRouter_1 = __importDefault(require("./Routes/IntegrationRouter"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -273,6 +274,8 @@ app.use("/api/v1/consents", ConsentRouter_1.default);
 app.use("/api/v1/access-requests", AccessRequestRouter_1.default);
 // Healthcare ↔ SaaS integration proxy (server-side key only)
 app.use("/api/v1/healthcare", healthcareLimiter, HealthcareRouter_1.default);
+// SaaS → Healthtech integration (Health ID lookup, etc.)
+app.use("/api/v1/integrations", healthcareLimiter, IntegrationRouter_1.default);
 // Admin
 app.use("/api/v1/admin", AdminRouter_1.default);
 app.get("/", (_req, res) => {

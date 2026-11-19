@@ -11,11 +11,61 @@ export function normalizeHealthId(raw: string) {
   return String(raw || "").trim().toUpperCase();
 }
 
-export async function findPatientByHealthId(healthIdRaw: string) {
+type HealthIdLookupMiss = {
+  found: false;
+  patient: null;
+  result: null;
+  message: string;
+};
+
+type HealthIdLookupHit = {
+  found: true;
+  message: string;
+  patient: {
+    patientId: string;
+    healthtechUserId: string;
+    userid: string;
+    healthId: string;
+    name: string;
+    fullName: string;
+    phone: string | null;
+    email: string | null;
+    gender: string | null;
+    dateOfBirth: string | null;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    isActive: boolean;
+    isSuspended: boolean;
+    role: string;
+    status: string;
+  };
+  result: {
+    userid: string;
+    email: string | null;
+    phone: string | null;
+    fullName: string;
+    healthId: string;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    gender: string | null;
+    dateOfBirth: Date | null;
+    role: string;
+    isActive: boolean;
+    isSuspended: boolean;
+  };
+};
+
+export type HealthIdLookupOutcome = HealthIdLookupMiss | HealthIdLookupHit;
+
+export async function findPatientByHealthId(
+  healthIdRaw: string
+): Promise<HealthIdLookupOutcome> {
   const healthId = normalizeHealthId(healthIdRaw);
   if (!healthId) {
     return {
-      found: false as const,
+      found: false,
       patient: null,
       result: null,
       message: "Daryeel Health ID Not Found",
@@ -28,7 +78,7 @@ export async function findPatientByHealthId(healthIdRaw: string) {
       deletedAt: null,
       OR: [
         { healthId: { equals: healthId, mode: "insensitive" } },
-        { healthId: healthId },
+        { healthId },
       ],
     },
     select: {
@@ -40,6 +90,7 @@ export async function findPatientByHealthId(healthIdRaw: string) {
       gender: true,
       dateOfBirth: true,
       country: true,
+      region: true,
       city: true,
       isActive: true,
       isSuspended: true,
@@ -49,7 +100,7 @@ export async function findPatientByHealthId(healthIdRaw: string) {
 
   if (!user?.healthId) {
     return {
-      found: false as const,
+      found: false,
       patient: null,
       result: null,
       message: "Daryeel Health ID Not Found",
@@ -59,14 +110,14 @@ export async function findPatientByHealthId(healthIdRaw: string) {
   const normalizedReturned = normalizeHealthId(user.healthId);
   if (normalizedReturned !== healthId) {
     return {
-      found: false as const,
+      found: false,
       patient: null,
       result: null,
       message: "Daryeel Health ID Not Found",
     };
   }
 
-  const patient = {
+  const patient: HealthIdLookupHit["patient"] = {
     patientId: user.userid,
     healthtechUserId: user.userid,
     userid: user.userid,
@@ -79,9 +130,10 @@ export async function findPatientByHealthId(healthIdRaw: string) {
     dateOfBirth: user.dateOfBirth?.toISOString() || null,
     country: user.country || null,
     city: user.city || null,
+    region: user.region || null,
     isActive: user.isActive,
     isSuspended: user.isSuspended,
-    role: user.role,
+    role: String(user.role),
     status: user.isSuspended
       ? "SUSPENDED"
       : user.isActive
@@ -90,23 +142,24 @@ export async function findPatientByHealthId(healthIdRaw: string) {
   };
 
   // `result` mirrors Healthtech user API shape (result.healthId) for SaaS parsers
-  const result = {
+  const result: HealthIdLookupHit["result"] = {
     userid: user.userid,
     email: user.email,
     phone: user.phone,
     fullName: user.fullName,
     healthId: normalizedReturned,
     country: user.country,
+    region: user.region,
     city: user.city,
     gender: user.gender,
     dateOfBirth: user.dateOfBirth,
-    role: user.role,
+    role: String(user.role),
     isActive: user.isActive,
     isSuspended: user.isSuspended,
   };
 
   return {
-    found: true as const,
+    found: true,
     message: "Daryeel Health ID Found",
     patient,
     result,

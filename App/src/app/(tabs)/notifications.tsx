@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { HospitalRequestsCard } from '@/components/hospital-requests-card';
 import { Screen } from '@/components/screen';
 import { NotificationSkeleton } from '@/components/skeleton';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
@@ -76,7 +77,25 @@ export default function NotificationsTabScreen() {
         <View style={styles.topCopy}>
           <Text style={styles.title}>Notifications</Text>
           <Text style={styles.lead}>
-            Booking, payment, and care alerts from your Daryeel account.
+            Booking, payment, hospital requests, and care alerts from your
+            Daryeel account.
+          </Text>
+        </View>
+      </View>
+
+      {isAuthenticated ? (
+        <HospitalRequestsCard
+          accessToken={accessToken}
+          onChanged={() => {
+            void load('refresh');
+          }}
+        />
+      ) : null}
+
+      <View style={styles.top}>
+        <View style={styles.topCopy}>
+          <Text style={[styles.lead, { marginTop: 0 }]}>
+            Recent alerts
           </Text>
         </View>
         {unread > 0 ? (

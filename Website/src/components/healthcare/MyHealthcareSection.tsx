@@ -14,12 +14,11 @@ import {
   useCancelAppointmentMutation,
   useGetAppointmentQuery,
   useGetAppointmentsQuery,
-  useGetHospitalRequestsQuery,
   useRequestRescheduleMutation,
-  useRespondHospitalRequestMutation,
   useRespondRescheduleMutation,
   type HealthcareAppointment,
 } from "@/Redex/service/healthcare/HealthcareApi"
+import { HospitalRequestsQuickActions } from "@/components/healthcare/HospitalRequestsQuickActions"
 import { useCreatePaymentMutation } from "@/Redex/service/care/CareApi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -269,33 +268,8 @@ export function MyHealthcareSection({
     useRequestRescheduleMutation()
   const [respondReschedule, { isLoading: responding }] =
     useRespondRescheduleMutation()
-  const { data: hospitalRequests = [], refetch: refetchHospitalRequests } =
-    useGetHospitalRequestsQuery(undefined, { pollingInterval: 30_000 })
-  const [respondHospitalRequest, { isLoading: respondingHospital }] =
-    useRespondHospitalRequestMutation()
   const [createPayment, { isLoading: paying }] = useCreatePaymentMutation()
   const [invoice, setInvoice] = useState<InvoiceDraft | null>(null)
-
-  const pendingHospitalRequests = useMemo(
-    () =>
-      hospitalRequests.filter(
-        (r) => String(r.status || "").toUpperCase() === "PENDING"
-      ),
-    [hospitalRequests]
-  )
-
-  const onHospitalRespond = async (id: string, accept: boolean) => {
-    try {
-      await respondHospitalRequest({ id, accept }).unwrap()
-      toast.success(accept ? "Hospital request accepted" : "Hospital request rejected")
-      void refetchHospitalRequests()
-    } catch (err: unknown) {
-      const message =
-        (err as { data?: { message?: string } })?.data?.message ||
-        "Could not respond"
-      toast.error(message)
-    }
-  }
 
   const openPay = (appt: HealthcareAppointment) => {
     const amount = Number(appt.consultationFee || 0)
@@ -390,63 +364,7 @@ export function MyHealthcareSection({
 
   return (
     <div className="space-y-5">
-      {pendingHospitalRequests.length > 0 ? (
-        <div className="space-y-3 rounded-3xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm sm:p-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-800">
-              Hospital Request
-            </p>
-            <p className="mt-1 text-sm text-amber-900">
-              A hospital from Daryeel SaaS invited you via your Daryeel Health ID.
-            </p>
-          </div>
-          {pendingHospitalRequests.map((req) => (
-            <article
-              key={req.id}
-              className="rounded-2xl border border-amber-100 bg-white p-4 shadow-sm"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="font-heading text-base font-bold text-brand-dark">
-                    {req.hospitalName || "Hospital"}
-                  </p>
-                  <p className="mt-0.5 text-sm text-primary">
-                    {[req.doctorName, req.department || req.branchName]
-                      .filter(Boolean)
-                      .join(" · ") || "Hospital staff"}
-                  </p>
-                </div>
-                <Badge variant="secondary">{req.status || "PENDING"}</Badge>
-              </div>
-              {req.message ? (
-                <p className="mt-3 text-sm text-muted-foreground">{req.message}</p>
-              ) : null}
-              <p className="mt-2 text-xs text-muted-foreground">
-                {formatWhen(req.createdAt)}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  className="h-8"
-                  disabled={respondingHospital}
-                  onClick={() => void onHospitalRespond(req.id, true)}
-                >
-                  Accept
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 border-rose-200 text-rose-700 hover:bg-rose-50"
-                  disabled={respondingHospital}
-                  onClick={() => void onHospitalRespond(req.id, false)}
-                >
-                  Reject
-                </Button>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : null}
+      <HospitalRequestsQuickActions />
 
       {!embedded ? (
         <div className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-6">

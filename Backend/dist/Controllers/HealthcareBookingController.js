@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -9,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saasWebhook = exports.revokeConsent = exports.listConsents = exports.listHealthcareActivity = exports.listMyOpdTickets = exports.respondHealthcareReschedule = exports.requestHealthcareAppointmentReschedule = exports.cancelHealthcareAppointment = exports.getHealthcareAppointment = exports.listHealthcareAppointments = exports.createHealthcareAppointment = exports.getHealthcareAvailability = exports.getHealthcareDoctor = exports.listHealthcareDoctors = exports.listHealthcareHospitalDoctors = exports.listHealthcareDepartments = exports.getHealthcareHospital = exports.listHealthcareHospitals = void 0;
+exports.respondHospitalPatientRequest = exports.listHospitalPatientRequests = exports.saasWebhook = exports.revokeConsent = exports.listConsents = exports.listHealthcareActivity = exports.listMyOpdTickets = exports.respondHealthcareReschedule = exports.requestHealthcareAppointmentReschedule = exports.cancelHealthcareAppointment = exports.getHealthcareAppointment = exports.listHealthcareAppointments = exports.createHealthcareAppointment = exports.getHealthcareAvailability = exports.getHealthcareDoctor = exports.listHealthcareDoctors = exports.listHealthcareHospitalDoctors = exports.listHealthcareDepartments = exports.getHealthcareHospital = exports.listHealthcareHospitals = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = require("../lib/prisma");
 const healthcareBooking_service_1 = require("../services/healthcare/healthcareBooking.service");
@@ -366,11 +399,14 @@ exports.revokeConsent = revokeConsent;
 /** POST /healthcare/webhooks/saas */
 const saasWebhook = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const secret = process.env.SAAS_WEBHOOK_SECRET || "";
-        const provided = req.headers["x-daryeel-webhook-secret"] ||
+        const DEFAULT_WEBHOOK_SECRET = "daryeel-healthtech-webhook-shared-2026";
+        const secret = (process.env.SAAS_WEBHOOK_SECRET ||
+            process.env.HEALTHTECH_WEBHOOK_SECRET ||
+            DEFAULT_WEBHOOK_SECRET).trim();
+        const provided = (req.headers["x-daryeel-webhook-secret"] ||
             req.headers["x-webhook-secret"] ||
-            "";
-        if (!secret || provided !== secret) {
+            "").trim();
+        if (!provided || provided !== secret) {
             return (0, healthcareErrors_1.sendHealthcareError)(res, new healthcareErrors_1.HealthcareError("Invalid webhook secret", 401, healthcareErrors_1.HealthcareErrorCodes.INVALID_INTEGRATION_KEY), "Unauthorized");
         }
         const updated = yield (0, healthcareBooking_service_1.applySaasWebhook)(req.body || {});
@@ -381,3 +417,41 @@ const saasWebhook = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.saasWebhook = saasWebhook;
+/** GET /healthcare/hospital-requests */
+const listHospitalPatientRequests = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = getUserId(req);
+        if (!userId) {
+            return (0, healthcareErrors_1.sendHealthcareError)(res, new healthcareErrors_1.HealthcareError("Unauthorized", 401, healthcareErrors_1.HealthcareErrorCodes.UNAUTHORIZED), "Unauthorized");
+        }
+        const { listMyHospitalPatientRequests, } = yield Promise.resolve().then(() => __importStar(require("../services/healthcare/hospitalPatientRequest.service")));
+        const rows = yield listMyHospitalPatientRequests(userId);
+        return (0, healthcareErrors_1.sendHealthcareSuccess)(res, rows, "Hospital requests");
+    }
+    catch (error) {
+        return (0, healthcareErrors_1.sendHealthcareError)(res, error, "Failed to list hospital requests");
+    }
+});
+exports.listHospitalPatientRequests = listHospitalPatientRequests;
+/** POST /healthcare/hospital-requests/:id/respond */
+const respondHospitalPatientRequest = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const userId = getUserId(req);
+        if (!userId) {
+            return (0, healthcareErrors_1.sendHealthcareError)(res, new healthcareErrors_1.HealthcareError("Unauthorized", 401, healthcareErrors_1.HealthcareErrorCodes.UNAUTHORIZED), "Unauthorized");
+        }
+        const accept = Boolean((_a = req.body) === null || _a === void 0 ? void 0 : _a.accept);
+        const { respondMyHospitalPatientRequest, } = yield Promise.resolve().then(() => __importStar(require("../services/healthcare/hospitalPatientRequest.service")));
+        const result = yield respondMyHospitalPatientRequest({
+            id: String(req.params.id),
+            userId,
+            accept,
+        });
+        return (0, healthcareErrors_1.sendHealthcareSuccess)(res, result.request, accept ? "Request accepted" : "Request rejected");
+    }
+    catch (error) {
+        return (0, healthcareErrors_1.sendHealthcareError)(res, error, "Failed to respond to hospital request");
+    }
+});
+exports.respondHospitalPatientRequest = respondHospitalPatientRequest;
