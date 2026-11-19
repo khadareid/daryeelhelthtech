@@ -24,6 +24,7 @@ import {
 } from "@/Redex/service/users/UsersApi"
 import { setUser } from "@/Redex/service/auth/Userinfo"
 import { PatientIdCard } from "@/components/common/PatientIdCard"
+import { HospitalRequestsQuickActions } from "@/components/healthcare/HospitalRequestsQuickActions"
 import { BloodTypeEnum } from "@/Redex/types/Types"
 import { useGetMedicalProfileQuery, useUpsertMedicalProfileMutation } from "@/Redex/service/health/HealthApi"
 import { BLOOD_TYPE_OPTIONS, enumLabel, GENDER_OPTIONS } from "@/lib/enums"
@@ -206,6 +207,8 @@ export default function UserProfile() {
       </Card>
 
       <PatientIdCard healthId={profile.healthId} />
+
+      <HospitalRequestsQuickActions />
 
       <Tabs defaultValue="account">
         <TabsList className="w-full justify-start overflow-x-auto">

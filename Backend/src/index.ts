@@ -43,6 +43,7 @@ import consentRouter from "./Routes/ConsentRouter";
 import accessRequestRouter from "./Routes/AccessRequestRouter";
 import adminRouter from "./Routes/AdminRouter";
 import healthcareRouter from "./Routes/HealthcareRouter";
+import integrationRouter from "./Routes/IntegrationRouter";
 
 dotenv.config();
 
@@ -250,6 +251,9 @@ app.use("/api/v1/access-requests", accessRequestRouter);
 
 // Healthcare ↔ SaaS integration proxy (server-side key only)
 app.use("/api/v1/healthcare", healthcareLimiter, healthcareRouter);
+
+// SaaS → Healthtech integration (Health ID lookup, etc.)
+app.use("/api/v1/integrations", healthcareLimiter, integrationRouter);
 
 // Admin
 app.use("/api/v1/admin", adminRouter);

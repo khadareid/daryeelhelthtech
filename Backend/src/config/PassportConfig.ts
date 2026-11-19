@@ -12,7 +12,7 @@ const clean = (value?: string) => (value || "").replace(/"/g, "").trim();
 
 const callbackURL =
   clean(process.env.GOOGLE_CALLBACK_URL) ||
-  "https://daryeelhelthtech.vercel.app/api/v1/auth/google/callback";
+  "https://daryeelhelthtech-api.vercel.app/api/v1/auth/google/callback";
 
 passport.use(
   new GoogleStrategy(

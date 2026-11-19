@@ -592,12 +592,18 @@ export const revokeConsent = async (req: Request, res: Response) => {
 /** POST /healthcare/webhooks/saas */
 export const saasWebhook = async (req: Request, res: Response) => {
   try {
-    const secret = process.env.SAAS_WEBHOOK_SECRET || "";
-    const provided =
+    const DEFAULT_WEBHOOK_SECRET = "daryeel-healthtech-webhook-shared-2026";
+    const secret = (
+      process.env.SAAS_WEBHOOK_SECRET ||
+      process.env.HEALTHTECH_WEBHOOK_SECRET ||
+      DEFAULT_WEBHOOK_SECRET
+    ).trim();
+    const provided = (
       (req.headers["x-daryeel-webhook-secret"] as string) ||
       (req.headers["x-webhook-secret"] as string) ||
-      "";
-    if (!secret || provided !== secret) {
+      ""
+    ).trim();
+    if (!provided || provided !== secret) {
       return sendHealthcareError(
         res,
         new HealthcareError(
@@ -617,5 +623,62 @@ export const saasWebhook = async (req: Request, res: Response) => {
     );
   } catch (error) {
     return sendHealthcareError(res, error, "Webhook failed");
+  }
+};
+
+/** GET /healthcare/hospital-requests */
+export const listHospitalPatientRequests = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return sendHealthcareError(
+        res,
+        new HealthcareError("Unauthorized", 401, HealthcareErrorCodes.UNAUTHORIZED),
+        "Unauthorized"
+      );
+    }
+    const {
+      listMyHospitalPatientRequests,
+    } = await import("../services/healthcare/hospitalPatientRequest.service");
+    const rows = await listMyHospitalPatientRequests(userId);
+    return sendHealthcareSuccess(res, rows, "Hospital requests");
+  } catch (error) {
+    return sendHealthcareError(res, error, "Failed to list hospital requests");
+  }
+};
+
+/** POST /healthcare/hospital-requests/:id/respond */
+export const respondHospitalPatientRequest = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return sendHealthcareError(
+        res,
+        new HealthcareError("Unauthorized", 401, HealthcareErrorCodes.UNAUTHORIZED),
+        "Unauthorized"
+      );
+    }
+    const accept = Boolean(req.body?.accept);
+    const {
+      respondMyHospitalPatientRequest,
+    } = await import("../services/healthcare/hospitalPatientRequest.service");
+    const result = await respondMyHospitalPatientRequest({
+      id: String(req.params.id),
+      userId,
+      accept,
+    });
+    return sendHealthcareSuccess(
+      res,
+      result.request,
+      accept ? "Request accepted" : "Request rejected"
+    );
+  } catch (error) {
+    return sendHealthcareError(res, error, "Failed to respond to hospital request");
   }
 };

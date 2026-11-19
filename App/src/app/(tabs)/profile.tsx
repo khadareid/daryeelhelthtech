@@ -12,6 +12,7 @@ import {
 
 import { ConfirmSheet } from '@/components/confirm-sheet';
 import { EnumChips, FieldLabel, formStyles } from '@/components/form-ui';
+import { HospitalRequestsCard } from '@/components/hospital-requests-card';
 import { LocationSelect } from '@/components/location-select';
 import { PhoneField } from '@/components/phone-field';
 import { Screen } from '@/components/screen';
@@ -359,8 +360,11 @@ export default function ProfileScreen() {
           </Text>
           <Text style={styles.patientCardHint}>
             Permanent personal health identity linked to your medical record.
+            Hospitals find you with this ID on Daryeel SaaS.
           </Text>
         </View>
+
+        <HospitalRequestsCard accessToken={accessToken} />
 
         <View style={styles.tabs}>
           <Pressable

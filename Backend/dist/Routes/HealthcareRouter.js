@@ -25,4 +25,6 @@ router.get("/opd-tickets", VerifyToken_1.decodeToken, HealthcareBookingControlle
 router.get("/activity", VerifyToken_1.decodeToken, HealthcareBookingController_1.listHealthcareActivity);
 router.get("/consents", VerifyToken_1.decodeToken, HealthcareBookingController_1.listConsents);
 router.post("/consents/:id/revoke", VerifyToken_1.decodeToken, HealthcareBookingController_1.revokeConsent);
+router.get("/hospital-requests", VerifyToken_1.decodeToken, HealthcareBookingController_1.listHospitalPatientRequests);
+router.post("/hospital-requests/:id/respond", VerifyToken_1.decodeToken, HealthcareBookingController_1.respondHospitalPatientRequest);
 exports.default = router;

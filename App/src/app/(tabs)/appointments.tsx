@@ -2,6 +2,7 @@ import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { HospitalRequestsCard } from '@/components/hospital-requests-card';
 import { PayInvoiceSheet } from '@/components/pay-invoice-sheet';
 import { Screen } from '@/components/screen';
 import { CardListSkeleton } from '@/components/skeleton';
@@ -264,9 +265,19 @@ export default function AppointmentsScreen() {
         <Text style={styles.title}>Visits</Text>
         <Text style={styles.subtitle}>
           Hospital bookings use Healthtech confirmation and OPD. Local doctors
-          may need payment after booking.
+          may need payment after booking. Hospital requests linked to your
+          Health ID appear below.
         </Text>
       </View>
+
+      {mode === 'patient' && isAuthenticated ? (
+        <HospitalRequestsCard
+          accessToken={accessToken}
+          onChanged={() => {
+            void loadRemote();
+          }}
+        />
+      ) : null}
 
       {mode === 'patient' ? (
         <Pressable

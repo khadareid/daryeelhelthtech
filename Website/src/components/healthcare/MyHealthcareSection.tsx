@@ -18,6 +18,7 @@ import {
   useRespondRescheduleMutation,
   type HealthcareAppointment,
 } from "@/Redex/service/healthcare/HealthcareApi"
+import { HospitalRequestsQuickActions } from "@/components/healthcare/HospitalRequestsQuickActions"
 import { useCreatePaymentMutation } from "@/Redex/service/care/CareApi"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -363,6 +364,8 @@ export function MyHealthcareSection({
 
   return (
     <div className="space-y-5">
+      <HospitalRequestsQuickActions />
+
       {!embedded ? (
         <div className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">

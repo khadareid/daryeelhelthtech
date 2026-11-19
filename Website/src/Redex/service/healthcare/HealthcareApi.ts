@@ -435,7 +435,13 @@ async function fetchPublicHospital(
 export const healthcareApi = createApi({
   reducerPath: "healthcareApi",
   baseQuery: apiBaseQuery,
-  tagTypes: ["HealthcareHospitals", "HealthcareDoctors", "HealthcareAppointments", "HealthcareOpd"],
+  tagTypes: [
+    "HealthcareHospitals",
+    "HealthcareDoctors",
+    "HealthcareAppointments",
+    "HealthcareOpd",
+    "HealthcareHospitalRequests",
+  ],
   endpoints: (builder) => ({
     getHospitals: builder.query<
       HealthcareHospital[],
@@ -710,6 +716,42 @@ export const healthcareApi = createApi({
         unwrapList(res),
       providesTags: ["HealthcareOpd"],
     }),
+
+    getHospitalRequests: builder.query<
+      Array<{
+        id: string
+        healthId?: string
+        hospitalName?: string | null
+        branchName?: string | null
+        doctorName?: string | null
+        department?: string | null
+        message?: string | null
+        status?: string
+        createdAt?: string
+        respondedAt?: string | null
+      }>,
+      void
+    >({
+      query: () => ({
+        url: `${BASE}/hospital-requests`,
+        method: "GET",
+      }),
+      transformResponse: (res: ApiResponse<any[]>) => unwrapList(res),
+      providesTags: ["HealthcareHospitalRequests"],
+    }),
+
+    respondHospitalRequest: builder.mutation<
+      unknown,
+      { id: string; accept: boolean }
+    >({
+      query: ({ id, accept }) => ({
+        url: `${BASE}/hospital-requests/${id}/respond`,
+        method: "POST",
+        body: { accept },
+      }),
+      transformResponse: (res: ApiResponse<unknown>) => unwrapResult(res),
+      invalidatesTags: ["HealthcareHospitalRequests"],
+    }),
   }),
 })
 
@@ -728,4 +770,6 @@ export const {
   useRequestRescheduleMutation,
   useRespondRescheduleMutation,
   useGetOpdTicketsQuery,
+  useGetHospitalRequestsQuery,
+  useRespondHospitalRequestMutation,
 } = healthcareApi
