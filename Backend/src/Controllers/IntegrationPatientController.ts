@@ -17,14 +17,23 @@ function httpError(res: Response, error: any, fallback: string) {
 export const lookupPatientByHealthId = async (req: Request, res: Response) => {
   try {
     const healthId = String(req.query.healthId || req.query.q || "").trim();
-    const result = await findPatientByHealthId(healthId);
+    const outcome = await findPatientByHealthId(healthId);
+
+    // Canonical contract for SaaS:
+    // isSuccess + result.healthId  (and patient summary for convenience)
     return res.status(200).json({
       isSuccess: true,
-      found: result.found,
-      message: result.message,
-      patient: result.patient,
-      data: { found: result.found, patient: result.patient },
-      result: { found: result.found, patient: result.patient },
+      found: outcome.found,
+      message: outcome.found ? "OK" : outcome.message,
+      patient: outcome.patient,
+      result: outcome.found
+        ? outcome.result || outcome.patient
+        : null,
+      data: {
+        found: outcome.found,
+        patient: outcome.patient,
+        result: outcome.result,
+      },
     });
   } catch (error) {
     return httpError(res, error, "Failed to look up patient by Health ID");

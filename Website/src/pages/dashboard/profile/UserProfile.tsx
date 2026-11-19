@@ -24,6 +24,10 @@ import {
 } from "@/Redex/service/users/UsersApi"
 import { setUser } from "@/Redex/service/auth/Userinfo"
 import { PatientIdCard } from "@/components/common/PatientIdCard"
+import {
+  useGetHospitalRequestsQuery,
+  useRespondHospitalRequestMutation,
+} from "@/Redex/service/healthcare/HealthcareApi"
 import { BloodTypeEnum } from "@/Redex/types/Types"
 import { useGetMedicalProfileQuery, useUpsertMedicalProfileMutation } from "@/Redex/service/health/HealthApi"
 import { BLOOD_TYPE_OPTIONS, enumLabel, GENDER_OPTIONS } from "@/lib/enums"
@@ -74,6 +78,13 @@ export default function UserProfile() {
   const { data: medical } = useGetMedicalProfileQuery()
   const [updateProfile, { isLoading: saving }] = useUpdateMyProfileMutation()
   const [upsertMedical] = useUpsertMedicalProfileMutation()
+  const { data: hospitalRequests = [], refetch: refetchHospitalRequests } =
+    useGetHospitalRequestsQuery(undefined, { pollingInterval: 30_000 })
+  const [respondHospitalRequest, { isLoading: respondingHospital }] =
+    useRespondHospitalRequestMutation()
+  const pendingHospitalRequests = hospitalRequests.filter(
+    (r) => String(r.status || "").toUpperCase() === "PENDING"
+  )
 
   const [form, setForm] = useState({
     fullName: "",
@@ -206,6 +217,89 @@ export default function UserProfile() {
       </Card>
 
       <PatientIdCard healthId={profile.healthId} />
+
+      {pendingHospitalRequests.length > 0 ? (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Hospital Booking Request</CardTitle>
+            <CardDescription>
+              Requests from Daryeel SaaS hospitals linked to your Health ID
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingHospitalRequests.map((req) => (
+              <div
+                key={req.id}
+                className="rounded-xl border border-amber-100 bg-white p-3 text-sm"
+              >
+                <p className="font-semibold text-brand-dark">
+                  {req.hospitalName || "Hospital"}
+                </p>
+                <p className="text-primary">
+                  {[req.doctorName, req.department || req.branchName]
+                    .filter(Boolean)
+                    .join(" · ") || "Hospital staff"}
+                </p>
+                {req.message ? (
+                  <p className="mt-2 text-muted-foreground">{req.message}</p>
+                ) : null}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {req.createdAt
+                    ? new Date(req.createdAt).toLocaleString()
+                    : "—"}{" "}
+                  · {req.status || "PENDING"}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    disabled={respondingHospital}
+                    onClick={async () => {
+                      try {
+                        await respondHospitalRequest({
+                          id: req.id,
+                          accept: true,
+                        }).unwrap()
+                        toast.success("Hospital request accepted")
+                        void refetchHospitalRequests()
+                      } catch (err: unknown) {
+                        toast.error(
+                          (err as { data?: { message?: string } })?.data
+                            ?.message || "Could not accept"
+                        )
+                      }
+                    }}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-rose-200 text-rose-700"
+                    disabled={respondingHospital}
+                    onClick={async () => {
+                      try {
+                        await respondHospitalRequest({
+                          id: req.id,
+                          accept: false,
+                        }).unwrap()
+                        toast.success("Hospital request rejected")
+                        void refetchHospitalRequests()
+                      } catch (err: unknown) {
+                        toast.error(
+                          (err as { data?: { message?: string } })?.data
+                            ?.message || "Could not reject"
+                        )
+                      }
+                    }}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Tabs defaultValue="account">
         <TabsList className="w-full justify-start overflow-x-auto">

@@ -7,17 +7,29 @@ import { recordHealthcareActivity } from "./healthcareBooking.service";
 
 const prisma = new PrismaClient();
 
+export function normalizeHealthId(raw: string) {
+  return String(raw || "").trim().toUpperCase();
+}
+
 export async function findPatientByHealthId(healthIdRaw: string) {
-  const healthId = String(healthIdRaw || "").trim();
+  const healthId = normalizeHealthId(healthIdRaw);
   if (!healthId) {
-    return { found: false as const, patient: null, message: "Daryeel Health ID Not Found" };
+    return {
+      found: false as const,
+      patient: null,
+      result: null,
+      message: "Daryeel Health ID Not Found",
+    };
   }
 
+  // Exact (case-insensitive) match on canonical Health ID — never create users
   const user = await prisma.user.findFirst({
     where: {
-      healthId: { equals: healthId, mode: "insensitive" },
       deletedAt: null,
-      isActive: true,
+      OR: [
+        { healthId: { equals: healthId, mode: "insensitive" } },
+        { healthId: healthId },
+      ],
     },
     select: {
       userid: true,
@@ -27,6 +39,11 @@ export async function findPatientByHealthId(healthIdRaw: string) {
       email: true,
       gender: true,
       dateOfBirth: true,
+      country: true,
+      city: true,
+      isActive: true,
+      isSuspended: true,
+      role: true,
     },
   });
 
@@ -34,22 +51,65 @@ export async function findPatientByHealthId(healthIdRaw: string) {
     return {
       found: false as const,
       patient: null,
+      result: null,
       message: "Daryeel Health ID Not Found",
     };
   }
 
+  const normalizedReturned = normalizeHealthId(user.healthId);
+  if (normalizedReturned !== healthId) {
+    return {
+      found: false as const,
+      patient: null,
+      result: null,
+      message: "Daryeel Health ID Not Found",
+    };
+  }
+
+  const patient = {
+    patientId: user.userid,
+    healthtechUserId: user.userid,
+    userid: user.userid,
+    healthId: normalizedReturned,
+    name: user.fullName,
+    fullName: user.fullName,
+    phone: user.phone,
+    email: user.email,
+    gender: user.gender,
+    dateOfBirth: user.dateOfBirth?.toISOString() || null,
+    country: user.country || null,
+    city: user.city || null,
+    isActive: user.isActive,
+    isSuspended: user.isSuspended,
+    role: user.role,
+    status: user.isSuspended
+      ? "SUSPENDED"
+      : user.isActive
+        ? "ACTIVE"
+        : "INACTIVE",
+  };
+
+  // `result` mirrors Healthtech user API shape (result.healthId) for SaaS parsers
+  const result = {
+    userid: user.userid,
+    email: user.email,
+    phone: user.phone,
+    fullName: user.fullName,
+    healthId: normalizedReturned,
+    country: user.country,
+    city: user.city,
+    gender: user.gender,
+    dateOfBirth: user.dateOfBirth,
+    role: user.role,
+    isActive: user.isActive,
+    isSuspended: user.isSuspended,
+  };
+
   return {
     found: true as const,
     message: "Daryeel Health ID Found",
-    patient: {
-      patientId: user.userid,
-      healthId: user.healthId,
-      name: user.fullName,
-      phone: user.phone,
-      email: user.email,
-      gender: user.gender,
-      dateOfBirth: user.dateOfBirth?.toISOString() || null,
-    },
+    patient,
+    result,
   };
 }
 
@@ -58,17 +118,17 @@ export async function upsertHospitalPatientRequestFromSaas(payload: any) {
   const externalRequestId = String(
     payload?.requestId || payload?.externalRequestId || ""
   ).trim();
-  const healthId = String(payload?.healthId || "").trim();
+  const healthId = normalizeHealthId(payload?.healthId || "");
   const patientId = String(payload?.patientId || "").trim();
   if (!externalRequestId || !healthId) return null;
 
   const user = await prisma.user.findFirst({
     where: {
-      OR: [
-        patientId ? { userid: patientId } : undefined,
-        { healthId: { equals: healthId, mode: "insensitive" } },
-      ].filter(Boolean) as any[],
       deletedAt: null,
+      OR: [
+        ...(patientId ? [{ userid: patientId }] : []),
+        { healthId: { equals: healthId, mode: "insensitive" } },
+      ],
     },
     select: { userid: true, healthId: true },
   });
@@ -86,7 +146,7 @@ export async function upsertHospitalPatientRequestFromSaas(payload: any) {
 
   const data = {
     externalRequestId,
-    healthId: user.healthId || healthId,
+    healthId: normalizeHealthId(user.healthId || healthId),
     patientId: user.userid,
     userId: user.userid,
     hospitalId: payload?.hospitalId ? String(payload.hospitalId) : null,
@@ -120,7 +180,7 @@ export async function upsertHospitalPatientRequestFromSaas(payload: any) {
     await recordHealthcareActivity(
       user.userid,
       "HOSPITAL_PATIENT_REQUESTED",
-      "Hospital Request",
+      "Hospital Booking Request",
       [
         data.hospitalName ? `From ${data.hospitalName}` : "Hospital request",
         data.doctorName ? `Doctor: ${data.doctorName}` : null,
@@ -172,7 +232,6 @@ export async function respondMyHospitalPatientRequest(opts: {
     });
   }
 
-  // Notify SaaS first (source of truth for hospital inbox)
   await saasApi.respondHospitalRequest(local.externalRequestId, {
     accept: opts.accept,
     healthtechUserId: opts.userId,
