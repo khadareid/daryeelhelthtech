@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -64,18 +97,19 @@ function recordHealthcareActivity(userId, type, title, body, appointmentId, meta
             },
         })
             .catch(() => undefined);
-        yield prisma_1.prisma.notification
-            .create({
-            data: {
-                userId,
-                title,
-                body: body || title,
-                type: client_1.NotificationType.APPOINTMENT,
-                channel: client_1.NotificationChannel.IN_APP,
-                data: Object.assign(Object.assign({}, (safeMeta || {})), { activityType: type, appointmentId }),
-            },
-        })
-            .catch(() => undefined);
+        const { createNotification, mapSaasEventToNotificationType } = yield Promise.resolve().then(() => __importStar(require("../notification.service")));
+        const idempotencyKey = appointmentId && type
+            ? `${appointmentId}_${String(type).toUpperCase()}_IN_APP`
+            : undefined;
+        yield createNotification({
+            userId,
+            title,
+            body: body || title,
+            type: mapSaasEventToNotificationType(type),
+            channel: client_1.NotificationChannel.IN_APP,
+            idempotencyKey,
+            data: Object.assign(Object.assign({}, (safeMeta || {})), { activityType: type, appointmentId, brand: "DARYEEL" }),
+        }).catch(() => undefined);
     });
 }
 function syncLocalFromSaas(localId, saasAppt) {
@@ -370,9 +404,20 @@ function createHealthcareBooking(input) {
                 throw new healthcareErrors_1.HealthcareError("Hospital system did not confirm the booking", 503, healthcareErrors_1.HealthcareErrorCodes.SAAS_UNAVAILABLE);
             }
             const updated = yield syncLocalFromSaas(local.id, saasAppt);
-            yield recordHealthcareActivity(input.userId, "HEALTHTECH_BOOKING_CREATED", "Appointment request sent", `Your request with ${updated.doctorName || "the doctor"} was sent to ${updated.facilityName || "the hospital"}.`, updated.id, {
+            yield recordHealthcareActivity(input.userId, "BOOKING_CREATED", "🏥 Booking received", [
+                "🏥 DARYEEL",
+                "",
+                "Your appointment request has been received successfully.",
+                `Doctor: ${updated.doctorName || "Doctor"}`,
+                `Hospital: ${updated.facilityName || "Hospital"}`,
+                `Payment: ${updated.hospitalPaymentStatus || "Pending"}`,
+                "",
+                "Your appointment will be confirmed after payment is completed.",
+            ].join("\n"), updated.id, {
                 externalAppointmentId: saasAppt.appointmentId,
                 externalRequestId: idempotencyKey,
+                source: "HEALTHTECH",
+                brand: "DARYEEL",
             });
             return {
                 appointment: updated,
@@ -528,22 +573,37 @@ function applySaasWebhook(payload) {
         if (!saasAppt || !local)
             return null;
         const updated = yield syncLocalFromSaas(local.id, saasAppt);
-        const type = String((payload === null || payload === void 0 ? void 0 : payload.type) || "APPOINTMENT_UPDATED");
+        const type = String((payload === null || payload === void 0 ? void 0 : payload.type) || "APPOINTMENT_UPDATED").replace(/^HEALTHTECH_/, "");
         const titleMap = {
+            APPOINTMENT_REQUESTED: "Booking received",
             APPOINTMENT_ACCEPTED: "Appointment accepted",
             APPOINTMENT_REJECTED: "Appointment rejected",
+            APPOINTMENT_CONFIRMED: "Appointment confirmed",
             RESCHEDULE_REQUESTED: "Hospital proposed a new time",
             OPD_TICKET_GENERATED: "OPD ticket ready",
-            PATIENT_CHECKED_IN: "Checked in",
+            PATIENT_CHECKED_IN: "Check-in successful",
             VISIT_COMPLETED: "Visit completed",
             APPOINTMENT_CANCELLED: "Appointment cancelled",
+            PAYMENT_STATUS_CHANGED: "Payment status updated",
         };
-        yield recordHealthcareActivity(local.userId, type.startsWith("HEALTHTECH_") ? type : `HEALTHTECH_${type}`, titleMap[type] || "Appointment updated", updated.externalTicketNumber
-            ? `OPD Ticket: ${updated.externalTicketNumber}`
-            : updated.status, local.id, {
+        const bodyParts = [
+            updated.doctorName ? `Doctor: ${updated.doctorName}` : null,
+            updated.facilityName ? `Hospital: ${updated.facilityName}` : null,
+            updated.externalTicketNumber
+                ? `Ticket: ${updated.externalTicketNumber}`
+                : null,
+            `Status: ${updated.status}`,
+            updated.hospitalPaymentStatus
+                ? `Payment: ${updated.hospitalPaymentStatus}`
+                : null,
+        ].filter(Boolean);
+        yield recordHealthcareActivity(local.userId, type, titleMap[type] || "Appointment updated", bodyParts.join(" · "), local.id, {
             externalAppointmentId: updated.externalAppointmentId,
             status: updated.status,
             ticketNumber: updated.externalTicketNumber,
+            paymentStatus: updated.hospitalPaymentStatus,
+            source: "HEALTHTECH",
+            brand: "DARYEEL",
         });
         return updated;
     });

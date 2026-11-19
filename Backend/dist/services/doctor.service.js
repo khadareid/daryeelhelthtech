@@ -136,7 +136,7 @@ const getMyDoctorProfile = (userId) => __awaiter(void 0, void 0, void 0, functio
 });
 exports.getMyDoctorProfile = getMyDoctorProfile;
 const upsertMyDoctorProfile = (userId, body) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11;
     const existing = yield prisma_1.prisma.doctor.findUnique({ where: { userId } });
     const fullName = body.fullName
         ? (0, validation_1.requireString)(body.fullName, "fullName")
@@ -176,9 +176,10 @@ const upsertMyDoctorProfile = (userId, body) => __awaiter(void 0, void 0, void 0
         currency: (0, validation_1.optionalString)(body.currency) || (existing === null || existing === void 0 ? void 0 : existing.currency) || "USD",
         isAvailable: (0, validation_1.parseBool)(body.isAvailable, (_2 = existing === null || existing === void 0 ? void 0 : existing.isAvailable) !== null && _2 !== void 0 ? _2 : true),
         isOnline: (0, validation_1.parseBool)(body.isOnline, (_3 = existing === null || existing === void 0 ? void 0 : existing.isOnline) !== null && _3 !== void 0 ? _3 : false),
-        clinicName: (_5 = (_4 = (0, validation_1.optionalString)(body.clinicName)) !== null && _4 !== void 0 ? _4 : existing === null || existing === void 0 ? void 0 : existing.clinicName) !== null && _5 !== void 0 ? _5 : null,
-        city: (_7 = (_6 = (0, validation_1.optionalString)(body.city)) !== null && _6 !== void 0 ? _6 : existing === null || existing === void 0 ? void 0 : existing.city) !== null && _7 !== void 0 ? _7 : null,
-        country: (_9 = (_8 = (0, validation_1.optionalString)(body.country)) !== null && _8 !== void 0 ? _8 : existing === null || existing === void 0 ? void 0 : existing.country) !== null && _9 !== void 0 ? _9 : null,
+        appointmentDurationMinutes: (_5 = (_4 = (0, validation_1.parseNumber)(body.appointmentDurationMinutes, "appointmentDurationMinutes")) !== null && _4 !== void 0 ? _4 : existing === null || existing === void 0 ? void 0 : existing.appointmentDurationMinutes) !== null && _5 !== void 0 ? _5 : 30,
+        clinicName: (_7 = (_6 = (0, validation_1.optionalString)(body.clinicName)) !== null && _6 !== void 0 ? _6 : existing === null || existing === void 0 ? void 0 : existing.clinicName) !== null && _7 !== void 0 ? _7 : null,
+        city: (_9 = (_8 = (0, validation_1.optionalString)(body.city)) !== null && _8 !== void 0 ? _8 : existing === null || existing === void 0 ? void 0 : existing.city) !== null && _9 !== void 0 ? _9 : null,
+        country: (_11 = (_10 = (0, validation_1.optionalString)(body.country)) !== null && _10 !== void 0 ? _10 : existing === null || existing === void 0 ? void 0 : existing.country) !== null && _11 !== void 0 ? _11 : null,
     };
     if (existing) {
         const { userId: _u } = data, update = __rest(data, ["userId"]);

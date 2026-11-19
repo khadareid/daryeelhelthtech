@@ -13,6 +13,7 @@ exports.updatePayment = exports.createPayment = exports.getPayment = exports.lis
 const client_1 = require("@prisma/client");
 const rbac_1 = require("../helpers/middleware/rbac");
 const prisma_1 = require("../lib/prisma");
+const notification_service_1 = require("./notification.service");
 const codes_1 = require("../utils/codes");
 const ownership_1 = require("../utils/ownership");
 const pagination_1 = require("../utils/pagination");
@@ -172,26 +173,32 @@ const createPayment = (actor, body) => __awaiter(void 0, void 0, void 0, functio
                 paymentRequired: Number(amount) > 0,
             },
         });
-        try {
-            yield prisma_1.prisma.notification.create({
-                data: {
-                    userId,
-                    title: isFree ? "Free visit confirmed" : "Payment successful",
-                    body: isFree
-                        ? "Your booking fee is Free ($0) and marked Paid."
-                        : `Payment marked Paid with ${(0, validation_1.optionalString)(body.provider) || "local money"}. Open My Visits to track the booking.`,
-                    type: isFree ? "PAYMENT" : "PAYMENT_SUCCESS",
-                    channel: "IN_APP",
-                    data: {
-                        paymentId: payment.id,
-                        appointmentId,
-                    },
-                },
-            });
-        }
-        catch (_g) {
-            /* payment still succeeds */
-        }
+        yield (0, notification_service_1.createNotification)({
+            userId,
+            title: isFree ? "Free visit confirmed" : "✅ Payment successful",
+            body: isFree
+                ? "Your booking fee is Free ($0) and marked Paid. Your appointment is confirmed."
+                : `🏥 DARYEEL\n\nYour payment was successful (${(0, validation_1.optionalString)(body.provider) || "mobile money"}).\nYour appointment is now confirmed.`,
+            type: isFree ? "PAYMENT" : "PAYMENT_SUCCESS",
+            channel: "IN_APP",
+            idempotencyKey: `${appointmentId}_PAYMENT_SUCCESS_IN_APP`,
+            data: {
+                paymentId: payment.id,
+                appointmentId,
+                brand: "DARYEEL",
+            },
+        }).catch(() => undefined);
+    }
+    else if (appointmentId && status === client_1.PaymentStatus.PENDING) {
+        yield (0, notification_service_1.createNotification)({
+            userId,
+            title: "💳 Payment pending",
+            body: "🏥 DARYEEL\n\nYour appointment will be confirmed after payment is completed.",
+            type: "PAYMENT_PENDING",
+            channel: "IN_APP",
+            idempotencyKey: `${appointmentId}_PAYMENT_PENDING_IN_APP`,
+            data: { paymentId: payment.id, appointmentId, brand: "DARYEEL" },
+        }).catch(() => undefined);
     }
     return payment;
 });
@@ -225,24 +232,43 @@ const updatePayment = (id, actor, body) => __awaiter(void 0, void 0, void 0, fun
                 where: { id: row.appointmentId },
                 data: { paymentStatus: client_1.PaymentStatus.PAID },
             });
-            try {
-                yield prisma_1.prisma.notification.create({
-                    data: {
-                        userId: row.userId,
-                        title: "Payment successful",
-                        body: `Your visit payment is marked Paid (${(0, validation_1.optionalString)(body.provider) || row.provider || "local money"}). Open My Visits to track the booking.`,
-                        type: "PAYMENT_SUCCESS",
-                        channel: "IN_APP",
-                        data: {
-                            paymentId: row.id,
-                            appointmentId: row.appointmentId,
-                        },
-                    },
-                });
-            }
-            catch (_k) {
-                /* payment still succeeds */
-            }
+            yield (0, notification_service_1.createNotification)({
+                userId: row.userId,
+                title: "✅ Payment successful",
+                body: `🏥 DARYEEL\n\nYour visit payment is marked Paid (${(0, validation_1.optionalString)(body.provider) || row.provider || "mobile money"}).\nYour appointment is confirmed.`,
+                type: "PAYMENT_SUCCESS",
+                channel: "IN_APP",
+                idempotencyKey: `${row.appointmentId}_PAYMENT_SUCCESS_IN_APP`,
+                data: {
+                    paymentId: row.id,
+                    appointmentId: row.appointmentId,
+                    brand: "DARYEEL",
+                },
+            }).catch(() => undefined);
+        }
+        else if (row.appointmentId && status === client_1.PaymentStatus.FAILED) {
+            yield (0, notification_service_1.createNotification)({
+                userId: row.userId,
+                title: "⚠️ Payment unsuccessful",
+                body: "🏥 DARYEEL\n\nWe could not complete the payment. Please retry to confirm your appointment.",
+                type: "PAYMENT_FAILED",
+                channel: "IN_APP",
+                idempotencyKey: `${row.appointmentId}_PAYMENT_FAILED_IN_APP`,
+                data: { paymentId: row.id, appointmentId: row.appointmentId },
+            }).catch(() => undefined);
+        }
+        else if (row.appointmentId &&
+            (status === client_1.PaymentStatus.REFUNDED ||
+                status === client_1.PaymentStatus.PARTIALLY_REFUNDED)) {
+            yield (0, notification_service_1.createNotification)({
+                userId: row.userId,
+                title: "💰 Refund processed",
+                body: "🏥 DARYEEL\n\nYour payment refund has been initiated successfully.",
+                type: "REFUND",
+                channel: "IN_APP",
+                idempotencyKey: `${row.appointmentId}_REFUND_PROCESSED_IN_APP`,
+                data: { paymentId: row.id, appointmentId: row.appointmentId },
+            }).catch(() => undefined);
         }
     }
     if (body.method !== undefined) {
