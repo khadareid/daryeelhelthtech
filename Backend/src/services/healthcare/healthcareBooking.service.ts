@@ -5,7 +5,6 @@ import {
   AccessLevel,
   HospitalPaymentStatus,
   NotificationChannel,
-  NotificationType,
   Prisma,
 } from "@prisma/client";
 import { randomBytes } from "crypto";
@@ -72,22 +71,28 @@ export async function recordHealthcareActivity(
     })
     .catch(() => undefined);
 
-  await prisma.notification
-    .create({
-      data: {
-        userId,
-        title,
-        body: body || title,
-        type: NotificationType.APPOINTMENT,
-        channel: NotificationChannel.IN_APP,
-        data: {
-          ...(safeMeta || {}),
-          activityType: type,
-          appointmentId,
-        } as Prisma.InputJsonValue,
-      },
-    })
-    .catch(() => undefined);
+  const { createNotification, mapSaasEventToNotificationType } = await import(
+    "../notification.service"
+  );
+  const idempotencyKey =
+    appointmentId && type
+      ? `${appointmentId}_${String(type).toUpperCase()}_IN_APP`
+      : undefined;
+
+  await createNotification({
+    userId,
+    title,
+    body: body || title,
+    type: mapSaasEventToNotificationType(type),
+    channel: NotificationChannel.IN_APP,
+    idempotencyKey,
+    data: {
+      ...(safeMeta || {}),
+      activityType: type,
+      appointmentId,
+      brand: "DARYEEL",
+    } as Prisma.InputJsonValue,
+  }).catch(() => undefined);
 }
 
 export async function syncLocalFromSaas(localId: string, saasAppt: any) {
@@ -488,15 +493,24 @@ export async function createHealthcareBooking(
     const updated = await syncLocalFromSaas(local.id, saasAppt);
     await recordHealthcareActivity(
       input.userId,
-      "HEALTHTECH_BOOKING_CREATED",
-      "Appointment request sent",
-      `Your request with ${updated.doctorName || "the doctor"} was sent to ${
-        updated.facilityName || "the hospital"
-      }.`,
+      "BOOKING_CREATED",
+      "🏥 Booking received",
+      [
+        "🏥 DARYEEL",
+        "",
+        "Your appointment request has been received successfully.",
+        `Doctor: ${updated.doctorName || "Doctor"}`,
+        `Hospital: ${updated.facilityName || "Hospital"}`,
+        `Payment: ${updated.hospitalPaymentStatus || "Pending"}`,
+        "",
+        "Your appointment will be confirmed after payment is completed.",
+      ].join("\n"),
       updated.id,
       {
         externalAppointmentId: saasAppt.appointmentId,
         externalRequestId: idempotencyKey,
+        source: "HEALTHTECH",
+        brand: "DARYEEL",
       }
     );
 
@@ -718,29 +732,47 @@ export async function applySaasWebhook(payload: any) {
 
   const updated = await syncLocalFromSaas(local.id, saasAppt);
 
-  const type = String(payload?.type || "APPOINTMENT_UPDATED");
+  const type = String(payload?.type || "APPOINTMENT_UPDATED").replace(
+    /^HEALTHTECH_/,
+    ""
+  );
   const titleMap: Record<string, string> = {
+    APPOINTMENT_REQUESTED: "Booking received",
     APPOINTMENT_ACCEPTED: "Appointment accepted",
     APPOINTMENT_REJECTED: "Appointment rejected",
+    APPOINTMENT_CONFIRMED: "Appointment confirmed",
     RESCHEDULE_REQUESTED: "Hospital proposed a new time",
     OPD_TICKET_GENERATED: "OPD ticket ready",
-    PATIENT_CHECKED_IN: "Checked in",
+    PATIENT_CHECKED_IN: "Check-in successful",
     VISIT_COMPLETED: "Visit completed",
     APPOINTMENT_CANCELLED: "Appointment cancelled",
+    PAYMENT_STATUS_CHANGED: "Payment status updated",
   };
+  const bodyParts = [
+    updated.doctorName ? `Doctor: ${updated.doctorName}` : null,
+    updated.facilityName ? `Hospital: ${updated.facilityName}` : null,
+    updated.externalTicketNumber
+      ? `Ticket: ${updated.externalTicketNumber}`
+      : null,
+    `Status: ${updated.status}`,
+    updated.hospitalPaymentStatus
+      ? `Payment: ${updated.hospitalPaymentStatus}`
+      : null,
+  ].filter(Boolean);
 
   await recordHealthcareActivity(
     local.userId,
-    type.startsWith("HEALTHTECH_") ? type : `HEALTHTECH_${type}`,
+    type,
     titleMap[type] || "Appointment updated",
-    updated.externalTicketNumber
-      ? `OPD Ticket: ${updated.externalTicketNumber}`
-      : updated.status,
+    bodyParts.join(" · "),
     local.id,
     {
       externalAppointmentId: updated.externalAppointmentId,
       status: updated.status,
       ticketNumber: updated.externalTicketNumber,
+      paymentStatus: updated.hospitalPaymentStatus,
+      source: "HEALTHTECH",
+      brand: "DARYEEL",
     }
   );
 

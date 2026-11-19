@@ -118,10 +118,17 @@ enum NotificationType {
   APPOINTMENT_REMINDER
   APPOINTMENT_ACCEPTED
   APPOINTMENT_REJECTED
+  APPOINTMENT_CONFIRMED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_RESCHEDULED
+  CHECKED_IN
+  VISIT_COMPLETED
   CONSULTATION
   PAYMENT
+  PAYMENT_PENDING
   PAYMENT_SUCCESS
   PAYMENT_FAILED
+  REFUND
   MEDICAL_RECORD
   SYSTEM
 }
@@ -131,6 +138,7 @@ enum NotificationChannel {
   PUSH
   SMS
   EMAIL
+  WHATSAPP
 }
 
 // ======================================================
@@ -1337,6 +1345,9 @@ model Notification {
 
   type    NotificationType
   channel NotificationChannel @default(IN_APP)
+
+  /// Prevents duplicate webhook / payment / booking notifications
+  idempotencyKey String? @unique
 
   isRead Boolean   @default(false)
   readAt DateTime?
