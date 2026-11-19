@@ -17,8 +17,10 @@ import {
   listMyOpdTickets,
   requestHealthcareAppointmentReschedule,
   respondHealthcareReschedule,
+  respondHospitalPatientRequest,
   revokeConsent,
   saasWebhook,
+  listHospitalPatientRequests,
 } from "../Controllers/HealthcareBookingController";
 
 const router = Router();
@@ -56,5 +58,12 @@ router.get("/opd-tickets", decodeToken, listMyOpdTickets);
 router.get("/activity", decodeToken, listHealthcareActivity);
 router.get("/consents", decodeToken, listConsents);
 router.post("/consents/:id/revoke", decodeToken, revokeConsent);
+
+router.get("/hospital-requests", decodeToken, listHospitalPatientRequests);
+router.post(
+  "/hospital-requests/:id/respond",
+  decodeToken,
+  respondHospitalPatientRequest
+);
 
 export default router;

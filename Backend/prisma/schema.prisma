@@ -357,6 +357,8 @@ model User {
   accessRequestsSent     MedicalAccessRequest[] @relation("AccessRequester")
   accessRequestsReceived MedicalAccessRequest[] @relation("AccessPatient")
 
+  hospitalPatientRequests HospitalPatientRequest[]
+
   auditLogs AuditLog[]
 
   suspensionReason String?
@@ -1716,4 +1718,50 @@ model HealthcareActivityEvent {
   @@index([userId, createdAt])
   @@index([appointmentId])
   @@index([type])
+}
+
+enum HospitalPatientRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// Hospital (SaaS) → patient invitation. Linked by healthId; never creates a duplicate User.
+model HospitalPatientRequest {
+  id String @id @default(cuid())
+
+  /// SaaS HospitalPatientRequest.requestId
+  externalRequestId String? @unique
+
+  healthId  String
+  patientId String
+  userId    String
+
+  hospitalId   String?
+  tenantId     String?
+  branchId     String?
+  doctorId     String?
+
+  requestType String @default("HOSPITAL_INVITE")
+  message     String?
+  status      HospitalPatientRequestStatus @default(PENDING)
+
+  idempotencyKey String? @unique
+
+  hospitalName String?
+  branchName   String?
+  doctorName   String?
+  department   String?
+
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([healthId])
+  @@index([userId])
+  @@index([patientId])
+  @@index([status])
+  @@index([createdAt])
 }

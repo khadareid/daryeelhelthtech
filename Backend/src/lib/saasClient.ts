@@ -373,4 +373,17 @@ export const saasApi = {
     saasRequest(`/integrations/opd-tickets/${id}`),
 
   getVisit: (id: string) => saasRequest(`/integrations/visits/${id}`),
+
+  respondHospitalRequest: (
+    requestId: string,
+    body: {
+      accept: boolean;
+      healthtechUserId?: string;
+      healthId?: string;
+    }
+  ) =>
+    saasRequest(`/integrations/hospital-requests/${requestId}/respond`, {
+      method: "POST",
+      body,
+    }),
 };

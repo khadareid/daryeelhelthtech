@@ -708,6 +708,36 @@ export async function respondHealthcareReschedule(
 }
 
 export async function applySaasWebhook(payload: any) {
+  const eventType = String(payload?.type || "").toUpperCase();
+  if (
+    eventType === "HOSPITAL_PATIENT_REQUESTED" ||
+    eventType === "HOSPITAL_PATIENT_ACCEPTED" ||
+    eventType === "HOSPITAL_PATIENT_REJECTED"
+  ) {
+    const { upsertHospitalPatientRequestFromSaas } = await import(
+      "./hospitalPatientRequest.service"
+    );
+    if (eventType === "HOSPITAL_PATIENT_REQUESTED") {
+      return upsertHospitalPatientRequestFromSaas(payload);
+    }
+    // Status sync from SaaS for already-responded requests
+    const externalRequestId = String(payload?.requestId || "").trim();
+    if (externalRequestId) {
+      const status =
+        eventType === "HOSPITAL_PATIENT_ACCEPTED" ? "ACCEPTED" : "REJECTED";
+      await prisma.hospitalPatientRequest
+        .updateMany({
+          where: { externalRequestId, status: "PENDING" },
+          data: {
+            status: status as any,
+            respondedAt: new Date(),
+          },
+        })
+        .catch(() => undefined);
+    }
+    return { type: eventType, synced: true };
+  }
+
   const externalId =
     payload?.externalAppointmentId ||
     payload?.appointmentId ||
