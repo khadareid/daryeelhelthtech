@@ -26,20 +26,23 @@ const COLUMNS = [
   {
     title: "Daryeel",
     links: [
-      { to: "/#why", label: "About" },
-      { to: "/#services", label: "Services" },
-      { to: "/#contact", label: "Contact" },
-      { to: "/privacy", label: "Privacy" },
-      { to: "/terms", label: "Terms" },
+      { to: "/about", label: "About" },
+      { to: "/care", label: "Care" },
+      { to: "/training", label: "Training" },
+      { to: "/events", label: "Events" },
+      { to: "/insights", label: "Insights" },
+      { to: "/contact", label: "Contact" },
     ],
   },
   {
     title: "Support",
     links: [
-      { to: "/#how-it-works", label: "Help Center" },
+      { to: "/contact", label: "Help Center" },
+      { to: "/privacy", label: "Privacy" },
+      { to: "/terms", label: "Terms" },
       {
         to: `mailto:${siteConfig.supportEmail}`,
-        label: "Contact Support",
+        label: "Email Support",
         external: true,
       },
     ],

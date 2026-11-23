@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Phone,
   Settings,
   Stethoscope,
   User as UserIcon,
@@ -25,9 +26,17 @@ const NAV_LINKS = [
   { to: "/", label: "Home", end: true },
   { to: "/hospitals", label: "Hospitals" },
   { to: "/doctors", label: "Doctors" },
-  { to: "/#services", label: "Services" },
-  { to: "/#providers", label: "For Providers" },
-]
+  {
+    to: "/about",
+    label: "About",
+    match: ["/about", "/about/management-staff", "/about/team"],
+  },
+  { to: "/care", label: "Care" },
+  { to: "/training", label: "Training" },
+  { to: "/events", label: "Events" },
+  { to: "/insights", label: "Insights" },
+  { to: "/contact", label: "Contact" },
+] as const
 
 const MOBILE_ACCOUNT = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -39,12 +48,26 @@ const MOBILE_ACCOUNT = [
   { to: "/dashboard/UserProfile", label: "Settings", icon: Settings },
 ]
 
+function isNavActive(
+  pathname: string,
+  link: (typeof NAV_LINKS)[number]
+): boolean {
+  if ("hash" in link && link.hash) return false
+  if ("end" in link && link.end) return pathname === "/"
+  if ("match" in link && link.match) {
+    return link.match.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`)
+    )
+  }
+  return pathname === link.to || pathname.startsWith(`${link.to}/`)
+}
+
 export default function SiteHeader() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const location = useLocation()
   const { isAuthenticated, name, email, image, role } = useSelector(
-    (s: RootState) => s.userInfo,
+    (s: RootState) => s.userInfo
   )
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -60,45 +83,89 @@ export default function SiteHeader() {
     setMobileOpen(false)
   }, [location.pathname, location.hash])
 
+  useEffect(() => {
+    if (!mobileOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [mobileOpen])
+
   const handleLogout = () => {
     dispatch(logout())
     navigate("/")
   }
 
+  const emergencyHref = `tel:${siteConfig.supportPhone}`
+
   return (
     <header
       className={cn(
         "sticky top-0 z-40 w-full transition-all duration-300",
-        scrolled
+        scrolled || mobileOpen
           ? "border-b border-blue-100/80 bg-white/95 shadow-sm backdrop-blur-xl"
-          : "border-b border-transparent bg-white/80 backdrop-blur-md",
+          : "border-b border-transparent bg-white/85 backdrop-blur-md"
       )}
     >
+      {/* Top utility strip — emergency visible early on mobile */}
+      <div className="border-b border-blue-50/80 bg-gradient-to-r from-brand-light via-white to-brand-light">
+        <div className="container-page flex h-8 items-center justify-between gap-2 text-[11px] sm:h-9 sm:text-xs">
+          <p className="truncate font-medium text-brand-muted">
+            <span className="hidden sm:inline">
+              Your Health. Your Care. One Connected Platform.
+            </span>
+            <span className="sm:hidden">{siteConfig.tagline}</span>
+          </p>
+          <a
+            href={emergencyHref}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 font-semibold text-red-600 ring-1 ring-red-100 transition hover:bg-red-100"
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+            </span>
+            <Activity className="h-3 w-3" />
+            Emergency 24/7
+          </a>
+        </div>
+      </div>
+
       <div className="container-page flex h-14 items-center justify-between gap-2 sm:h-16 sm:gap-3">
-        <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/25 sm:h-10 sm:w-10">
-            <HeartPulse className="h-4 w-4 sm:h-5 sm:w-5" />
+        {/* Brand */}
+        <Link
+          to="/"
+          className="flex min-w-0 items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-md shadow-primary/30 sm:h-11 sm:w-11">
+            <HeartPulse className="h-5 w-5 sm:h-[22px] sm:w-[22px]" />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="truncate font-heading text-sm font-bold text-brand-dark sm:text-base">
-              {siteConfig.appName}
+            <p className="truncate font-heading text-[15px] font-bold tracking-tight text-brand-dark sm:text-lg">
+              Daryeel Health
             </p>
-            <p className="hidden truncate text-[10px] text-muted-foreground sm:block">
-              {siteConfig.tagline}
+            <p className="truncate text-[10px] font-medium text-primary/80 sm:text-[11px]">
+              Caafimaadkaaga, Gacantaada
             </p>
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        {/* Desktop nav */}
+        <nav
+          className="hidden items-center gap-0.5 xl:flex"
+          aria-label="Primary"
+        >
           {NAV_LINKS.map((link) => {
-            const isHash = link.to.includes("#")
-            if (isHash) {
+            const active = isNavActive(location.pathname, link)
+            const className = cn(
+              "rounded-lg px-2 py-2 text-[13px] font-medium transition-colors whitespace-nowrap",
+              active
+                ? "bg-brand-light text-primary"
+                : "text-brand-muted hover:bg-brand-light hover:text-primary"
+            )
+            if ("hash" in link && link.hash) {
               return (
-                <a
-                  key={link.label}
-                  href={link.to}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-brand-muted transition-colors hover:bg-brand-light hover:text-primary"
-                >
+                <a key={link.label} href={link.to} className={className}>
                   {link.label}
                 </a>
               )
@@ -107,15 +174,8 @@ export default function SiteHeader() {
               <NavLink
                 key={link.label}
                 to={link.to}
-                end={link.end}
-                className={({ isActive }) =>
-                  cn(
-                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive && link.end
-                      ? "bg-brand-light text-primary"
-                      : "text-brand-muted hover:bg-brand-light hover:text-primary",
-                  )
-                }
+                end={"end" in link ? link.end : false}
+                className={className}
               >
                 {link.label}
               </NavLink>
@@ -123,16 +183,21 @@ export default function SiteHeader() {
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        {/* Actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <a
-            href={`tel:${siteConfig.supportPhone}`}
-            className="hidden items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-100 transition hover:bg-red-100 xl:inline-flex"
+            href={emergencyHref}
+            className="hidden items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-100 transition hover:bg-red-100 md:inline-flex xl:hidden"
+            aria-label="Call emergency line"
           >
-            <Activity className="h-3.5 w-3.5" />
-            Emergency 24/7
+            <Phone className="h-3.5 w-3.5" />
+            24/7
           </a>
 
-          <InstallAppButton variant="compact" className="hidden sm:inline-flex" />
+          <InstallAppButton
+            variant="compact"
+            className="hidden lg:inline-flex"
+          />
 
           {isAuthenticated ? (
             <UserProfileMenu
@@ -143,12 +208,16 @@ export default function SiteHeader() {
             />
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
-              <Button variant="ghost" onClick={() => navigate("/signin")}>
+              <Button
+                variant="ghost"
+                className="h-9 px-3 text-brand-dark"
+                onClick={() => navigate("/signin")}
+              >
                 Login
               </Button>
               <Button
+                className="h-9 bg-primary px-4 text-primary-foreground shadow-sm shadow-primary/25 hover:bg-primary/90"
                 onClick={() => navigate("/SignUp")}
-                className="bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:bg-primary/90"
               >
                 Get Started
               </Button>
@@ -156,70 +225,82 @@ export default function SiteHeader() {
           )}
 
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="lg:hidden"
+            className="h-10 w-10 rounded-xl border-blue-100 xl:hidden"
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((open) => !open)}
           >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {mobileOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
           </Button>
         </div>
       </div>
 
+      {/* Mobile / tablet drawer */}
       {mobileOpen ? (
-        <div className="border-t border-blue-50 bg-white lg:hidden">
-          <nav className="container-page flex flex-col gap-1 py-3">
-            {NAV_LINKS.map((link) => {
-              const isHash = link.to.includes("#")
-              if (isHash) {
-                return (
-                  <a
-                    key={link.label}
-                    href={link.to}
-                    className="rounded-lg px-3 py-2.5 text-sm font-medium text-brand-muted"
-                  >
-                    {link.label}
-                  </a>
+        <div className="border-t border-blue-50 bg-white xl:hidden">
+          <div className="container-page max-h-[calc(100dvh-6.5rem)] overflow-y-auto py-3 pb-6">
+            <nav className="flex flex-col gap-1" aria-label="Mobile">
+              {NAV_LINKS.map((link) => {
+                const active = isNavActive(location.pathname, link)
+                const className = cn(
+                  "rounded-xl px-3 py-3 text-sm font-semibold transition-colors",
+                  active
+                    ? "bg-brand-light text-primary"
+                    : "text-brand-dark hover:bg-brand-light/70"
                 )
-              }
-              return (
-                <NavLink
-                  key={link.label}
-                  to={link.to}
-                  end={link.end}
-                  className={({ isActive }) =>
-                    cn(
-                      "rounded-lg px-3 py-2.5 text-sm font-medium",
-                      isActive && link.end
-                        ? "bg-brand-light text-primary"
-                        : "text-brand-muted",
-                    )
-                  }
-                >
-                  {link.label}
-                </NavLink>
-              )
-            })}
+                if ("hash" in link && link.hash) {
+                  return (
+                    <a key={link.label} href={link.to} className={className}>
+                      {link.label}
+                    </a>
+                  )
+                }
+                return (
+                  <NavLink key={link.label} to={link.to} className={className}>
+                    {link.label}
+                  </NavLink>
+                )
+              })}
+            </nav>
 
             <a
-              href={`tel:${siteConfig.supportPhone}`}
-              className="mt-1 inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-600"
+              href={emergencyHref}
+              className="mt-3 flex items-center justify-between rounded-2xl bg-gradient-to-r from-red-50 to-red-100/60 px-4 py-3.5 ring-1 ring-red-100"
             >
-              <Activity className="h-4 w-4" />
-              Emergency · 24/7
+              <span className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500 text-white shadow-sm">
+                  <Activity className="h-4 w-4" />
+                </span>
+                <span>
+                  <span className="block text-sm font-bold text-red-700">
+                    Emergency 24/7
+                  </span>
+                  <span className="block text-xs text-red-600/80">
+                    Tap to call {siteConfig.supportPhone}
+                  </span>
+                </span>
+              </span>
+              <Phone className="h-4 w-4 text-red-600" />
             </a>
 
-            <InstallAppButton variant="menu" />
+            <div className="mt-3">
+              <InstallAppButton variant="menu" />
+            </div>
 
             {isAuthenticated ? (
-              <div className="mt-2 grid gap-1 border-t border-blue-50 pt-3">
+              <div className="mt-3 grid gap-1 border-t border-blue-50 pt-3">
                 {MOBILE_ACCOUNT.map(({ to, label, icon: Icon }) => (
                   <button
-                    key={label}
+                    key={`${label}-${to}`}
                     type="button"
                     onClick={() => navigate(to)}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-brand-dark hover:bg-brand-light"
+                    className="flex items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm font-medium text-brand-dark hover:bg-brand-light"
                   >
                     <Icon className="h-4 w-4 text-primary" />
                     {label}
@@ -228,30 +309,30 @@ export default function SiteHeader() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm font-medium text-red-600 hover:bg-red-50"
                 >
                   <LogOut className="h-4 w-4" />
                   Log out
                 </button>
               </div>
             ) : (
-              <div className="mt-2 flex gap-2 border-t border-blue-50 pt-3">
+              <div className="mt-3 flex flex-col gap-2 border-t border-blue-50 pt-3 sm:flex-row">
                 <Button
                   variant="outline"
-                  className="flex-1"
+                  className="h-11 flex-1 rounded-xl border-blue-100"
                   onClick={() => navigate("/signin")}
                 >
                   Login
                 </Button>
                 <Button
-                  className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="h-11 flex-1 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={() => navigate("/SignUp")}
                 >
                   Get Started
                 </Button>
               </div>
             )}
-          </nav>
+          </div>
         </div>
       ) : null}
     </header>

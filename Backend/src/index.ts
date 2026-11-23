@@ -42,6 +42,8 @@ import notificationRouter from "./Routes/NotificationRouter";
 import consentRouter from "./Routes/ConsentRouter";
 import accessRequestRouter from "./Routes/AccessRequestRouter";
 import adminRouter from "./Routes/AdminRouter";
+import adminCmsRouter from "./Routes/AdminCmsRouter";
+import cmsRouter from "./Routes/CmsRouter";
 import healthcareRouter from "./Routes/HealthcareRouter";
 import integrationRouter from "./Routes/IntegrationRouter";
 
@@ -256,7 +258,9 @@ app.use("/api/v1/healthcare", healthcareLimiter, healthcareRouter);
 app.use("/api/v1/integrations", healthcareLimiter, integrationRouter);
 
 // Admin
+app.use("/api/v1/cms", cmsRouter);
 app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/admin/cms", adminCmsRouter);
 
 app.get("/", (_req, res) => {
   res.send("Daryeel Healthtech API");

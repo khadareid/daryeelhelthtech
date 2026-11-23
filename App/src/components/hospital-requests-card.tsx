@@ -286,8 +286,8 @@ const styles = StyleSheet.create({
   wrap: {
     borderWidth: 1,
     borderRadius: Radius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+    padding: Spacing.three,
+    marginBottom: Spacing.three,
     gap: 6,
   },
   header: {
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   title: {
-    fontFamily: Fonts.heading,
+    fontFamily: Fonts.bold,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderRadius: Radius.md,
-    padding: Spacing.md,
+    padding: Spacing.three,
     marginTop: 8,
     gap: 4,
   },
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   hospital: {
-    fontFamily: Fonts.heading,
+    fontFamily: Fonts.bold,
     fontSize: 15,
     fontWeight: '700',
     flex: 1,

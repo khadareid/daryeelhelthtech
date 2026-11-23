@@ -118,6 +118,41 @@ function RootNavigation() {
           name="health/steps"
           options={stackHeader(theme, 'Steps')}
         />
+
+        {/* About / marketing — full screens with Back */}
+        <Stack.Screen name="about/index" options={stackHeader(theme, 'About')} />
+        <Stack.Screen
+          name="about/team"
+          options={stackHeader(theme, 'About')}
+        />
+        <Stack.Screen
+          name="about/training/index"
+          options={stackHeader(theme, 'Training')}
+        />
+        <Stack.Screen
+          name="about/training/[slug]"
+          options={stackHeader(theme, 'Programme')}
+        />
+        <Stack.Screen
+          name="about/events/index"
+          options={stackHeader(theme, 'Events')}
+        />
+        <Stack.Screen
+          name="about/events/[slug]"
+          options={stackHeader(theme, 'Event')}
+        />
+        <Stack.Screen
+          name="about/insights/index"
+          options={stackHeader(theme, 'Insights')}
+        />
+        <Stack.Screen
+          name="about/insights/[slug]"
+          options={stackHeader(theme, 'Article')}
+        />
+        <Stack.Screen
+          name="about/contact"
+          options={stackHeader(theme, 'Contact')}
+        />
       </Stack>
     </>
   );

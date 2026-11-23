@@ -84,6 +84,8 @@ const NotificationRouter_1 = __importDefault(require("./Routes/NotificationRoute
 const ConsentRouter_1 = __importDefault(require("./Routes/ConsentRouter"));
 const AccessRequestRouter_1 = __importDefault(require("./Routes/AccessRequestRouter"));
 const AdminRouter_1 = __importDefault(require("./Routes/AdminRouter"));
+const AdminCmsRouter_1 = __importDefault(require("./Routes/AdminCmsRouter"));
+const CmsRouter_1 = __importDefault(require("./Routes/CmsRouter"));
 const HealthcareRouter_1 = __importDefault(require("./Routes/HealthcareRouter"));
 const IntegrationRouter_1 = __importDefault(require("./Routes/IntegrationRouter"));
 dotenv_1.default.config();
@@ -277,7 +279,9 @@ app.use("/api/v1/healthcare", healthcareLimiter, HealthcareRouter_1.default);
 // SaaS → Healthtech integration (Health ID lookup, etc.)
 app.use("/api/v1/integrations", healthcareLimiter, IntegrationRouter_1.default);
 // Admin
+app.use("/api/v1/cms", CmsRouter_1.default);
 app.use("/api/v1/admin", AdminRouter_1.default);
+app.use("/api/v1/admin/cms", AdminCmsRouter_1.default);
 app.get("/", (_req, res) => {
     res.send("Daryeel Healthtech API");
 });

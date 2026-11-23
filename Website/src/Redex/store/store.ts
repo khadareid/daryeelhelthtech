@@ -14,6 +14,7 @@ import { healthApi } from "../service/health/HealthApi"
 import { careApi } from "../service/care/CareApi"
 import { healthcareApi } from "../service/healthcare/HealthcareApi"
 import { securityApi } from "../service/security/SecurityApi"
+import { cmsApi } from "../service/cms/CmsApi"
 
 export const store = configureStore({
   reducer: {
@@ -32,6 +33,7 @@ export const store = configureStore({
     [careApi.reducerPath]: careApi.reducer,
     [healthcareApi.reducerPath]: healthcareApi.reducer,
     [securityApi.reducerPath]: securityApi.reducer,
+    [cmsApi.reducerPath]: cmsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -47,7 +49,8 @@ export const store = configureStore({
       healthApi.middleware,
       careApi.middleware,
       healthcareApi.middleware,
-      securityApi.middleware
+      securityApi.middleware,
+      cmsApi.middleware
     ),
 })
 

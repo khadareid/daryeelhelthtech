@@ -1,5 +1,6 @@
 import axios from "axios"
 import { env } from "@/config/env"
+import { readAuthItem } from "@/lib/authStorage"
 import { store } from "@/Redex/store/store"
 import { logout, updateTokens } from "@/Redex/service/auth/Userinfo"
 
@@ -26,7 +27,8 @@ axiosInstance.interceptors.request.use(async (config) => {
       let refreshToken = state?.userInfo?.refreshToken
 
       if (!refreshToken) {
-        refreshToken = JSON.parse(localStorage.getItem("userInfo")!)?.refreshToken
+        const raw = readAuthItem("userInfo")
+        refreshToken = raw ? JSON.parse(raw)?.refreshToken : undefined
       }
 
       if (!refreshToken || isTokenExpired(refreshToken)) {

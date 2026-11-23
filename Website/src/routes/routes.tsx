@@ -15,6 +15,13 @@ import HealthcareBookingPage from "@/features/Main/public/HealthcareBookingPage"
 import HealthcareDoctorsPage from "@/features/Main/public/HealthcareDoctorsPage"
 import PrivacyPage from "@/features/Main/public/PrivacyPage"
 import TermsPage from "@/features/Main/public/TermsPage"
+import AboutPage from "@/features/Main/public/AboutPage"
+import TrainingPage from "@/features/Main/public/TrainingPage"
+import EventsPage from "@/features/Main/public/EventsPage"
+import InsightsPage from "@/features/Main/public/InsightsPage"
+import CmsListDetailPage from "@/features/Main/public/CmsListDetailPage"
+import ContactPage from "@/features/Main/public/ContactPage"
+import CarePage from "@/features/Main/public/CarePage"
 import SignInPage from "@/pages/auth/SignIn"
 import RegisterPage from "@/pages/auth/Register"
 import GoogleCallbackHandler from "@/pages/auth/AuthCallback"
@@ -34,6 +41,8 @@ import AdminAppointments from "@/pages/admin/AdminAppointments"
 import AdminPayments from "@/pages/admin/AdminPayments"
 import AdminAudits from "@/pages/admin/AdminAudits"
 import AdminSettings from "@/pages/admin/AdminSettings"
+import AdminCms from "@/pages/admin/AdminCms"
+import AdminNotifications from "@/pages/admin/AdminNotifications"
 
 const PublicShell = () => (
   <div className="flex min-h-screen flex-col">
@@ -66,6 +75,26 @@ export const router = createBrowserRouter(
         { path: "doctors/:doctorId", element: <DoctorDetailPage /> },
         { path: "signin", element: <SignInPage /> },
         { path: "SignUp", element: <RegisterPage /> },
+        { path: "about", element: <AboutPage /> },
+        { path: "about/management-staff", element: <AboutPage /> },
+        { path: "about/team", element: <AboutPage /> },
+        { path: "care", element: <CarePage /> },
+        { path: "training", element: <TrainingPage /> },
+        {
+          path: "training/:itemSlug",
+          element: <CmsListDetailPage kind="training" />,
+        },
+        { path: "events", element: <EventsPage /> },
+        {
+          path: "events/:itemSlug",
+          element: <CmsListDetailPage kind="events" />,
+        },
+        { path: "insights", element: <InsightsPage /> },
+        {
+          path: "insights/:itemSlug",
+          element: <CmsListDetailPage kind="insights" />,
+        },
+        { path: "contact", element: <ContactPage /> },
         { path: "privacy", element: <PrivacyPage /> },
         { path: "terms", element: <TermsPage /> },
         { path: "*", element: <NotFoundPage /> },
@@ -79,15 +108,16 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <Navigate to="dashboard" replace /> },
         { path: "dashboard", element: <AdminDashboard /> },
+        { path: "notifications", element: <AdminNotifications /> },
         { path: "users", element: <AdminUsers /> },
         { path: "doctors", element: <AdminDoctors /> },
         { path: "appointments", element: <AdminAppointments /> },
         { path: "payments", element: <AdminPayments /> },
         { path: "audits", element: <AdminAudits /> },
         { path: "settings", element: <AdminSettings /> },
+        { path: "cms", element: <AdminCms /> },
         { path: "plans", element: <Navigate to="/admin/dashboard" replace /> },
         { path: "subscriptions", element: <Navigate to="/admin/dashboard" replace /> },
-        { path: "cms", element: <Navigate to="/admin/dashboard" replace /> },
         { path: "tenants", element: <Navigate to="/admin/dashboard" replace /> },
       ],
     },
