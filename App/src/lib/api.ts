@@ -1559,3 +1559,108 @@ export async function respondHospitalPatientRequest(
   if (!row) throw new Error(data.message || 'Could not respond to request');
   return row;
 }
+
+// ======================================================
+// CMS — public view only (no admin mutations in the App)
+// ======================================================
+
+export type CmsHighlight = { title: string; description?: string };
+
+export type CmsListStat = { value: string; label: string };
+export type CmsListItem = {
+  id?: string;
+  slug?: string;
+  title: string;
+  meta?: string;
+  description?: string;
+  content?: string;
+  image?: string;
+  tag?: string;
+  points?: string[];
+};
+export type CmsListBody = {
+  stats?: CmsListStat[];
+  items?: CmsListItem[];
+};
+
+export type CmsPage = {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle?: string | null;
+  summary?: string | null;
+  heroImageUrl?: string | null;
+  body?: CmsListBody | null;
+  highlights?: CmsHighlight[] | null;
+  quote?: { text: string; author?: string; role?: string } | null;
+  cta?: {
+    title: string;
+    description?: string;
+    primaryLabel?: string;
+    primaryHref?: string;
+  } | null;
+  status: string;
+};
+
+export type CmsTeamMember = {
+  id: string;
+  slug: string;
+  fullName: string;
+  title: string;
+  department?: string | null;
+  category: string;
+  bio?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  photoUrl?: string | null;
+  expertise: string[];
+  education?: string | null;
+  yearsExperience?: number | null;
+  sortOrder: number;
+  isPublished: boolean;
+  isFeatured: boolean;
+};
+
+export type CmsBundle = {
+  branding: {
+    name: string;
+    appName: string;
+    tagline: string;
+    description: string;
+    url: string;
+    supportEmail: string;
+    supportPhone: string;
+    location: string;
+  };
+  pages: CmsPage[];
+  leadershipPage: CmsPage | null;
+  team: {
+    members: CmsTeamMember[];
+    groups: Partial<Record<string, CmsTeamMember[]>>;
+    counts: Record<string, number>;
+  };
+};
+
+/** Public CMS bundle for mobile view screens only. */
+export async function getCmsBundleRequest(): Promise<CmsBundle> {
+  const data = await apiRequest<ApiSuccess<CmsBundle>>('/cms/bundle', {
+    method: 'GET',
+    skipCsrf: true,
+  });
+  const row = unwrap(data);
+  if (!row) throw new Error(data.message || 'CMS content unavailable');
+  return row;
+}
+
+export async function getPublicTeamRequest() {
+  const data = await apiRequest<
+    ApiSuccess<{
+      members: CmsTeamMember[];
+      groups: Partial<Record<string, CmsTeamMember[]>>;
+      counts: Record<string, number>;
+    }>
+  >('/cms/team', { method: 'GET', skipCsrf: true });
+  const row = unwrap(data);
+  if (!row) throw new Error(data.message || 'Team unavailable');
+  return row;
+}

@@ -7,6 +7,7 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  Newspaper,
   RefreshCw,
   Search,
   Settings2,
@@ -20,19 +21,19 @@ import { siteConfig } from "@/config/site"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  useGetUnreadCountQuery,
-  useListNotificationsQuery,
-} from "@/Redex/service/notifications/NotificationsApi"
+import { AdminNotificationsPanel } from "@/components/admin/AdminNotificationsPanel"
+import { useGetUnreadCountQuery } from "@/Redex/service/notifications/NotificationsApi"
 import { useGetAdminStatsQuery } from "@/Redex/service/admin/AdminApi"
 import { enumLabel } from "@/lib/enums"
 
 const NAV = [
   { to: "/admin/dashboard", label: "Overview", icon: LayoutDashboard },
+  { to: "/admin/notifications", label: "Alerts", icon: Bell },
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/doctors", label: "Doctors", icon: Stethoscope },
   { to: "/admin/appointments", label: "Bookings", icon: CalendarCheck },
   { to: "/admin/payments", label: "Payments", icon: CreditCard },
+  { to: "/admin/cms", label: "CMS", icon: Newspaper },
   { to: "/admin/audits", label: "Audits", icon: FileText },
   { to: "/admin/settings", label: "Settings", icon: Settings2 },
 ]
@@ -62,10 +63,6 @@ export default function AdminLayout() {
     skip: !signedIn || !allowed,
   })
   const unread = unreadData?.unreadCount ?? 0
-  const { data: notifications = [] } = useListNotificationsQuery(
-    { limit: 8 },
-    { skip: !signedIn || !allowed || !notifOpen }
-  )
 
   useEffect(() => {
     if (!signedIn) {
@@ -152,47 +149,11 @@ export default function AdminLayout() {
                   </span>
                 ) : null}
               </Button>
-              {notifOpen ? (
-                <>
-                  <button
-                    type="button"
-                    className="fixed inset-0 z-40 cursor-default"
-                    aria-label="Close notifications"
-                    onClick={() => setNotifOpen(false)}
-                  />
-                  <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border border-blue-100 bg-white shadow-lg">
-                    <div className="border-b border-blue-50 px-3 py-2">
-                      <p className="text-xs font-semibold text-brand-dark">
-                        Notifications
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {unread} unread
-                      </p>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <p className="p-3 text-xs text-muted-foreground">
-                          No notifications.
-                        </p>
-                      ) : (
-                        notifications.map((n) => (
-                          <div
-                            key={n.id || n.notificationid}
-                            className="border-b border-blue-50 px-3 py-2.5 last:border-0"
-                          >
-                            <p className="text-xs font-semibold text-brand-dark">
-                              {n.title}
-                            </p>
-                            <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
-                              {n.body}
-                            </p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : null}
+              <AdminNotificationsPanel
+                open={notifOpen}
+                onClose={() => setNotifOpen(false)}
+                unread={unread}
+              />
             </div>
 
             <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-brand-light/40 py-1 pl-1 pr-2.5">

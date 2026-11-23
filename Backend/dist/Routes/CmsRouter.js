@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const CmsController_1 = require("../Controllers/CmsController");
+const router = (0, express_1.Router)();
+router.get("/bundle", CmsController_1.publicBundle);
+router.get("/settings", CmsController_1.publicSettings);
+router.get("/pages", CmsController_1.publicPages);
+router.get("/pages/:slug", CmsController_1.publicPage);
+router.get("/team", CmsController_1.publicTeam);
+exports.default = router;

@@ -2,13 +2,13 @@ export const siteConfig = {
   name: 'Daryeel',
   appName: 'Daryeel Health',
   tagline: 'Caafimaadkaaga, Gacantaada',
-  url: 'https://daryeel.so',
+  url: 'https://www.daryeelhealth.com',
   description:
-    'Multi-tenant digital health platform for Somaliland and East Africa.',
+    'Multi-tenant digital health platform connecting patients, providers, hospitals, labs, and pharmacies across Somaliland and East Africa.',
   supportEmail: 'info@daryeel.com',
-  supportPhone: '+25261000000',
-  supportPhoneDisplay: '+252 61 000 000',
-  locations: 'Gabiley & Hargeisa, Somaliland',
+  supportPhone: '+252634000100',
+  supportPhoneDisplay: '+252 63 400 0100',
+  locations: 'Hargeisa · Somaliland · East Africa',
   hospital: {
     name: 'Daryeel Care Network',
     city: 'Hargeisa & Gabiley',

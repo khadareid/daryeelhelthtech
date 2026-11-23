@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { env } from "@/config/env"
+import {
+  getRememberedEmail,
+  getRememberMe,
+  setRememberedEmail,
+  setRememberMe,
+} from "@/lib/authStorage"
 import { clearCsrfToken, ensureCsrfToken } from "@/lib/csrf"
 import { setUser } from "@/Redex/service/auth/Userinfo"
 import { AppDispatch } from "@/Redex/store/store"
@@ -39,8 +45,11 @@ export default function SignInPage() {
   const prefill =
     (location.state as { email?: string; password?: string } | null) || {}
 
-  const [email, setEmail] = useState(prefill.email ?? "")
+  const [email, setEmail] = useState(
+    () => prefill.email ?? getRememberedEmail()
+  )
   const [password, setPassword] = useState(prefill.password ?? "")
+  const [rememberMe, setRememberMeChecked] = useState(() => getRememberMe())
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +64,11 @@ export default function SignInPage() {
     setError(null)
 
     try {
+      // Must set before setUser so tokens go to the right storage
+      setRememberMe(rememberMe)
+      if (rememberMe) setRememberedEmail(email.trim())
+      else setRememberedEmail(null)
+
       const postLogin = async (forceCsrf = false) => {
         const csrf = await ensureCsrfToken(forceCsrf)
         return axios.post<LoginResponse>(
@@ -103,9 +117,14 @@ export default function SignInPage() {
         })
       )
 
-      setSuccess("Signed in. Redirecting…")
+      setSuccess(
+        rememberMe
+          ? "Signed in. We’ll remember you on this device…"
+          : "Signed in. Redirecting…"
+      )
       const next =
-        String(user.role || "").toUpperCase() === "SUPER_ADMIN"
+        String(user.role || "").toUpperCase() === "SUPER_ADMIN" ||
+        String(user.role || "").toUpperCase() === "ADMIN"
           ? "/admin"
           : "/dashboard"
       setTimeout(() => navigate(next), 400)
@@ -206,6 +225,26 @@ export default function SignInPage() {
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor="remember-me"
+            className="flex cursor-pointer items-center gap-2 text-sm text-brand-dark"
+          >
+            <input
+              id="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMeChecked(e.target.checked)}
+              disabled={isLoading}
+              className="h-4 w-4 rounded border-blue-200 text-primary accent-primary focus:ring-primary"
+            />
+            <span className="font-medium">Remember me</span>
+          </label>
+          <span className="text-xs text-muted-foreground">
+            {rememberMe ? "Stay signed in on this device" : "Sign out when browser closes"}
+          </span>
         </div>
 
         <Button type="submit" className="h-11 w-full" disabled={isLoading}>

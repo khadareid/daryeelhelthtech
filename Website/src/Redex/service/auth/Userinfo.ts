@@ -2,6 +2,11 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import axios from "axios";
 import { env } from "@/config/env";
+import {
+  clearAuthItems,
+  readAuthItem,
+  writeAuthItem,
+} from "@/lib/authStorage";
 
 /* ==================================================================
    TYPES
@@ -56,8 +61,7 @@ const EMPTY_STATE: UserInfoState = {
   hydrating: false,
 };
 
-const storedUserInfo =
-  typeof window !== "undefined" ? localStorage.getItem("userInfo") : null;
+const storedUserInfo = readAuthItem("userInfo");
 
 const initialState: UserInfoState = storedUserInfo
   ? {
@@ -85,12 +89,12 @@ const userInfo = createSlice({
         isAuthenticated: true,
         hydrating: false,
       });
-      localStorage.setItem("userInfo", JSON.stringify(state));
+      writeAuthItem("userInfo", JSON.stringify(state));
       if (action.payload.accessToken) {
-        localStorage.setItem("accessToken", action.payload.accessToken);
+        writeAuthItem("accessToken", action.payload.accessToken);
       }
       if (action.payload.refreshToken) {
-        localStorage.setItem("refreshToken", action.payload.refreshToken);
+        writeAuthItem("refreshToken", action.payload.refreshToken);
       }
     },
 
@@ -101,15 +105,15 @@ const userInfo = createSlice({
     ) => {
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
-      localStorage.setItem("userInfo", JSON.stringify(state));
-      localStorage.setItem("accessToken", action.payload.accessToken);
-      localStorage.setItem("refreshToken", action.payload.refreshToken);
+      writeAuthItem("userInfo", JSON.stringify(state));
+      writeAuthItem("accessToken", action.payload.accessToken);
+      writeAuthItem("refreshToken", action.payload.refreshToken);
     },
 
     /* ---------- UPDATE PROFILE (after profile edit) ---------- */
     updateUser: (state, action: PayloadAction<Partial<UserInfoState>>) => {
       Object.assign(state, action.payload);
-      localStorage.setItem("userInfo", JSON.stringify(state));
+      writeAuthItem("userInfo", JSON.stringify(state));
     },
 
     /* ---------- LOGOUT ---------- */
@@ -128,9 +132,7 @@ const userInfo = createSlice({
           });
       }
 
-      localStorage.removeItem("userInfo");
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
+      clearAuthItems();
 
       // reset state; keep hydrating:false so guards don't spin forever
       Object.assign(state, EMPTY_STATE, { hydrating: false });

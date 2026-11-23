@@ -59,6 +59,12 @@ const MENU: { id: string; label: string; href: Href }[] = [
   { id: 'emergency', label: 'Emergency', href: '/health/emergency-card' },
   { id: 'notifications', label: 'Alerts', href: '/(tabs)/notifications' },
   { id: 'doctors', label: 'Doctors', href: '/(tabs)/doctors' },
+  /** Public info — open About hub, then shift to full pages */
+  { id: 'about', label: 'About', href: '/about' as Href },
+  { id: 'training', label: 'Training', href: '/about/training' as Href },
+  { id: 'events', label: 'Events', href: '/about/events' as Href },
+  { id: 'insights', label: 'Insights', href: '/about/insights' as Href },
+  { id: 'contact', label: 'Contact', href: '/about/contact' as Href },
 ];
 
 type Tab = 'account' | 'security';

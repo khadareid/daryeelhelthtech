@@ -21,6 +21,7 @@ import { CATEGORIES } from '@/constants/content';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useDoctors } from '@/hooks/use-doctors';
+import { useResponsive } from '@/hooks/use-responsive';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getTodayHealthLog,
@@ -51,6 +52,57 @@ type CareTool = {
 };
 
 /** Mirrors Website CareHome services — compact icon tiles */
+const EXPLORE_LINKS: {
+  id: string;
+  title: string;
+  desc: string;
+  href: Href;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
+  {
+    id: 'about',
+    title: 'About',
+    desc: 'Story, mission & team',
+    href: '/about' as Href,
+    icon: 'information-circle-outline',
+  },
+  {
+    id: 'training',
+    title: 'Training',
+    desc: 'Programmes & capacity',
+    href: '/about/training' as Href,
+    icon: 'school-outline',
+  },
+  {
+    id: 'events',
+    title: 'Events',
+    desc: 'Workshops & open days',
+    href: '/about/events' as Href,
+    icon: 'calendar-outline',
+  },
+  {
+    id: 'insights',
+    title: 'Insights',
+    desc: 'Guides & stories',
+    href: '/about/insights' as Href,
+    icon: 'newspaper-outline',
+  },
+  {
+    id: 'hospitals',
+    title: 'Hospitals',
+    desc: 'Partner facilities',
+    href: '/healthcare',
+    icon: 'business-outline',
+  },
+  {
+    id: 'doctors',
+    title: 'Doctors',
+    desc: 'Book a clinician',
+    href: '/(tabs)/doctors',
+    icon: 'medkit-outline',
+  },
+];
+
 const CARE_TOOLS: CareTool[] = [
   {
     id: 'doctors',
@@ -143,6 +195,13 @@ const CARE_TOOLS: CareTool[] = [
     href: '/(tabs)/notifications',
     icon: 'notifications-outline',
   },
+  {
+    id: 'about',
+    title: 'About',
+    desc: 'Team & more',
+    href: '/about' as Href,
+    icon: 'information-circle-outline',
+  },
 ];
 
 function greetingForNow() {
@@ -163,6 +222,7 @@ function progress(value: number, goal: number) {
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const responsive = useResponsive();
   const { user, profile, accessToken, refreshProfile, apiOnline } = useAuth();
   const { doctors, refresh, loading: doctorsLoading } = useDoctors();
   const [todayLog, setTodayLog] = useState<TodayLog | null>(null);
@@ -368,8 +428,10 @@ export default function HomeScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.promo}>
-        <Text style={styles.promoTitle}>Better care, closer to home</Text>
-        <Text style={styles.promoText}>
+        <Text style={[styles.promoTitle, { fontSize: responsive.titleSize }]}>
+          Better care, closer to home
+        </Text>
+        <Text style={[styles.promoText, { fontSize: responsive.bodySize }]}>
           Book clinicians, track daily wellness, and keep your medical record in
           one place.
         </Text>
@@ -380,6 +442,56 @@ export default function HomeScreen() {
           onPress={() => router.push('/(tabs)/doctors')}
         />
       </LinearGradient>
+
+      <SectionHeader
+        title="Explore Daryeel"
+        action="About"
+        onAction={() => router.push('/about' as Href)}
+        theme={theme}
+      />
+      <Text style={[styles.careSub, { color: theme.textSecondary }]}>
+        About, Training, Events, Insights — adapts to your screen
+      </Text>
+      <View
+        style={[
+          styles.exploreGrid,
+          { gap: responsive.gap },
+        ]}>
+        {EXPLORE_LINKS.map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={() => router.push(item.href)}
+            style={[
+              styles.exploreCard,
+              {
+                width:
+                  (responsive.width -
+                    32 -
+                    responsive.gap * (responsive.exploreColumns - 1)) /
+                  responsive.exploreColumns,
+                backgroundColor: theme.backgroundElement,
+                borderColor: theme.border,
+              },
+            ]}>
+            <View style={styles.exploreIcon}>
+              <Ionicons name={item.icon} size={20} color={Brand.primary} />
+            </View>
+            <Text
+              style={[styles.exploreTitle, { color: theme.brandDark }]}
+              numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text
+              style={[styles.exploreDesc, { color: theme.textSecondary }]}
+              numberOfLines={2}>
+              {item.desc}
+            </Text>
+            <Text style={[styles.exploreOpen, { color: theme.primary }]}>
+              Open →
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
       <SectionHeader
         title="Activity"
@@ -631,8 +743,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
-  hello: { fontFamily: Fonts.bold, fontSize: 20 },
-  ready: { fontFamily: Fonts.regular, fontSize: 13 },
+  hello: { fontFamily: Fonts.bold, fontSize: 20, flexShrink: 1 },
+  ready: { fontFamily: Fonts.regular, fontSize: 13, flexShrink: 1 },
+  exploreGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  exploreCard: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    padding: Spacing.three,
+    gap: 6,
+    minHeight: 118,
+  },
+  exploreIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Brand.light,
+  },
+  exploreTitle: { fontFamily: Fonts.bold, fontSize: 15 },
+  exploreDesc: { fontFamily: Fonts.regular, fontSize: 12, lineHeight: 16 },
+  exploreOpen: { marginTop: 2, fontFamily: Fonts.semibold, fontSize: 12 },
   patientIdRow: {
     marginTop: 2,
     flexDirection: 'row',

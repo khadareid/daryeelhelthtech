@@ -5,6 +5,7 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  Newspaper,
   Settings2,
   Stethoscope,
   Users,
@@ -46,6 +47,12 @@ const LINKS = [
     title: "Payments",
     desc: "Invoices, Zaad / eDahab, refunds",
     icon: CreditCard,
+  },
+  {
+    to: "/admin/cms",
+    title: "CMS",
+    desc: "Edit site info, team, and public pages",
+    icon: Newspaper,
   },
   {
     to: "/admin/audits",

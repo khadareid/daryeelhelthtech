@@ -1,5 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -13,13 +14,37 @@ import { Button } from '@/components/ui/button';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 
+const REMEMBER_EMAIL_KEY = 'daryeel_remember_email';
+const REMEMBER_FLAG_KEY = 'daryeel_remember_me';
+
 export default function SignInScreen() {
   const { login, signInGoogle, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [savedEmail, flag] = await Promise.all([
+          AsyncStorage.getItem(REMEMBER_EMAIL_KEY),
+          AsyncStorage.getItem(REMEMBER_FLAG_KEY),
+        ]);
+        if (!alive) return;
+        if (flag === '0') setRememberMe(false);
+        if (savedEmail) setEmail(savedEmail);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   if (isAuthenticated) {
     return <Redirect href="/(tabs)" />;
@@ -32,6 +57,12 @@ export default function SignInScreen() {
     }
     try {
       setLoading(true);
+      await AsyncStorage.setItem(REMEMBER_FLAG_KEY, rememberMe ? '1' : '0');
+      if (rememberMe) {
+        await AsyncStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+      } else {
+        await AsyncStorage.removeItem(REMEMBER_EMAIL_KEY);
+      }
       await login(email, password);
       router.replace('/(tabs)');
     } catch (error) {
@@ -82,9 +113,22 @@ export default function SignInScreen() {
         }
       />
 
-      <Pressable style={styles.forgotWrap}>
-        <Text style={styles.forgot}>Forget password?</Text>
-      </Pressable>
+      <View style={styles.rememberRow}>
+        <Pressable
+          style={styles.rememberLeft}
+          onPress={() => setRememberMe((v) => !v)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: rememberMe }}
+        >
+          <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
+            {rememberMe ? <Text style={styles.checkMark}>✓</Text> : null}
+          </View>
+          <Text style={styles.rememberText}>Remember me</Text>
+        </Pressable>
+        <Pressable style={styles.forgotWrap}>
+          <Text style={styles.forgot}>Forget password?</Text>
+        </Pressable>
+      </View>
 
       <Button title="Login" loading={loading} onPress={onLogin} />
 
@@ -121,6 +165,42 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 12,
     color: Brand.primary,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  rememberLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: Brand.border,
+    backgroundColor: Brand.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: {
+    backgroundColor: Brand.primary,
+    borderColor: Brand.primary,
+  },
+  checkMark: {
+    color: Brand.white,
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    lineHeight: 14,
+  },
+  rememberText: {
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+    color: Brand.dark,
   },
   forgotWrap: {
     alignSelf: 'flex-end',

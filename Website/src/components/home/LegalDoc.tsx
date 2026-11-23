@@ -34,7 +34,7 @@ export function LegalDoc({
             <Link to={otherTo} className="font-semibold text-primary hover:underline">
               {otherLabel}
             </Link>
-            <Link to="/#contact" className="text-muted-foreground hover:text-primary">
+            <Link to="/contact" className="text-muted-foreground hover:text-primary">
               Contact
             </Link>
           </div>

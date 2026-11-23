@@ -8,9 +8,12 @@ export const publicNav: NavItem[] = [
   { title: "Home", href: "/" },
   { title: "Hospitals", href: "/hospitals" },
   { title: "Doctors", href: "/doctors" },
-  { title: "Services", href: "/#services" },
-  { title: "How it works", href: "/#how-it-works" },
-  { title: "Contact", href: "/#contact" },
+  { title: "About", href: "/about" },
+  { title: "Care", href: "/care" },
+  { title: "Training", href: "/training" },
+  { title: "Events", href: "/events" },
+  { title: "Insights", href: "/insights" },
+  { title: "Contact", href: "/contact" },
 ]
 
 export const dashboardNav: NavItem[] = [
@@ -37,8 +40,10 @@ export const dashboardNav: NavItem[] = [
 
 export const adminNav: NavItem[] = [
   { title: "Dashboard", href: "/admin/dashboard" },
+  { title: "Alerts", href: "/admin/notifications" },
   { title: "Users", href: "/admin/users" },
   { title: "Doctors", href: "/admin/doctors" },
+  { title: "CMS", href: "/admin/cms" },
   { title: "Audits", href: "/admin/audits" },
   { title: "Settings", href: "/admin/settings" },
 ]

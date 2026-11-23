@@ -36,13 +36,26 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  html {
+    @apply overflow-x-hidden scroll-smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-brand-bg text-brand-text antialiased;
+    @apply overflow-x-hidden bg-brand-bg text-brand-text antialiased;
     font-family: Inter, system-ui, sans-serif;
+  }
+
+  /* Responsive media — fluid across phones, tablets, desktops */
+  img,
+  video,
+  canvas {
+    max-width: 100%;
   }
 
   h1,
@@ -67,7 +80,18 @@
 @layer utilities {
   /* Mobile-first page shell — tighten padding on phones, widen on lg */
   .container-page {
-    @apply mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8;
+    @apply mx-auto w-full max-w-7xl px-3 sm:px-5 md:px-6 lg:px-8;
+  }
+
+  /* Fluid type helpers for marketing sections */
+  .text-fluid-xl {
+    font-size: clamp(1.35rem, 1.1rem + 1.2vw, 1.875rem);
+  }
+  .text-fluid-2xl {
+    font-size: clamp(1.5rem, 1.15rem + 1.8vw, 2.25rem);
+  }
+  .text-fluid-hero {
+    font-size: clamp(1.75rem, 1.2rem + 3vw, 3.75rem);
   }
 
   /* Hide scrollbars on horizontal snap rows (hospitals, chips) */
