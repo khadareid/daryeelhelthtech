@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 
-import { Screen } from '@/components/screen';
+import { Screen, SCREEN_SCROLL_BOTTOM } from '@/components/screen';
 import { siteConfig } from '@/config/site';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useResponsive } from '@/hooks/use-responsive';
@@ -37,6 +37,33 @@ const VALUES = [
   {
     title: 'Partnership',
     text: 'A trusted care network that grows.',
+  },
+];
+
+const LINKS = [
+  {
+    id: 'training',
+    label: 'Training',
+    icon: 'school-outline' as const,
+    href: '/about/training' as Href,
+  },
+  {
+    id: 'events',
+    label: 'Events',
+    icon: 'calendar-outline' as const,
+    href: '/about/events' as Href,
+  },
+  {
+    id: 'insights',
+    label: 'Insights',
+    icon: 'newspaper-outline' as const,
+    href: '/about/insights' as Href,
+  },
+  {
+    id: 'contact',
+    label: 'Contact',
+    icon: 'call-outline' as const,
+    href: '/about/contact' as Href,
   },
 ];
 
@@ -93,6 +120,18 @@ export default function AboutIndexScreen() {
   const groups = bundle?.team?.groups || {};
   const branding = bundle?.branding;
 
+  const cols = responsive.gridColumns;
+  const gap = responsive.gap;
+  const cardW =
+    cols === 1
+      ? '100%'
+      : (responsive.contentWidth - gap * (cols - 1)) / cols;
+  const missionCols = responsive.isPhone ? 1 : 2;
+  const missionW =
+    missionCols === 1
+      ? '100%'
+      : (responsive.contentWidth - gap) / 2;
+
   return (
     <Screen
       headerTitle="About"
@@ -100,7 +139,9 @@ export default function AboutIndexScreen() {
       scroll={false}
     >
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -131,20 +172,12 @@ export default function AboutIndexScreen() {
               {about?.subtitle ||
                 'Discover the story, mission, and people behind Daryeel Health'}
             </Text>
-            <Pressable
-              style={styles.heroBtn}
-              onPress={() => {
-                /* scroll target simulated via team section below */
-              }}
-            >
-              <Text style={styles.heroBtnText}>Team below ↓</Text>
-            </Pressable>
           </View>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Our story</Text>
-          <Text style={styles.body}>
+          <Text style={[styles.body, { fontSize: responsive.bodySize }]}>
             {about?.summary ||
               branding?.description ||
               siteConfig.description}
@@ -155,55 +188,49 @@ export default function AboutIndexScreen() {
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Vision & Mission</Text>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Our Vision</Text>
-          <Text style={styles.body}>
-            A Somaliland and East Africa where every family can access trusted
-            care through one connected digital health identity.
-          </Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Our Mission</Text>
-          <Text style={styles.body}>
-            Connect patients and providers with practical tools for records,
-            bookings, hospitals, and doctors — care that is easier to find and
-            trust.
-          </Text>
+        <Text style={[styles.sectionTitle, { fontSize: responsive.titleSize }]}>
+          Vision & Mission
+        </Text>
+        <View style={[styles.grid, { gap }]}>
+          <View style={[styles.card, { width: missionW as number | '100%' }]}>
+            <Text style={styles.cardTitle}>Our Vision</Text>
+            <Text style={[styles.body, { fontSize: responsive.bodySize }]}>
+              A Somaliland and East Africa where every family can access trusted
+              care through one connected digital health identity.
+            </Text>
+          </View>
+          <View style={[styles.card, { width: missionW as number | '100%' }]}>
+            <Text style={styles.cardTitle}>Our Mission</Text>
+            <Text style={[styles.body, { fontSize: responsive.bodySize }]}>
+              Connect patients and providers with practical tools for records,
+              bookings, hospitals, and doctors — care that is easier to find and
+              trust.
+            </Text>
+          </View>
         </View>
 
         <Text style={[styles.sectionTitle, { fontSize: responsive.titleSize }]}>
           Core values
         </Text>
-        <View style={[styles.valueGrid, { gap: responsive.gap }]}>
-          {VALUES.map((v) => {
-            const cols = Math.min(responsive.columns, 2);
-            const w =
-              cols === 1
-                ? '100%'
-                : (responsive.width - 32 - responsive.gap) / cols;
-            return (
-              <View
-                key={v.title}
-                style={[
-                  styles.valueCard,
-                  { width: w, maxWidth: '100%' },
-                ]}>
-                <Text style={styles.cardTitle}>{v.title}</Text>
-                <Text style={[styles.body, { fontSize: responsive.bodySize }]}>
-                  {v.text}
-                </Text>
-              </View>
-            );
-          })}
+        <View style={[styles.grid, { gap }]}>
+          {VALUES.map((v) => (
+            <View
+              key={v.title}
+              style={[styles.valueCard, { width: cardW as number | '100%' }]}>
+              <Text style={styles.cardTitle}>{v.title}</Text>
+              <Text style={[styles.body, { fontSize: responsive.bodySize }]}>
+                {v.text}
+              </Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.teamHeader}>
           <Text style={styles.sectionLabel}>Management & Staff</Text>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, { fontSize: responsive.titleSize }]}>
             {teamPage?.title || 'Our Dedicated Team'}
           </Text>
-          <Text style={styles.body}>
+          <Text style={[styles.body, { fontSize: responsive.bodySize }]}>
             {teamPage?.summary ||
               'Passionate professionals committed to connected healthcare.'}
           </Text>
@@ -217,65 +244,68 @@ export default function AboutIndexScreen() {
               <Text style={styles.teamSectionTitle}>
                 {SECTION_TITLES[key] || key}
               </Text>
-              {members.map((m) => (
-                <View key={m.id} style={styles.memberCard}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {initials(m.fullName)}
+              <View style={[styles.grid, { gap }]}>
+                {members.map((m) => (
+                  <View
+                    key={m.id}
+                    style={[
+                      styles.memberCard,
+                      { width: cardW as number | '100%' },
+                    ]}>
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>
+                        {initials(m.fullName)}
+                      </Text>
+                    </View>
+                    <Text style={styles.memberName} numberOfLines={2}>
+                      {m.fullName}
                     </Text>
-                  </View>
-                  <View style={styles.memberMeta}>
-                    <Text style={styles.memberName}>{m.fullName}</Text>
-                    <Text style={styles.memberRole}>{m.title}</Text>
+                    <Text style={styles.memberRole} numberOfLines={2}>
+                      {m.title}
+                    </Text>
                     {m.bio ? (
-                      <Text style={styles.body} numberOfLines={3}>
+                      <Text
+                        style={[styles.body, { fontSize: responsive.bodySize }]}
+                        numberOfLines={3}>
                         {m.bio}
                       </Text>
                     ) : null}
                   </View>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
           );
         })}
 
-        <Pressable
-          style={styles.linkCard}
-          onPress={() => router.push('/about/training' as Href)}
-        >
-          <Ionicons name="school-outline" size={18} color={Brand.primary} />
-          <Text style={styles.linkText}>Training</Text>
-        </Pressable>
-        <Pressable
-          style={styles.linkCard}
-          onPress={() => router.push('/about/events' as Href)}
-        >
-          <Ionicons name="calendar-outline" size={18} color={Brand.primary} />
-          <Text style={styles.linkText}>Events</Text>
-        </Pressable>
-        <Pressable
-          style={styles.linkCard}
-          onPress={() => router.push('/about/insights' as Href)}
-        >
-          <Ionicons name="newspaper-outline" size={18} color={Brand.primary} />
-          <Text style={styles.linkText}>Insights</Text>
-        </Pressable>
-        <Pressable
-          style={styles.linkCard}
-          onPress={() => router.push('/about/contact' as Href)}
-        >
-          <Ionicons name="call-outline" size={18} color={Brand.primary} />
-          <Text style={styles.linkText}>Contact</Text>
-        </Pressable>
+        <Text style={[styles.sectionTitle, { fontSize: responsive.titleSize }]}>
+          Explore more
+        </Text>
+        <View style={[styles.grid, { gap }]}>
+          {LINKS.map((link) => (
+            <Pressable
+              key={link.id}
+              style={({ pressed }) => [
+                styles.linkCard,
+                { width: cardW as number | '100%' },
+                pressed && { opacity: 0.9 },
+              ]}
+              onPress={() => router.push(link.href)}>
+              <Ionicons name={link.icon} size={18} color={Brand.primary} />
+              <Text style={styles.linkText}>{link.label}</Text>
+            </Pressable>
+          ))}
+        </View>
       </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1 },
   scroll: {
-    paddingBottom: Spacing.five,
+    paddingBottom: SCREEN_SCROLL_BOTTOM,
     gap: Spacing.three,
+    flexGrow: 1,
   },
   heroWrap: {
     borderRadius: Radius.lg,
@@ -306,19 +336,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 14,
     lineHeight: 20,
-  },
-  heroBtn: {
-    marginTop: 12,
-    alignSelf: 'flex-start',
-    backgroundColor: Brand.white,
-    borderRadius: Radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  heroBtnText: {
-    color: Brand.primary,
-    fontFamily: Fonts.semibold,
-    fontSize: 13,
   },
   card: {
     backgroundColor: Brand.white,
@@ -356,14 +373,12 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semibold,
     fontSize: 13,
   },
-  valueGrid: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.two,
   },
   valueCard: {
-    width: '48%',
-    flexGrow: 1,
     backgroundColor: Brand.white,
     borderRadius: Radius.md,
     borderWidth: 1,
@@ -379,13 +394,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   memberCard: {
-    flexDirection: 'row',
-    gap: Spacing.three,
     backgroundColor: Brand.white,
     borderRadius: Radius.lg,
     borderWidth: 1,
     borderColor: Brand.border,
     padding: Spacing.three,
+    gap: 6,
+    alignItems: 'flex-start',
   },
   avatar: {
     width: 48,
@@ -400,7 +415,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 14,
   },
-  memberMeta: { flex: 1, gap: 2 },
   memberName: {
     color: Brand.dark,
     fontFamily: Fonts.bold,

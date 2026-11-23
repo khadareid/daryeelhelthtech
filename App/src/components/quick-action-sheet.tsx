@@ -101,7 +101,15 @@ const ACTIONS: {
     icon: 'business',
     color: Brand.primary,
     bg: Brand.light,
-    href: '/healthcare',
+    href: '/(tabs)/hospitals',
+  },
+  {
+    id: 'doctors',
+    title: 'Daryeel doctors',
+    icon: 'medkit',
+    color: '#0B3D91',
+    bg: Brand.light,
+    href: '/(tabs)/doctors',
   },
   {
     id: 'emergency',

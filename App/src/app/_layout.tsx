@@ -68,7 +68,10 @@ function RootNavigation() {
         />
         <Stack.Screen
           name="healthcare/index"
-          options={stackHeader(theme, 'Hospitals')}
+          options={{
+            ...stackHeader(theme, 'Hospitals'),
+            headerShown: false,
+          }}
         />
         <Stack.Screen
           name="healthcare/[id]"
@@ -119,39 +122,42 @@ function RootNavigation() {
           options={stackHeader(theme, 'Steps')}
         />
 
-        {/* About / marketing — full screens with Back */}
-        <Stack.Screen name="about/index" options={stackHeader(theme, 'About')} />
+        {/* About / marketing — AppHeader + PersistentTabBar (same chrome as Profile) */}
+        <Stack.Screen
+          name="about/index"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
         <Stack.Screen
           name="about/team"
-          options={stackHeader(theme, 'About')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about/training/index"
-          options={stackHeader(theme, 'Training')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about/training/[slug]"
-          options={stackHeader(theme, 'Programme')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about/events/index"
-          options={stackHeader(theme, 'Events')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about/events/[slug]"
-          options={stackHeader(theme, 'Event')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about/insights/index"
-          options={stackHeader(theme, 'Insights')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about/insights/[slug]"
-          options={stackHeader(theme, 'Article')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
         <Stack.Screen
           name="about/contact"
-          options={stackHeader(theme, 'Contact')}
+          options={{ headerShown: false, animation: 'slide_from_right' }}
         />
       </Stack>
     </>

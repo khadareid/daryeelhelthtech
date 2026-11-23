@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Brand, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { PersistentTabBar } from '@/components/persistent-tab-bar';
+import { SCREEN_SCROLL_BOTTOM } from '@/components/screen';
+import { Brand, Fonts, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Props = {
@@ -25,6 +27,8 @@ type Props = {
   contentStyle?: StyleProp<ViewStyle>;
   /** When false, hide custom header (use Expo Stack header instead). */
   showHeader?: boolean;
+  /** Override back action (e.g. always return Home). */
+  onBack?: () => void;
 };
 
 /**
@@ -40,6 +44,7 @@ export function StackScreen({
   footer,
   contentStyle,
   showHeader = true,
+  onBack,
 }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -59,7 +64,8 @@ export function StackScreen({
           <Pressable
             accessibilityLabel="Go back"
             onPress={() => {
-              if (router.canGoBack()) router.back();
+              if (onBack) onBack();
+              else if (router.canGoBack()) router.back();
               else router.replace('/(tabs)');
             }}
             style={[styles.backBtn, { borderColor: theme.border }]}>
@@ -90,9 +96,7 @@ export function StackScreen({
         contentContainerStyle={[
           styles.content,
           {
-            paddingBottom: footer
-              ? Spacing.four
-              : insets.bottom + Spacing.five,
+            paddingBottom: footer ? Spacing.four : SCREEN_SCROLL_BOTTOM,
           },
           contentStyle,
         ]}
@@ -114,7 +118,7 @@ export function StackScreen({
           style={[
             styles.footer,
             {
-              paddingBottom: Math.max(insets.bottom, 12),
+              paddingBottom: 12,
               backgroundColor: theme.backgroundElement,
               borderTopColor: theme.border,
             },
@@ -122,6 +126,8 @@ export function StackScreen({
           {footer}
         </View>
       ) : null}
+
+      <PersistentTabBar />
     </View>
   );
 }

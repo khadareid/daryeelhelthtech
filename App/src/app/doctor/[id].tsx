@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PersistentTabBar } from '@/components/persistent-tab-bar';
 import { DetailSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { siteConfig } from '@/config/site';
@@ -438,7 +439,7 @@ export default function DoctorDetailScreen() {
           styles.footer,
           {
             borderTopColor: theme.border,
-            paddingBottom: Math.max(insets.bottom, 12),
+            paddingBottom: 12,
             backgroundColor: theme.backgroundElement,
           },
         ]}>
@@ -493,6 +494,7 @@ export default function DoctorDetailScreen() {
           />
         </View>
       </View>
+      <PersistentTabBar />
     </View>
   );
 }

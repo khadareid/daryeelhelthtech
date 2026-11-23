@@ -2,6 +2,7 @@ import { Image, Linking, Pressable, Text, View } from 'react-native';
 
 import { InfoPage } from '@/components/info-page';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
+import { useResponsive } from '@/hooks/use-responsive';
 
 const CHANNELS = [
   {
@@ -22,6 +23,14 @@ const CHANNELS = [
 ];
 
 export default function ContactScreen() {
+  const responsive = useResponsive();
+  const cols = Math.min(responsive.gridColumns, 3);
+  const gap = responsive.gap;
+  const cardW =
+    cols === 1
+      ? ('100%' as const)
+      : (responsive.contentWidth - gap * (cols - 1)) / cols;
+
   return (
     <InfoPage headerTitle="Contact" headerSubtitle="We are here to help">
       <View style={styles.hero}>
@@ -29,12 +38,14 @@ export default function ContactScreen() {
           source={{
             uri: 'https://images.pexels.com/photos/7688336/pexels-photo-7688336.jpeg?auto=compress&cs=tinysrgb&w=1200',
           }}
-          style={styles.heroImage}
+          style={[styles.heroImage, { height: responsive.heroHeight }]}
         />
         <View style={styles.heroText}>
           <Text style={styles.eyebrow}>Get in touch</Text>
-          <Text style={styles.title}>Contact Daryeel</Text>
-          <Text style={styles.sub}>
+          <Text style={[styles.title, { fontSize: responsive.titleSize }]}>
+            Contact Daryeel
+          </Text>
+          <Text style={[styles.sub, { fontSize: responsive.bodySize }]}>
             Reach our team for partnerships, support, or general questions.
           </Text>
         </View>
@@ -49,23 +60,29 @@ export default function ContactScreen() {
         />
         <View style={styles.mapBody}>
           <Text style={styles.cardTitle}>Visit us</Text>
-          <Text style={styles.body}>
+          <Text style={[styles.body, { fontSize: responsive.bodySize }]}>
             Hargeisa, Somaliland — digital health for families and hospitals
             across the region.
           </Text>
         </View>
       </View>
 
-      {CHANNELS.map((c) => (
-        <Pressable
-          key={c.label}
-          onPress={() => Linking.openURL(c.href)}
-          style={({ pressed }) => [styles.channel, pressed && { opacity: 0.85 }]}
-        >
-          <Text style={styles.meta}>{c.label}</Text>
-          <Text style={styles.channelValue}>{c.value}</Text>
-        </Pressable>
-      ))}
+      <View style={[styles.grid, { gap }]}>
+        {CHANNELS.map((c) => (
+          <Pressable
+            key={c.label}
+            onPress={() => Linking.openURL(c.href)}
+            style={({ pressed }) => [
+              styles.channel,
+              { width: cardW },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.meta}>{c.label}</Text>
+            <Text style={styles.channelValue}>{c.value}</Text>
+          </Pressable>
+        ))}
+      </View>
     </InfoPage>
   );
 }
@@ -118,6 +135,10 @@ const styles = {
     fontFamily: Fonts.regular,
     fontSize: 13,
     lineHeight: 19,
+  },
+  grid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
   },
   channel: {
     backgroundColor: Brand.white,

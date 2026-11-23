@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Screen } from '@/components/screen';
+import { Screen, SCREEN_SCROLL_BOTTOM } from '@/components/screen';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 
 export function InfoHero({
@@ -51,15 +51,22 @@ export function InfoPage({
 }) {
   return (
     <Screen headerTitle={headerTitle} headerSubtitle={headerSubtitle} scroll={false}>
-      <ScrollView contentContainerStyle={styles.scroll}>{children}</ScrollView>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}>
+        {children}
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1 },
   scroll: {
-    paddingBottom: Spacing.five,
+    paddingBottom: SCREEN_SCROLL_BOTTOM,
     gap: Spacing.three,
+    flexGrow: 1,
   },
   hero: {
     backgroundColor: Brand.primary,

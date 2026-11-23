@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 
-import { Screen } from '@/components/screen';
+import { Screen, SCREEN_SCROLL_BOTTOM } from '@/components/screen';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { useResponsive } from '@/hooks/use-responsive';
 import { itemSlug, type CmsListBody } from '@/lib/cms-list';
@@ -61,18 +61,20 @@ export function CmsListScreen({
     });
   }, [items, query, tag]);
 
-  const listColumns = responsive.columns;
+  const listColumns = responsive.gridColumns;
   const cardWidth =
     listColumns === 1
       ? undefined
-      : (responsive.width -
-          32 -
+      : (responsive.contentWidth -
           responsive.gap * (listColumns - 1)) /
         listColumns;
 
   return (
     <Screen headerTitle={headerTitle} headerSubtitle={headerSubtitle} scroll={false}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Image
             source={{ uri: heroImage }}
@@ -226,7 +228,15 @@ export function CmsListDetailScreen({
   item?: CmsListItem | null;
   fallbackTitle: string;
 }) {
-  if (!item) {
+  if (item === undefined) {
+    return (
+      <Screen headerTitle={headerTitle} headerSubtitle="Loading">
+        <Text style={styles.body}>Loading…</Text>
+      </Screen>
+    );
+  }
+
+  if (item === null) {
     return (
       <Screen headerTitle={headerTitle} headerSubtitle="Not found">
         <Text style={styles.cardTitle}>{fallbackTitle}</Text>
@@ -241,8 +251,14 @@ export function CmsListDetailScreen({
     .filter(Boolean);
 
   return (
-    <Screen headerTitle={headerTitle} headerSubtitle={item.tag || item.meta || 'Details'}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <Screen
+      headerTitle={headerTitle}
+      headerSubtitle={item.tag || item.meta || 'Details'}
+      scroll={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}>
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.detailImage} />
         ) : null}
@@ -271,9 +287,11 @@ export function CmsListDetailScreen({
 export type { CmsListBody };
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1 },
   scroll: {
-    paddingBottom: Spacing.five,
+    paddingBottom: SCREEN_SCROLL_BOTTOM,
     gap: Spacing.three,
+    flexGrow: 1,
   },
   hero: {
     borderRadius: Radius.lg,

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -15,13 +16,14 @@ import { useAuth } from '@/context/auth-context';
 import { useThemePreference } from '@/context/theme-context';
 import { useTheme } from '@/hooks/use-theme';
 import { listNotificationsRequest } from '@/lib/api';
-import { useEffect, useState } from 'react';
 
 type Props = {
   title?: string;
   subtitle?: string;
   showBrand?: boolean;
   compact?: boolean;
+  /** Show back control on stack screens (About, Training, …). */
+  showBack?: boolean;
 };
 
 /** Full tab header — brand, page title, theme + alerts. Stays fixed (not scrolled away). */
@@ -30,6 +32,7 @@ export function AppHeader({
   subtitle,
   showBrand = true,
   compact = false,
+  showBack = false,
 }: Props) {
   const theme = useTheme();
   const { isDark, toggleTheme } = useThemePreference();
@@ -60,6 +63,24 @@ export function AppHeader({
         },
       ]}>
       <View style={[styles.row, isNarrow && styles.rowNarrow]}>
+        {showBack ? (
+          <Pressable
+            accessibilityLabel="Go back"
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace('/(tabs)');
+            }}
+            style={[
+              styles.backBtn,
+              {
+                backgroundColor: theme.backgroundSelected,
+                borderColor: theme.border,
+              },
+            ]}>
+            <Ionicons name="chevron-back" size={22} color={theme.primary} />
+          </Pressable>
+        ) : null}
+
         <View style={styles.brandBlock}>
           {showBrand ? (
             <View style={styles.logoRow}>
@@ -206,6 +227,14 @@ const styles = StyleSheet.create({
   standaloneTitle: {
     fontFamily: Fonts.bold,
     fontSize: 22,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actions: {
     flexDirection: 'row',

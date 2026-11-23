@@ -1,3 +1,4 @@
+import { useSegments } from 'expo-router';
 import {
   RefreshControl,
   ScrollView,
@@ -9,8 +10,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/app-header';
+import { PersistentTabBar } from '@/components/persistent-tab-bar';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+
+/** Extra space under scroll content so the last card clears the FAB / bar. */
+export const SCREEN_SCROLL_BOTTOM = Spacing.five + 8;
 
 type Props = {
   children: React.ReactNode;
@@ -37,24 +42,27 @@ export function Screen({
 }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const segments = useSegments();
+  const inTabs = segments[0] === '(tabs)';
+  /** Tab bar sits in layout (AppTabs or PersistentTabBar) — do not double-reserve ~130px. */
   const padding = {
     paddingTop: header ? Spacing.three : insets.top + Spacing.three,
-    paddingBottom: insets.bottom + 130,
-    paddingHorizontal: Spacing.four,
+    paddingBottom: SCREEN_SCROLL_BOTTOM,
+    paddingHorizontal: Spacing.three,
   };
 
   const body = (
-    <View style={styles.inner}>{children}</View>
+    <View style={[styles.inner, !scroll && styles.innerFill]}>{children}</View>
   );
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
-      {/* Header stays fixed — never scrolls away */}
       {header ? (
         <AppHeader
           title={headerTitle}
           subtitle={headerSubtitle}
           showBrand={showBrand}
+          showBack={!inTabs}
         />
       ) : null}
       {scroll ? (
@@ -77,10 +85,19 @@ export function Screen({
           {body}
         </ScrollView>
       ) : (
-        <View style={[styles.content, padding, contentStyle, { flex: 1 }]}>
+        <View
+          style={[
+            styles.fill,
+            {
+              paddingTop: padding.paddingTop,
+              paddingHorizontal: padding.paddingHorizontal,
+            },
+            contentStyle,
+          ]}>
           {body}
         </View>
       )}
+      {!inTabs ? <PersistentTabBar /> : null}
     </View>
   );
 }
@@ -92,12 +109,20 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
+  fill: {
+    flex: 1,
+    alignItems: 'center',
+  },
   content: {
     alignItems: 'center',
+    flexGrow: 1,
   },
   inner: {
     width: '100%',
     maxWidth: MaxContentWidth,
-    gap: Spacing.four,
+    gap: Spacing.three,
+  },
+  innerFill: {
+    flex: 1,
   },
 });

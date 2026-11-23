@@ -8,10 +8,11 @@ import {
   View,
 } from 'react-native';
 
-import { Screen } from '@/components/screen';
+import { Screen, SCREEN_SCROLL_BOTTOM } from '@/components/screen';
 import { CardListSkeleton } from '@/components/skeleton';
 import { Brand, Fonts, Radius, Spacing } from '@/constants/theme';
 import { siteConfig } from '@/config/site';
+import { useResponsive } from '@/hooks/use-responsive';
 import {
   getCmsBundleRequest,
   type CmsBundle,
@@ -47,25 +48,37 @@ function initials(name: string) {
     .slice(0, 2);
 }
 
-function MemberCard({ member }: { member: CmsTeamMember }) {
+function MemberCard({
+  member,
+  width,
+  bodySize,
+}: {
+  member: CmsTeamMember;
+  width: number | '100%';
+  bodySize: number;
+}) {
   return (
-    <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials(member.fullName)}</Text>
-        </View>
-        <View style={styles.cardMeta}>
-          <Text style={styles.name}>{member.fullName}</Text>
-          <Text style={styles.role}>{member.title}</Text>
-          {member.department ? (
-            <Text style={styles.dept}>{member.department}</Text>
-          ) : null}
-        </View>
+    <View style={[styles.card, { width }]}>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{initials(member.fullName)}</Text>
       </View>
-      {member.bio ? <Text style={styles.bio}>{member.bio}</Text> : null}
+      <Text style={styles.name} numberOfLines={2}>
+        {member.fullName}
+      </Text>
+      <Text style={styles.role} numberOfLines={2}>
+        {member.title}
+      </Text>
+      {member.department ? (
+        <Text style={styles.dept}>{member.department}</Text>
+      ) : null}
+      {member.bio ? (
+        <Text style={[styles.bio, { fontSize: bodySize }]} numberOfLines={3}>
+          {member.bio}
+        </Text>
+      ) : null}
       {member.expertise?.length ? (
         <View style={styles.tags}>
-          {member.expertise.map((tag) => (
+          {member.expertise.slice(0, 3).map((tag) => (
             <View key={tag} style={styles.tag}>
               <Text style={styles.tagText}>{tag}</Text>
             </View>
@@ -78,6 +91,7 @@ function MemberCard({ member }: { member: CmsTeamMember }) {
 
 /** View-only leadership & team screen — no CMS admin controls in the App. */
 export default function AboutTeamScreen() {
+  const responsive = useResponsive();
   const [bundle, setBundle] = useState<CmsBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -104,6 +118,18 @@ export default function AboutTeamScreen() {
   const groups = bundle?.team?.groups || {};
   const highlights = Array.isArray(page?.highlights) ? page!.highlights! : [];
 
+  const cols = responsive.gridColumns;
+  const gap = responsive.gap;
+  const cardW =
+    cols === 1
+      ? ('100%' as const)
+      : (responsive.contentWidth - gap * (cols - 1)) / cols;
+  const highlightCols = Math.min(cols, 3);
+  const highlightW =
+    highlightCols === 1
+      ? ('100%' as const)
+      : (responsive.contentWidth - gap * (highlightCols - 1)) / highlightCols;
+
   return (
     <Screen
       headerTitle="Our Team"
@@ -111,7 +137,9 @@ export default function AboutTeamScreen() {
       scroll={false}
     >
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -125,39 +153,34 @@ export default function AboutTeamScreen() {
       >
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>{siteConfig.appName}</Text>
-          <Text style={styles.heroTitle}>
+          <Text style={[styles.heroTitle, { fontSize: responsive.titleSize }]}>
             {page?.title || 'Meet Our Leadership & Team'}
           </Text>
-          <Text style={styles.heroSub}>
+          <Text style={[styles.heroSub, { fontSize: responsive.bodySize }]}>
             {page?.summary ||
               'Qualified professionals committed to serving the community with professionalism, integrity, and passion.'}
           </Text>
         </View>
 
-        {highlights.length ? (
-          <View style={styles.highlights}>
-            {highlights.map((h) => (
-              <View key={h.title} style={styles.highlight}>
-                <Text style={styles.highlightTitle}>{h.title}</Text>
-                {h.description ? (
-                  <Text style={styles.highlightDesc}>{h.description}</Text>
-                ) : null}
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.highlights}>
-            {[
-              'Qualified Professionals',
-              'Committed to Service',
-              'Excellence in Action',
-            ].map((title) => (
-              <View key={title} style={styles.highlight}>
-                <Text style={styles.highlightTitle}>{title}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        <View style={[styles.grid, { gap }]}>
+          {(highlights.length
+            ? highlights
+            : [
+                { title: 'Qualified Professionals', description: '' },
+                { title: 'Committed to Service', description: '' },
+                { title: 'Excellence in Action', description: '' },
+              ]
+          ).map((h) => (
+            <View
+              key={h.title}
+              style={[styles.highlight, { width: highlightW }]}>
+              <Text style={styles.highlightTitle}>{h.title}</Text>
+              {h.description ? (
+                <Text style={styles.highlightDesc}>{h.description}</Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
 
         {loading ? <CardListSkeleton rows={4} /> : null}
 
@@ -174,9 +197,16 @@ export default function AboutTeamScreen() {
             return (
               <View key={key} style={styles.section}>
                 <Text style={styles.sectionTitle}>{SECTION_TITLES[key]}</Text>
-                {members.map((m) => (
-                  <MemberCard key={m.id} member={m} />
-                ))}
+                <View style={[styles.grid, { gap }]}>
+                  {members.map((m) => (
+                    <MemberCard
+                      key={m.id}
+                      member={m}
+                      width={cardW}
+                      bodySize={responsive.bodySize}
+                    />
+                  ))}
+                </View>
               </View>
             );
           })}
@@ -186,9 +216,11 @@ export default function AboutTeamScreen() {
 }
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1 },
   scroll: {
-    paddingBottom: Spacing.five,
+    paddingBottom: SCREEN_SCROLL_BOTTOM,
     gap: Spacing.three,
+    flexGrow: 1,
   },
   hero: {
     backgroundColor: Brand.primary,
@@ -215,8 +247,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  highlights: {
-    gap: Spacing.two,
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   highlight: {
     backgroundColor: Brand.light,
@@ -251,11 +284,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Brand.border,
     padding: Spacing.three,
-    gap: Spacing.two,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    gap: Spacing.three,
+    gap: 6,
   },
   avatar: {
     width: 52,
@@ -270,19 +299,15 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 16,
   },
-  cardMeta: {
-    flex: 1,
-    gap: 2,
-  },
   name: {
     color: Brand.dark,
     fontFamily: Fonts.bold,
-    fontSize: 16,
+    fontSize: 15,
   },
   role: {
     color: Brand.primary,
     fontFamily: Fonts.semibold,
-    fontSize: 13,
+    fontSize: 12,
   },
   dept: {
     color: Brand.muted,

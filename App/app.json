@@ -2,6 +2,7 @@
   "expo": {
     "name": "Daryeel Health",
     "slug": "daryeel-health",
+    "owner": "engkhadareid",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

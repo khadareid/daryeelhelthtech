@@ -18,8 +18,7 @@ import { elevate } from '@/lib/elevate';
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 /**
- * IMPORTANT: TabTrigger must be a direct child of TabList (or Fragment).
- * Wrapping triggers in View breaks screen registration in expo-router/ui.
+ * Home · Hospitals · + · Visits · Profile
  */
 export default function AppTabs() {
   const insets = useSafeAreaInsets();
@@ -40,7 +39,7 @@ export default function AppTabs() {
             <TabButton label="Home" icon="home-outline" iconActive="home" />
           </TabTrigger>
 
-          <TabTrigger name="doctors" href="/healthcare" asChild>
+          <TabTrigger name="hospitals" href="/(tabs)/hospitals" asChild>
             <TabButton
               label="Hospitals"
               icon="business-outline"
@@ -68,7 +67,7 @@ export default function AppTabs() {
 
           <TabTrigger name="appointments" href="/(tabs)/appointments" asChild>
             <TabButton
-              label="My Visits"
+              label="Visits"
               icon="calendar-outline"
               iconActive="calendar"
             />
@@ -82,7 +81,12 @@ export default function AppTabs() {
             />
           </TabTrigger>
 
-          {/* Registered routes, visually hidden — open from Home bell / Actions */}
+          {/* Hidden — open from Home / + Actions */}
+          <TabTrigger
+            name="doctors"
+            href="/(tabs)/doctors"
+            style={styles.hiddenTrigger}
+          />
           <TabTrigger
             name="notifications"
             href="/(tabs)/notifications"
